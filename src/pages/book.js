@@ -1,7 +1,7 @@
 import { renderSodaTip } from '../components/soda-tip.js';
 import { getBookData } from './admin.js';
 
-const BOOK = {
+const BOOK_DEFAULT = {
   title:       'Under the Mango Tree',
   subtitle:    'A novel by Vic Munala',
   description: 'A novel about losing yourself and trying to find your way back home.',
@@ -13,16 +13,20 @@ const BOOK = {
 // Leave EXCERPT_TEXT blank ('') to hide the section entirely
 const EXCERPT_TEXT = ``;
 
-export function renderBook(app) {
-  // Merge admin overrides with defaults
+function getCurrentBook() {
   const saved = getBookData();
-  const book = {
-    title:       'Under the Mango Tree',
-    subtitle:    'A novel by Vic Munala',
-    description: saved?.description ?? BOOK.description,
-    price:       saved?.price       ?? BOOK.price,
-    currency:    'KES',
+  return {
+    title:       BOOK_DEFAULT.title,
+    subtitle:    BOOK_DEFAULT.subtitle,
+    description: saved?.description ?? BOOK_DEFAULT.description,
+    price:       saved?.price       ?? BOOK_DEFAULT.price,
+    currency:    BOOK_DEFAULT.currency,
   };
+}
+
+export function renderBook(app) {
+  const book = getCurrentBook();
+  const saved = getBookData();
   const excerpt = saved?.excerpt ?? EXCERPT_TEXT;
   const hasExcerpt = excerpt.trim().length > 0;
 
@@ -66,7 +70,7 @@ export function renderBook(app) {
           <div class="book-info">
             <p class="eyebrow book-info__eyebrow">Novel · 2024</p>
             <h1 class="book-info__title" style="font-family:var(--font-hand);font-size:clamp(2rem,5vw,3rem);font-weight:600;">
-              ${BOOK.title}
+              ${book.title}
             </h1>
             <p class="book-info__description">${book.description}</p>
 
@@ -80,7 +84,7 @@ export function renderBook(app) {
                   Read — Chapter One
                 </p>
                 <div id="excerpt-body" style="font-size:0.95rem;line-height:1.85;color:var(--text);max-height:180px;overflow:hidden;position:relative;">
-                  ${EXCERPT_TEXT.split('\n\n').map(p => `<p style="margin-bottom:var(--space-4);">${p}</p>`).join('')}
+                  ${excerpt.split('\n\n').map(p => `<p style="margin-bottom:var(--space-4);">${p}</p>`).join('')}
                   <div style="position:absolute;bottom:0;left:0;right:0;
                               height:80px;background:linear-gradient(transparent,var(--bg-subtle));"></div>
                 </div>
@@ -183,6 +187,7 @@ export function renderBook(app) {
 }
 
 async function handleStkPush() {
+  const currentBook  = getCurrentBook();
   const nameInput    = document.getElementById('buyer-name');
   const phoneInput   = document.getElementById('buyer-phone');
   const addressInput = document.getElementById('delivery-address');
@@ -215,7 +220,7 @@ async function handleStkPush() {
     const res = await fetch('/api/stk-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleaned, name, address, amount: book.price, signed }),
+      body: JSON.stringify({ phone: cleaned, name, address, amount: currentBook.price, signed }),
     });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
@@ -223,11 +228,12 @@ async function handleStkPush() {
   } catch (err) {
     setStatus(status, 'error', `${err.message}. Try again or WhatsApp Vic directly.`);
     btn.disabled = false;
-    btn.textContent = `Pay KES ${book.price.toLocaleString()} via M-Pesa`;
+    btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
   }
 }
 
 async function pollStkStatus(checkoutRequestID, statusEl, btn) {
+  const currentBook = getCurrentBook();
   let attempts = 0;
   const max = 10;
   const interval = setInterval(async () => {
@@ -247,14 +253,14 @@ async function pollStkStatus(checkoutRequestID, statusEl, btn) {
         clearInterval(interval);
         setStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Unknown error'}. Please try again.`);
         btn.disabled = false;
-        btn.textContent = `Pay KES ${book.price.toLocaleString()} via M-Pesa`;
+        btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
       }
     } catch (_) {}
     if (attempts >= max) {
       clearInterval(interval);
       setStatus(statusEl, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages — or contact Vic directly.');
       btn.disabled = false;
-      btn.textContent = `Pay KES ${book.price.toLocaleString()} via M-Pesa`;
+      btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
     }
   }, 3000);
 }
