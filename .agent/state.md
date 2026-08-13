@@ -24,9 +24,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Domain** | TBD — vicMunala.com or thevillagersnotes.com |
+| **Domain** | TBD — vicmunala.com or thevillagersnotes.com |
 | **Hosting** | Vercel |
-| **Live URL** | TBD |
+| **Live URL** | https://the-villagers-notes.vercel.app |
+| **GitHub Repo** | https://github.com/IanOchiengAI/the-villagers-notes |
 | **Local Dev** | http://localhost:5174 (npm run dev) |
 | **Vite dev server** | Running as background task — restart if needed |
 
@@ -65,16 +66,16 @@
 ## Open Items
 
 - [ ] **BLOCKER** — Get Safaricom Daraja **production** credentials (Consumer Key, Secret, Passkey, Shortcode)
-- [ ] **BLOCKER** — Deploy to Vercel (push repo, connect account)
-- [ ] **BLOCKER** — Choose and connect domain (vicmumala.com or thevillagersnotes.com)
-- [ ] Decide on single email address (vicmumala.com or villagersnotes.com)
-- [ ] Replace WhatsApp placeholder (254XXXXXXXXX) with Vic's real number in book.js and projects.js
+- [ ] **BLOCKER** — Choose and connect domain (vicmunala.com or thevillagersnotes.com)
+- [ ] Decide on single email address (vicmunala.com or villagersnotes.com)
 - [ ] Update social links (Twitter/X, Instagram) in home.js footer
 - [ ] Create Buttondown account + add BUTTONDOWN_API_KEY to Vercel env vars
 - [ ] Provide Chapter 1 excerpt for book page (add text via Admin → Book tab)
 - [ ] Submit sitemap to Google Search Console after launch
 - [ ] Collect KSh 10,000 deposit from Vic (M-Pesa to +254 713 812 392)
 - [ ] Post-launch checklist (see KNOWLEDGE.md)
+- [x] ~~Deploy to Vercel and GitHub~~ — https://the-villagers-notes.vercel.app & https://github.com/IanOchiengAI/the-villagers-notes
+- [x] ~~Replace WhatsApp placeholder with Vic's real number~~ — 254710276333 updated across book.js, projects.js, and whatsapp-fab.js
 - [x] ~~Get book title, price, cover image~~ — Under the Mango Tree, KES 1,500, cover in /images/
 - [x] ~~Get theatre images~~ — play-scene-1.png and play-scene-2.png confirmed in /images/
 - [x] ~~Replace dummy content with real content~~ — all pages have real Vic Munala content
@@ -92,6 +93,7 @@
 | 2026-08-13 | Session 2: Design overhaul — matched Lovable aesthetic (Caveat font, centered hero, minimal nav), rebuilt Home/Entries/Projects/Book with real Vic Munala content and images. |
 | 2026-08-13 | Session 3: Content & UX — added full entry body text, clickable entry detail pages, prev/next navigation, reading time, progress bar, share button, newsletter component, dynamic OG/title tags, JSON-LD schema, "why buy direct" panel, signed copy checkbox, WhatsApp fallback on book page. Newsletter wired to api/subscribe.js → Buttondown (awaiting API key). |
 | 2026-08-13 | Session 4: Admin CMS, proposal & pricing — built password-protected admin page (#/admin, pw: village2026) with entry CRUD and book settings editor. Built Kasuku proposal PDF (KSh 20,000, 50/50 payment, Ian Ochieng sign-off). Fixed name typo Mumala → Munala across all 6 files. |
+| 2026-08-13 | Session 5: Developer audit, mobile responsiveness, GitHub + Vercel deployment — fixed ghost admin so public pages read localStorage, created missing stk-status endpoint, fixed mobile menu close bug, fixed projects page mobile stacking, connected GitHub repo and Vercel CI/CD production domain, updated Vic's real WhatsApp number (0710276333). |
 
 ---
 
