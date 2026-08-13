@@ -192,27 +192,26 @@ function renderDashboard(app) {
       <div style="min-height:100vh;background:var(--bg-subtle);">
         <!-- Admin top bar -->
         <div style="background:var(--white);border-bottom:1px solid var(--border);
-                    padding:0 24px;display:flex;align-items:center;
-                    justify-content:space-between;height:56px;position:sticky;top:64px;z-index:50;">
-          <div style="display:flex;gap:8px;overflow-x:auto;">
+                    padding:0 14px;display:flex;align-items:center;
+                    justify-content:space-between;height:56px;position:sticky;top:64px;z-index:50;gap:8px;">
+          <div style="display:flex;gap:4px;overflow-x:auto;flex-shrink:1;min-width:0;">
             ${[
-              { id: 'people', label: `People (${orders.length + subs.length})` },
-              { id: 'entries', label: `Entries (${entries.length})` },
-              { id: 'book', label: 'Book Settings' },
-              { id: 'logout', label: 'Log out' },
+              { id: 'people', short: 'People',  full: `People (${orders.length + subs.length})` },
+              { id: 'entries', short: 'Entries', full: `Entries (${entries.length})` },
+              { id: 'book',    short: 'Book',    full: 'Book' },
+              { id: 'logout',  short: 'Log out', full: 'Log out' },
             ].map(tab => `
               <button data-tab="${tab.id}"
-                style="padding:6px 16px;border-radius:999px;border:none;cursor:pointer;
-                       font-size:0.75rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
-                       white-space:nowrap;
+                style="padding:6px 10px;border-radius:999px;border:none;cursor:pointer;
+                       font-size:0.72rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;
+                       white-space:nowrap;flex-shrink:0;
                        background:${section===tab.id ? 'var(--text)' : 'transparent'};
                        color:${section===tab.id ? 'var(--white)' : 'var(--text-muted)'};">
-                ${tab.label}
+                ${section===tab.id ? tab.full : tab.short}
               </button>`).join('')}
           </div>
-          <span style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">
-            Vic Munala
-          </span>
+          <span class="admin-owner-name" style="font-size:0.72rem;color:var(--text-muted);font-weight:500;white-space:nowrap;flex-shrink:0;">Vic Munala</span>
+          <style>.admin-owner-name{display:none}@media(min-width:540px){.admin-owner-name{display:inline}}</style>
         </div>
 
         <div style="max-width:880px;margin:0 auto;padding:40px 24px 80px;">
