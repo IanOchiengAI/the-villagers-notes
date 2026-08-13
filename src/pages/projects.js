@@ -61,7 +61,7 @@ export function renderProjects(app) {
                 <span style="color:var(--accent)">·</span>
                 <span>${featured.meta.note}</span>
               </div>
-              <a href="https://wa.me/254713812392?text=Hi%20Vic%2C%20I'm%20interested%20in%20the%20script%20for%20Beneath%20the%20Surface."
+              <a href="https://wa.me/254710276333?text=Hi%20Vic%2C%20I'm%20interested%20in%20the%20script%20for%20Beneath%20the%20Surface."
                  target="_blank" class="btn btn--outline" style="margin-top:1.5rem">
                 Enquire about script & rights →
               </a>

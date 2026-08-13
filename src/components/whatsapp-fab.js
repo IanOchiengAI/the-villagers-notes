@@ -1,5 +1,5 @@
-const WHATSAPP_NUMBER = '254700000000'; // ← REPLACE with Vik's real number
-const MESSAGE = encodeURIComponent("Hi Vik! I'd like to get in touch.");
+const WHATSAPP_NUMBER = '254710276333';
+const MESSAGE = encodeURIComponent("Hi Vic! I'd like to get in touch.");
 
 export function initWhatsAppFab() {
   const root = document.getElementById('fab-root');

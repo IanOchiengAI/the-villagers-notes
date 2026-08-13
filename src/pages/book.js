@@ -143,7 +143,7 @@ export function renderBook(app) {
                 <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:var(--space-3);">
                   Prefer WhatsApp, or need bulk copies?
                 </p>
-                <a href="https://wa.me/254XXXXXXXXX?text=Hi%20Vic%2C%20I'd%20like%20to%20order%20a%20copy%20of%20Under%20the%20Mango%20Tree."
+                <a href="https://wa.me/254710276333?text=Hi%20Vic%2C%20I'd%20like%20to%20order%20a%20copy%20of%20Under%20the%20Mango%20Tree."
                    target="_blank" rel="noopener"
                    class="btn btn--outline" style="display:inline-flex;gap:var(--space-2);">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;">
