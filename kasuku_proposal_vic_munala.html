@@ -211,6 +211,23 @@
     .section, .backend-card, .total-box, .signoff { page-break-inside: avoid; }
     @keyframes pulse { 0%, 100%, 50% { box-shadow: none; } }
   }
+
+  @media (max-width: 520px) {
+    .page { padding: 0 20px; }
+    .cover { padding: 40px 0; }
+    .cover__title { font-size: 32px; }
+    .cover__sub { font-size: 14px; }
+    .cover__meta { gap: 20px; flex-wrap: wrap; }
+    .section__title { font-size: 22px; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .payment-row { flex-direction: column; }
+    .payment-card__amount { font-size: 32px; }
+    .total-box { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .total-box__amount { font-size: 28px; }
+    .signoff { flex-direction: column; align-items: flex-start; padding: 32px 28px; gap: 24px; }
+    .signoff__name, .signoff__role, .signoff__studio { text-align: left; }
+    .signoff__tagline { font-size: 17px; }
+  }
 </style>
 </head>
 <body>
