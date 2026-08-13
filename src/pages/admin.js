@@ -138,26 +138,26 @@ function checkAuth() {
 function renderLogin(app) {
   document.title = "Admin — The Villager's Notes";
   app.innerHTML = `
-    <div style="min-height:80vh;display:flex;align-items:center;justify-content:center;padding:var(--space-6);">
-      <div style="width:100%;max-width:360px;">
-        <p style="font-family:var(--font-hand);font-size:2rem;color:var(--accent);margin-bottom:var(--space-2);">
+    <div style="min-height:80vh;display:flex;align-items:center;justify-content:center;padding:24px;">
+      <div style="width:100%;max-width:380px;background:var(--white);border:1px solid var(--border);border-radius:16px;padding:32px;box-shadow:0 4px 20px rgba(0,0,0,0.04);">
+        <p style="font-family:var(--font-hand);font-size:2.2rem;color:var(--accent);margin-bottom:4px;line-height:1.1;">
           The Villager's Notes
         </p>
-        <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:var(--space-8);">
-          Admin Access
+        <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:28px;">
+          Private Author Admin
         </p>
         <form id="login-form">
-          <input type="password" id="pass-input" placeholder="Enter password"
-            style="width:100%;padding:var(--space-3) var(--space-4);border:1.5px solid var(--border);
-                   border-radius:var(--radius);font-size:1rem;font-family:var(--font-sans);
-                   background:var(--white);color:var(--text);outline:none;margin-bottom:var(--space-4);
+          <input type="password" id="pass-input" placeholder="Enter password (village2026)"
+            style="width:100%;padding:12px 16px;border:1.5px solid var(--border);
+                   border-radius:8px;font-size:1rem;font-family:var(--font-sans);
+                   background:var(--white);color:var(--text);outline:none;margin-bottom:16px;
                    box-sizing:border-box;" />
           <button type="submit"
-            style="width:100%;padding:var(--space-3);background:var(--text);color:var(--white);
-                   border:none;border-radius:var(--radius);font-size:0.9rem;font-weight:600;cursor:pointer;">
-            Enter
+            style="width:100%;padding:12px;background:var(--text);color:var(--white);
+                   border:none;border-radius:8px;font-size:0.9rem;font-weight:600;cursor:pointer;">
+            Enter Dashboard
           </button>
-          <p id="login-err" style="color:hsl(0 60% 55%);font-size:0.82rem;margin-top:var(--space-3);display:none;">
+          <p id="login-err" style="color:hsl(0 60% 55%);font-size:0.82rem;margin-top:12px;display:none;">
             Wrong password.
           </p>
         </form>
@@ -192,17 +192,17 @@ function renderDashboard(app) {
       <div style="min-height:100vh;background:var(--bg-subtle);">
         <!-- Admin top bar -->
         <div style="background:var(--white);border-bottom:1px solid var(--border);
-                    padding:0 var(--space-6);display:flex;align-items:center;
+                    padding:0 24px;display:flex;align-items:center;
                     justify-content:space-between;height:56px;position:sticky;top:64px;z-index:50;">
-          <div style="display:flex;gap:var(--space-1);overflow-x:auto;">
+          <div style="display:flex;gap:8px;overflow-x:auto;">
             ${[
               { id: 'people', label: `People (${orders.length + subs.length})` },
-              { id: 'entries', label: 'Entries' },
-              { id: 'book', label: 'Book' },
+              { id: 'entries', label: `Entries (${entries.length})` },
+              { id: 'book', label: 'Book Settings' },
               { id: 'logout', label: 'Log out' },
             ].map(tab => `
               <button data-tab="${tab.id}"
-                style="padding:var(--space-2) var(--space-4);border-radius:999px;border:none;cursor:pointer;
+                style="padding:6px 16px;border-radius:999px;border:none;cursor:pointer;
                        font-size:0.75rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
                        white-space:nowrap;
                        background:${section===tab.id ? 'var(--text)' : 'transparent'};
@@ -210,12 +210,12 @@ function renderDashboard(app) {
                 ${tab.label}
               </button>`).join('')}
           </div>
-          <span style="font-size:0.75rem;color:var(--text-muted);display:none;sm:inline;">
-            The Villager's Notes
+          <span style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">
+            Vic Munala
           </span>
         </div>
 
-        <div style="max-width:860px;margin:0 auto;padding:var(--space-8) var(--space-6);">
+        <div style="max-width:880px;margin:0 auto;padding:40px 24px 80px;">
           ${section === 'people'  ? renderPeopleSection(orders, subs, tips) : ''}
           ${section === 'entries' ? renderEntriesSection(entries) : ''}
           ${section === 'book'    ? renderBookSection(data.book) : ''}
@@ -250,61 +250,61 @@ function renderPeopleSection(orders, subs, tips) {
 
   return `
     <div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--space-6);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;">
         <div>
           <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Audience &amp; Direct Sales</p>
-          <h2 style="font-family:var(--font-hand);font-size:2.2rem;font-weight:600;line-height:1;">Readers &amp; Customers</h2>
+          <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Readers &amp; Customers</h2>
         </div>
       </div>
 
       <!-- Stat Cards -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:var(--space-4);margin-bottom:var(--space-8);">
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-5);">
-          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Book Orders</div>
-          <div style="font-family:var(--font-hand);font-size:2rem;font-weight:700;color:var(--accent);">${orders.length}</div>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">Gross: <strong>KES ${totalRevenue.toLocaleString()}</strong></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;margin-bottom:32px;">
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
+          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Book Orders</div>
+          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:var(--accent);line-height:1;margin-bottom:8px;">${orders.length}</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);">Gross: <strong style="color:var(--text)">KES ${totalRevenue.toLocaleString()}</strong></div>
         </div>
 
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-5);">
-          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Newsletter Subscribers</div>
-          <div style="font-family:var(--font-hand);font-size:2rem;font-weight:700;color:var(--text);">${subs.length}</div>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">Direct email audience</div>
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
+          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Newsletter Subscribers</div>
+          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:var(--text);line-height:1;margin-bottom:8px;">${subs.length}</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);">Direct email audience</div>
         </div>
 
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-5);">
-          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Soda Supporters</div>
-          <div style="font-family:var(--font-hand);font-size:2rem;font-weight:700;color:hsl(143 60% 40%);">${tips.length}</div>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">Tips: <strong>KES ${totalTips.toLocaleString()}</strong></div>
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
+          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Soda Supporters</div>
+          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:hsl(143 60% 40%);line-height:1;margin-bottom:8px;">${tips.length}</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);">Tips: <strong style="color:var(--text)">KES ${totalTips.toLocaleString()}</strong></div>
         </div>
       </div>
 
       <!-- 1. Book Orders Table -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-6);margin-bottom:var(--space-8);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-2);">
-          <h3 style="font-family:var(--font-hand);font-size:1.4rem;font-weight:600;">Book Orders (${orders.length})</h3>
-          <button id="copy-orders-phone" style="padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.72rem;color:var(--text-muted);cursor:pointer;">
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;">Book Orders (${orders.length})</h3>
+          <button id="copy-orders-phone" style="padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;font-weight:500;color:var(--text-muted);cursor:pointer;">
             Copy Customer Phones
           </button>
         </div>
 
-        ${orders.length === 0 ? `<p style="color:var(--text-muted);font-size:0.85rem;">No orders yet.</p>` : `
-          <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+        ${orders.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;">No orders yet.</p>` : `
+          <div style="display:flex;flex-direction:column;gap:14px;">
             ${orders.map((o) => `
-              <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-4);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:var(--space-3);">
-                <div style="flex:1;min-width:240px;">
-                  <div style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:4px;">
-                    <strong>${o.name}</strong>
-                    <span style="font-size:0.7rem;color:var(--text-muted);background:var(--bg-subtle);padding:1px 6px;border-radius:4px;">${o.id}</span>
-                    ${o.signed ? `<span style="font-size:0.68rem;background:hsl(44 95% 90%);color:hsl(44 95% 30%);padding:1px 6px;border-radius:4px;font-weight:600;">Signed Copy</span>` : ''}
+              <div style="border:1px solid var(--border);border-radius:10px;padding:18px 20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;background:var(--bg-subtle);">
+                <div style="flex:1;min-width:260px;">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                    <strong style="font-size:1.05rem;">${o.name}</strong>
+                    <span style="font-size:0.7rem;color:var(--text-muted);background:var(--white);border:1px solid var(--border);padding:2px 8px;border-radius:4px;">${o.id}</span>
+                    ${o.signed ? `<span style="font-size:0.7rem;background:hsl(44 95% 90%);color:hsl(44 95% 30%);padding:2px 8px;border-radius:4px;font-weight:600;">Signed Copy</span>` : ''}
                   </div>
-                  <div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">
+                  <div style="font-size:0.88rem;color:var(--text-muted);line-height:1.6;">
                     📍 ${o.address}<br/>
-                    📞 <a href="https://wa.me/${o.phone.replace(/[^0-9]/g, '')}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:500;">${o.phone}</a> &middot; ${o.date} &middot; KES ${Number(o.amount).toLocaleString()}
+                    📞 <a href="https://wa.me/${o.phone.replace(/[^0-9]/g, '')}" target="_blank" style="color:var(--accent-dark);text-decoration:none;font-weight:600;">${o.phone}</a> &middot; ${o.date} &middot; KES ${Number(o.amount).toLocaleString()}
                   </div>
                 </div>
 
-                <div style="display:flex;align-items:center;gap:var(--space-2);">
-                  <select data-order-status="${o.id}" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-size:0.78rem;font-weight:600;
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <select data-order-status="${o.id}" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.8rem;font-weight:600;cursor:pointer;
                     background:${o.status==='Delivered' ? 'hsl(143 60% 92%)' : (o.status==='Dispatched' ? 'hsl(200 80% 92%)' : 'hsl(44 95% 92%)')};
                     color:${o.status==='Delivered' ? 'hsl(143 80% 25%)' : (o.status==='Dispatched' ? 'hsl(200 80% 25%)' : 'hsl(44 95% 25%)')};">
                     <option value="Paid" ${o.status==='Paid'?'selected':''}>Paid</option>
@@ -319,32 +319,32 @@ function renderPeopleSection(orders, subs, tips) {
       </div>
 
       <!-- 2. Newsletter Subscribers -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-6);margin-bottom:var(--space-8);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-2);">
-          <h3 style="font-family:var(--font-hand);font-size:1.4rem;font-weight:600;">Newsletter Audience (${subs.length})</h3>
-          <button id="copy-emails-btn" style="padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.72rem;color:var(--text-muted);cursor:pointer;">
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;">Newsletter Audience (${subs.length})</h3>
+          <button id="copy-emails-btn" style="padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;font-weight:500;color:var(--text-muted);cursor:pointer;">
             Copy All Emails (CSV)
           </button>
         </div>
 
-        <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-2) var(--space-4);">
+        <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
           ${subs.map(s => `
-            <div style="padding:var(--space-2) 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.85rem;">
-              <span>${s.email}</span>
-              <span style="color:var(--text-muted);font-size:0.75rem;">${s.date}</span>
+            <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.9rem;">
+              <span style="font-weight:500;">${s.email}</span>
+              <span style="color:var(--text-muted);font-size:0.78rem;">${s.date}</span>
             </div>
           `).join('')}
         </div>
       </div>
 
       <!-- 3. Soda Supporters Log -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-6);">
-        <h3 style="font-family:var(--font-hand);font-size:1.4rem;font-weight:600;margin-bottom:var(--space-4);">Soda Tips &amp; Support (${tips.length})</h3>
-        <div style="max-height:200px;overflow-y:auto;">
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;box-sizing:border-box;">
+        <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:18px;">Soda Tips &amp; Support (${tips.length})</h3>
+        <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
           ${tips.map(t => `
-            <div style="padding:var(--space-2) 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.85rem;">
-              <span>🥤 KES ${Number(t.amount).toLocaleString()} &middot; ${t.phone}</span>
-              <span style="color:var(--text-muted);font-size:0.75rem;">${t.date}</span>
+            <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.9rem;">
+              <span>🥤 <strong>KES ${Number(t.amount).toLocaleString()}</strong> &middot; <span style="color:var(--text-muted)">${t.phone}</span></span>
+              <span style="color:var(--text-muted);font-size:0.78rem;">${t.date}</span>
             </div>
           `).join('')}
         </div>
@@ -382,45 +382,49 @@ function wirePeopleEvents(app, render) {
 function renderEntriesSection(entries) {
   return `
     <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-6);">
-        <h2 style="font-family:var(--font-hand);font-size:2rem;font-weight:600;">Entries</h2>
-        <button id="new-entry-btn" style="padding:var(--space-2) var(--space-5);background:var(--accent);
-          color:var(--white);border:none;border-radius:999px;font-size:0.8rem;font-weight:600;cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;">
+        <div>
+          <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Published Works</p>
+          <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Entries (${entries.length})</h2>
+        </div>
+        <button id="new-entry-btn" style="padding:10px 22px;background:var(--accent);
+          color:var(--text);border:none;border-radius:999px;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
           + New Entry
         </button>
       </div>
 
       <!-- New entry form (hidden by default) -->
       <div id="new-entry-form" style="display:none;background:var(--white);border:1px solid var(--border);
-           border-radius:var(--radius-lg);padding:var(--space-6);margin-bottom:var(--space-6);">
+           border-radius:14px;padding:28px;margin-bottom:28px;box-sizing:border-box;">
         ${entryFormHTML({ id: '', meta:'', category:'Essay', date:'', title:'', excerpt:'', body:[] }, true)}
       </div>
 
       <!-- Entry list -->
-      <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+      <div style="display:flex;flex-direction:column;gap:16px;">
         ${entries.map((e, i) => `
           <div class="admin-entry-card" data-idx="${i}"
-               style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);
-                      padding:var(--space-5) var(--space-6);">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4);">
+               style="background:var(--white);border:1px solid var(--border);border-radius:12px;
+                      padding:24px 28px;box-sizing:border-box;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
               <div style="flex:1;">
-                <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;
-                            color:var(--text-muted);margin-bottom:var(--space-1);">${e.meta}</div>
-                <div style="font-family:var(--font-hand);font-size:1.3rem;color:var(--accent);">${e.title}</div>
+                <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;
+                            color:var(--text-muted);margin-bottom:6px;">${e.meta}</div>
+                <div style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;color:var(--accent-dark);line-height:1.25;margin-bottom:8px;">${e.title}</div>
+                <p style="font-size:0.88rem;color:var(--text-muted);line-height:1.5;margin:0;">${e.excerpt || ''}</p>
               </div>
-              <div style="display:flex;gap:var(--space-2);flex-shrink:0;">
+              <div style="display:flex;gap:8px;flex-shrink:0;">
                 <button data-edit="${i}"
-                  style="padding:var(--space-1) var(--space-3);border:1.5px solid var(--border);
-                         border-radius:999px;font-size:0.72rem;font-weight:600;cursor:pointer;background:none;
-                         color:var(--text-muted);">Edit</button>
+                  style="padding:6px 16px;border:1.5px solid var(--border);
+                         border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:var(--bg-subtle);
+                         color:var(--text);">Edit</button>
                 <button data-delete="${i}"
-                  style="padding:var(--space-1) var(--space-3);border:1.5px solid hsl(0 60% 90%);
-                         border-radius:999px;font-size:0.72rem;font-weight:600;cursor:pointer;background:none;
+                  style="padding:6px 14px;border:1.5px solid hsl(0 60% 88%);
+                         border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:none;
                          color:hsl(0 60% 55%);">Delete</button>
               </div>
             </div>
             <!-- Inline edit form -->
-            <div id="edit-form-${i}" style="display:none;margin-top:var(--space-5);padding-top:var(--space-5);
+            <div id="edit-form-${i}" style="display:none;margin-top:24px;padding-top:24px;
                  border-top:1px solid var(--border);">
               ${entryFormHTML(e, false, i)}
             </div>
@@ -434,45 +438,45 @@ function entryFormHTML(e, isNew, idx = '') {
   const bodyText = Array.isArray(e.body) ? e.body.join('\n\n') : '';
   const prefix = isNew ? 'new' : `edit-${idx}`;
   return `
-    <div style="display:flex;flex-direction:column;gap:var(--space-4);">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div>
-          <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:4px;">Category</label>
-          <select id="${prefix}-category" style="width:100%;padding:var(--space-2) var(--space-3);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.9rem;background:var(--white);color:var(--text);">
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Category</label>
+          <select id="${prefix}-category" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);">
             ${['Essay','Teaser','Review','Article'].map(c => `<option ${e.category===c?'selected':''}>${c}</option>`).join('')}
           </select>
         </div>
         <div>
-          <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:4px;">Date (e.g. 2 July 2026)</label>
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Date (e.g. 2 July 2026)</label>
           <input id="${prefix}-date" value="${e.date||''}" placeholder="2 July 2026"
-            style="width:100%;padding:var(--space-2) var(--space-3);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.9rem;box-sizing:border-box;" />
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
         </div>
       </div>
       <div>
-        <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:4px;">Title</label>
+        <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Title</label>
         <input id="${prefix}-title" value="${e.title||''}" placeholder="Entry title"
-          style="width:100%;padding:var(--space-2) var(--space-3);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.9rem;box-sizing:border-box;" />
+          style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;box-sizing:border-box;" />
       </div>
       <div>
-        <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:4px;">Excerpt (one line)</label>
+        <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Excerpt (teaser sentence)</label>
         <input id="${prefix}-excerpt" value="${e.excerpt||''}" placeholder="Short teaser sentence"
-          style="width:100%;padding:var(--space-2) var(--space-3);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.9rem;box-sizing:border-box;" />
+          style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
       </div>
       <div>
-        <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:4px;">Body (separate paragraphs with a blank line)</label>
+        <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Body (separate paragraphs with a blank line)</label>
         <textarea id="${prefix}-body" rows="8" placeholder="First paragraph...&#10;&#10;Second paragraph..."
-          style="width:100%;padding:var(--space-3);border:1.5px solid var(--border);border-radius:var(--radius);
+          style="width:100%;padding:14px;border:1.5px solid var(--border);border-radius:8px;
                  font-size:0.9rem;font-family:var(--font-sans);line-height:1.7;resize:vertical;box-sizing:border-box;">${bodyText}</textarea>
       </div>
-      <div style="display:flex;gap:var(--space-3);">
+      <div style="display:flex;gap:12px;">
         <button data-save="${isNew ? 'new' : idx}"
-          style="padding:var(--space-2) var(--space-6);background:var(--text);color:var(--white);
-                 border:none;border-radius:999px;font-size:0.82rem;font-weight:600;cursor:pointer;">
+          style="padding:10px 24px;background:var(--text);color:var(--white);
+                 border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">
           ${isNew ? 'Publish Entry' : 'Save Changes'}
         </button>
         <button data-cancel="${isNew ? 'new' : idx}"
-          style="padding:var(--space-2) var(--space-5);border:1.5px solid var(--border);background:none;
-                 border-radius:999px;font-size:0.82rem;color:var(--text-muted);cursor:pointer;">
+          style="padding:10px 20px;border:1.5px solid var(--border);background:none;
+                 border-radius:999px;font-size:0.85rem;color:var(--text-muted);cursor:pointer;">
           Cancel
         </button>
       </div>
@@ -544,30 +548,34 @@ function renderBookSection(book) {
   const b = book ?? { price: 1500, description: 'A novel about losing yourself and trying to find your way back home.', excerpt: '' };
   return `
     <div>
-      <h2 style="font-family:var(--font-hand);font-size:2rem;font-weight:600;margin-bottom:var(--space-6);">Book Settings</h2>
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-6);">
-        <div style="display:flex;flex-direction:column;gap:var(--space-5);">
+      <div style="margin-bottom:28px;">
+        <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Under the Mango Tree</p>
+        <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Book &amp; Order Settings</h2>
+      </div>
+
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;box-sizing:border-box;">
+        <div style="display:flex;flex-direction:column;gap:20px;">
           <div>
-            <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:4px;">Price (KES)</label>
+            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Price (KES)</label>
             <input id="book-price" type="number" value="${b.price}"
-              style="width:100%;padding:var(--space-2) var(--space-3);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.9rem;box-sizing:border-box;" />
+              style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;box-sizing:border-box;" />
           </div>
           <div>
-            <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:4px;">Description</label>
+            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Description</label>
             <textarea id="book-desc" rows="3"
-              style="width:100%;padding:var(--space-3);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.9rem;font-family:var(--font-sans);line-height:1.6;resize:vertical;box-sizing:border-box;">${b.description}</textarea>
+              style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;font-family:var(--font-sans);line-height:1.6;resize:vertical;box-sizing:border-box;">${b.description}</textarea>
           </div>
           <div>
-            <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:4px;">Chapter 1 Excerpt (paste here when ready — leave blank to hide)</label>
+            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Chapter 1 Excerpt (paste here when ready — leave blank to hide)</label>
             <textarea id="book-excerpt" rows="6" placeholder="Paste the opening of Chapter 1 here..."
-              style="width:100%;padding:var(--space-3);border:1.5px solid var(--border);border-radius:var(--radius);font-size:0.9rem;font-family:var(--font-sans);line-height:1.8;resize:vertical;box-sizing:border-box;">${b.excerpt||''}</textarea>
+              style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;font-family:var(--font-sans);line-height:1.8;resize:vertical;box-sizing:border-box;">${b.excerpt||''}</textarea>
           </div>
           <button id="save-book"
-            style="align-self:flex-start;padding:var(--space-2) var(--space-6);background:var(--text);color:var(--white);
-                   border:none;border-radius:999px;font-size:0.82rem;font-weight:600;cursor:pointer;">
+            style="align-self:flex-start;padding:10px 24px;background:var(--text);color:var(--white);
+                   border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">
             Save Book Settings
           </button>
-          <p id="book-saved" style="display:none;font-size:0.82rem;color:hsl(130 50% 40%);">Saved.</p>
+          <p id="book-saved" style="display:none;font-size:0.85rem;font-weight:500;color:hsl(130 50% 40%);">✓ Changes saved successfully.</p>
         </div>
       </div>
     </div>`;
