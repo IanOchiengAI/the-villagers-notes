@@ -36,10 +36,12 @@ export function renderBook(app) {
         <div class="book-page__inner">
 
           <!-- Book cover -->
-          <div style="position:sticky;top:88px;align-self:start;">
+          <style>.book-cover-sticky{position:static}@media(min-width:700px){.book-cover-sticky{position:sticky;top:88px;align-self:start}}</style>
+          <div class="book-cover-sticky">
             <img src="/images/book-cover.png" alt="Under the Mango Tree by Vic Munala"
               style="width:100%;max-width:340px;border-radius:var(--radius-lg);
                      box-shadow:12px 12px 40px hsl(30 10% 12% / 0.15);display:block;margin:0 auto;" />
+
 
             <!-- Why buy direct -->
             <div style="margin-top:var(--space-6);padding:var(--space-5);
