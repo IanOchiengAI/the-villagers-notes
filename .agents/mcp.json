@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "toolbox-postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@toolbox-sdk/server",
+        "--prebuilt=postgres"
+      ]
+    },
+    "mcp-image-optimizer": {
+      "command": "node",
+      "args": [
+        "F:/Work/Agents/Tools/mcp-image-optimizer/dist/index.js"
+      ]
+    },
+    "mcp-seo-auditor": {
+      "command": "node",
+      "args": [
+        "F:/Work/Agents/Tools/mcp-seo-auditor/dist/index.js"
+      ]
+    },
+    "mcp-gsc-automator": {
+      "command": "node",
+      "args": [
+        "F:/Work/Agents/Tools/mcp-gsc-automator/dist/index.js"
+      ]
+    }
+  }
+}
