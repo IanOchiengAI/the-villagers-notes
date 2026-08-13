@@ -112,7 +112,21 @@
     background: var(--white); border: 1px solid var(--border);
     border-radius: 12px; padding: 20px 22px;
   }
-  .feature-card__icon { font-size: 20px; margin-bottom: 10px; }
+  .feature-card__icon {
+    width: 32px; height: 32px;
+    background: var(--green-light);
+    border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+  }
+  .feature-card__icon svg {
+    width: 16px; height: 16px;
+    stroke: var(--green-dark);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .feature-card__title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
   .feature-card__desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
 
@@ -268,32 +282,44 @@
 
     <div class="feature-grid">
       <div class="feature-card">
-        <div class="feature-card__icon">🏠</div>
+        <div class="feature-card__icon">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        </div>
         <div class="feature-card__title">Home — The Villager's Notes</div>
         <div class="feature-card__desc">Centered quote hero, who-you-are line, latest entries, newsletter signup. Your voice, front and centre.</div>
       </div>
       <div class="feature-card">
-        <div class="feature-card__icon">📝</div>
+        <div class="feature-card__icon">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        </div>
         <div class="feature-card__title">Entries — All your writing</div>
         <div class="feature-card__desc">Filterable archive. Click any entry to read the full piece. Reading time, scroll progress, share button, prev/next navigation.</div>
       </div>
       <div class="feature-card">
-        <div class="feature-card__icon">🎭</div>
+        <div class="feature-card__icon">
+          <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+        </div>
         <div class="feature-card__title">Projects — Novel & Play</div>
         <div class="feature-card__desc">Editorial layout for <em>Under the Mango Tree</em> and <em>Beneath the Surface</em> — with your real production photos.</div>
       </div>
       <div class="feature-card">
-        <div class="feature-card__icon">📦</div>
+        <div class="feature-card__icon">
+          <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="12" y1="6" x2="12" y2="12"></line><line x1="9" y1="9" x2="15" y2="9"></line></svg>
+        </div>
         <div class="feature-card__title">Book — Order via M-Pesa</div>
         <div class="feature-card__desc">Real STK push. Customer fills the form, M-Pesa prompts their phone, they enter PIN, you get paid. Delivery address captured automatically.</div>
       </div>
       <div class="feature-card">
-        <div class="feature-card__icon">✉️</div>
+        <div class="feature-card__icon">
+          <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+        </div>
         <div class="feature-card__title">Newsletter — Your list, your readers</div>
         <div class="feature-card__desc">Signup on the home page and at the bottom of every essay. When you're ready, we connect it to Buttondown in 10 minutes.</div>
       </div>
       <div class="feature-card">
-        <div class="feature-card__icon">🔍</div>
+        <div class="feature-card__icon">
+          <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        </div>
         <div class="feature-card__title">SEO + Social Sharing</div>
         <div class="feature-card__desc">When someone shares a link on WhatsApp or X, it shows your title, excerpt, and book cover — not a blank card. Google sees your full author profile.</div>
       </div>
