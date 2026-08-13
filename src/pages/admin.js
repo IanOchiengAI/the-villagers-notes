@@ -447,9 +447,9 @@ function entryFormHTML(e, isNew, idx = '') {
           </select>
         </div>
         <div>
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Date (e.g. 2 July 2026)</label>
-          <input id="${prefix}-date" value="${e.date||''}" placeholder="2 July 2026"
-            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Date (Calendar)</label>
+          <input type="date" id="${prefix}-date" value="${toDateInputValue(e.date)}"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);box-sizing:border-box;cursor:pointer;" />
         </div>
       </div>
       <div>
@@ -534,13 +534,32 @@ function wireEntriesEvents(app, data, render) {
 
 function readEntryForm(app, prefix) {
   const cat  = app.querySelector(`#${prefix}-category`)?.value ?? 'Essay';
-  const date = app.querySelector(`#${prefix}-date`)?.value?.trim() ?? '';
+  const rawDate = app.querySelector(`#${prefix}-date`)?.value?.trim() ?? '';
+  let date = '';
+  if (rawDate) {
+    if (rawDate.includes('-')) {
+      const [y, m, d] = rawDate.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      date = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    } else {
+      date = rawDate;
+    }
+  }
   const title   = app.querySelector(`#${prefix}-title`)?.value?.trim() ?? '';
   const excerpt = app.querySelector(`#${prefix}-excerpt`)?.value?.trim() ?? '';
   const bodyRaw = app.querySelector(`#${prefix}-body`)?.value?.trim() ?? '';
   const body    = bodyRaw.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const meta    = `${cat} · ${date}`;
   return { meta, category: cat, date, title, excerpt, body };
+}
+
+function toDateInputValue(dateStr) {
+  if (!dateStr) return new Date().toISOString().split('T')[0];
+  const parsed = new Date(dateStr);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+  return new Date().toISOString().split('T')[0];
 }
 
 // ── Book section ─────────────────────────────────────────────────────────────
