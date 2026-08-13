@@ -1,5 +1,5 @@
 import { renderSodaTip } from '../components/soda-tip.js';
-import { getBookData } from './admin.js';
+import { getBookData, addOrder } from './admin.js';
 
 const BOOK_DEFAULT = {
   title:       'Under the Mango Tree',
@@ -215,6 +215,9 @@ async function handleStkPush() {
   btn.disabled = true;
   btn.textContent = 'Sending prompt…';
   setStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
+
+  // Track order in admin
+  addOrder({ name, phone: cleaned, address, amount: currentBook.price, signed });
 
   try {
     const res = await fetch('/api/stk-push', {

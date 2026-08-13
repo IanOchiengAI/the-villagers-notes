@@ -1,3 +1,5 @@
+import { addSubscriber } from '../pages/admin.js';
+
 export function renderNewsletter(container, { variant = 'entry' } = {}) {
   const copy = variant === 'home'
     ? 'Notes, essays, and play updates — straight to your inbox. No spam, ever.'
@@ -43,6 +45,7 @@ export function renderNewsletter(container, { variant = 'entry' } = {}) {
       const data = await res.json();
 
       if (data.ok) {
+        addSubscriber(email);
         form.style.display = 'none';
         confirm.textContent = data.already
           ? 'You\'re already on the list — look out for the next note.'

@@ -1,3 +1,5 @@
+import { addTip } from '../pages/admin.js';
+
 const AMOUNTS = [
   { label: '☕ KES 50',  value: 50 },
   { label: '🥤 KES 100', value: 100 },
@@ -57,6 +59,7 @@ export function renderSodaTip(container) {
         payBtn.disabled = true;
         payBtn.textContent = 'Sending…';
         setStatus(statusEl, 'pending', '📲 M-Pesa prompt sent — enter your PIN.');
+        addTip({ phone, amount: selected });
 
         try {
           const res = await fetch('/api/stk-push', {
