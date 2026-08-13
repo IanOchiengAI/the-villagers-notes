@@ -45,11 +45,11 @@ export function renderProjects(app) {
         <!-- FEATURED — Beneath the Surface -->
         ${featured ? `
           <div class="project-feature">
-            <div class="project-feature__media" style="aspect-ratio:unset;background:none;border:none;border-radius:0;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
-              <img src="${featured.images[0]}" alt="Beneath the Surface — scene 1" 
-                style="width:100%;height:320px;object-fit:cover;border-radius:var(--radius-lg);display:block;" />
-              <img src="${featured.images[1]}" alt="Beneath the Surface — scene 2" 
-                style="width:100%;height:320px;object-fit:cover;border-radius:var(--radius-lg);display:block;" />
+            <div class="project-feature__media" style="display:flex;flex-wrap:wrap;gap:var(--space-3);background:none;border:none;border-radius:0;">
+              <img src="${featured.images[0]}" alt="Beneath the Surface — scene 1"
+                style="flex:1 1 260px;min-width:0;height:280px;object-fit:cover;border-radius:var(--radius-lg);display:block;" />
+              <img src="${featured.images[1]}" alt="Beneath the Surface — scene 2"
+                style="flex:1 1 260px;min-width:0;height:280px;object-fit:cover;border-radius:var(--radius-lg);display:block;" />
             </div>
             <div>
               <p class="eyebrow project-feature__label">${featured.category} · ${featured.meta.year}</p>
@@ -61,7 +61,7 @@ export function renderProjects(app) {
                 <span style="color:var(--accent)">·</span>
                 <span>${featured.meta.note}</span>
               </div>
-              <a href="https://wa.me/254700000000?text=Hi%20Vic%2C%20I'm%20interested%20in%20the%20script%20for%20Beneath%20the%20Surface." 
+              <a href="https://wa.me/254713812392?text=Hi%20Vic%2C%20I'm%20interested%20in%20the%20script%20for%20Beneath%20the%20Surface."
                  target="_blank" class="btn btn--outline" style="margin-top:1.5rem">
                 Enquire about script & rights →
               </a>
@@ -72,11 +72,11 @@ export function renderProjects(app) {
         <!-- REST OF GRID -->
         <div class="projects-grid" style="grid-template-columns:1fr;">
           ${rest.map(p => `
-            <div class="project-card" style="display:grid;grid-template-columns:240px 1fr;gap:0;max-width:720px;">
-              <div class="project-card__media" style="aspect-ratio:3/4;height:auto;">
-                <img src="${p.image}" alt="${p.title}" style="width:100%;height:100%;object-fit:cover;" />
+            <div class="project-card" style="display:flex;flex-direction:column;max-width:720px;">
+              <div class="project-card__media" style="width:100%;max-height:320px;overflow:hidden;border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
+                <img src="${p.image}" alt="${p.title}" style="width:100%;height:260px;object-fit:cover;display:block;" />
               </div>
-              <div class="project-card__body" style="display:flex;flex-direction:column;justify-content:center;">
+              <div class="project-card__body" style="display:flex;flex-direction:column;padding:var(--space-6);">
                 <div class="project-card__category">${p.category} · ${p.meta.year}</div>
                 <div class="project-card__title" style="font-family:var(--font-hand);font-size:1.8rem;font-weight:600;color:var(--text);">${p.title}</div>
                 <p class="project-card__excerpt">${p.excerpt}</p>

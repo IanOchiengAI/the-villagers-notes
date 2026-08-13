@@ -1,10 +1,9 @@
-import { ENTRIES } from '../data/entries.js';
+import { getEntries } from './admin.js';
 import { renderNewsletter } from '../components/newsletter.js';
 
-// Show only the latest 4 on home
-const LATEST = ENTRIES.slice(0, 4);
-
 export function renderHome(app) {
+  const LATEST = getEntries().slice(0, 4);
+
   app.innerHTML = `
     <!-- HERO: centered quote -->
     <section class="hero">
@@ -46,7 +45,6 @@ export function renderHome(app) {
   // Footer
   app.insertAdjacentHTML('beforeend', footerHTML());
 
-  // Dynamic page title
   document.title = "The Villager's Notes — Vic Munala";
 }
 
@@ -59,7 +57,7 @@ function footerHTML() {
             <div class="footer__brand-name">The Villager's Notes</div>
             <p class="footer__bio">Writing by Vic Munala. Novels, plays, and essays from Nairobi, Kenya.</p>
             <p class="footer__nap" style="margin-top:1rem">
-              Nairobi, Kenya · hello@vicMunala.com
+              Nairobi, Kenya · hello@vicmunala.com
             </p>
           </div>
           <div>
@@ -76,11 +74,11 @@ function footerHTML() {
             <ul class="footer__links">
               <li><a href="https://twitter.com/" target="_blank">Twitter / X</a></li>
               <li><a href="https://instagram.com/" target="_blank">Instagram</a></li>
-              <li><a href="mailto:hello@vicMunala.com">Email</a></li>
+              <li><a href="mailto:hello@vicmunala.com">Email</a></li>
             </ul>
           </div>
         </div>
-        <div class="footer__bottom">
+        <div class="footer__bottom" style="flex-wrap:wrap;gap:var(--space-2)">
           <span>© ${new Date().getFullYear()} Vic Munala. All rights reserved.</span>
           <span>Built by <a href="https://kasuku.studio" target="_blank" style="color:inherit;text-decoration:underline">Kasuku Studio</a></span>
         </div>

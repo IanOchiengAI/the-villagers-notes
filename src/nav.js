@@ -5,6 +5,8 @@ const LINKS = [
 
 export function initNav() {
   const root = document.getElementById('nav-root');
+  if (!root) return; // Guard: #nav-root must exist
+
   root.innerHTML = `
     <nav class="nav" id="site-nav">
       <div class="container">
@@ -12,6 +14,7 @@ export function initNav() {
           <a href="#/" class="nav__logo">The Villager's Notes</a>
           <ul class="nav__links">
             ${LINKS.map(l => `<li><a href="${l.href}" data-page="${l.page}">${l.label}</a></li>`).join('')}
+            <li><a href="#/book" class="nav__book-cta">Get the Book</a></li>
           </ul>
           <button class="nav__hamburger" id="hamburger" aria-label="Menu">
             <span></span><span></span><span></span>
@@ -31,6 +34,13 @@ export function initNav() {
 
   document.getElementById('hamburger')?.addEventListener('click', () => {
     document.getElementById('mobile-menu')?.classList.toggle('open');
+  });
+
+  // Auto-close mobile menu when any link is clicked
+  document.querySelectorAll('#mobile-menu a').forEach(link => {
+    link.addEventListener('click', () => {
+      document.getElementById('mobile-menu')?.classList.remove('open');
+    });
   });
 
   window.addEventListener('hashchange', highlightActive);

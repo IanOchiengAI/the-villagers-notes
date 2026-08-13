@@ -1,4 +1,5 @@
 import { renderSodaTip } from '../components/soda-tip.js';
+import { getBookData } from './admin.js';
 
 const BOOK = {
   title:       'Under the Mango Tree',
@@ -13,7 +14,17 @@ const BOOK = {
 const EXCERPT_TEXT = ``;
 
 export function renderBook(app) {
-  const hasExcerpt = EXCERPT_TEXT.trim().length > 0;
+  // Merge admin overrides with defaults
+  const saved = getBookData();
+  const book = {
+    title:       'Under the Mango Tree',
+    subtitle:    'A novel by Vic Munala',
+    description: saved?.description ?? BOOK.description,
+    price:       saved?.price       ?? BOOK.price,
+    currency:    'KES',
+  };
+  const excerpt = saved?.excerpt ?? EXCERPT_TEXT;
+  const hasExcerpt = excerpt.trim().length > 0;
 
   app.innerHTML = `
     <section class="book-page">
@@ -57,7 +68,7 @@ export function renderBook(app) {
             <h1 class="book-info__title" style="font-family:var(--font-hand);font-size:clamp(2rem,5vw,3rem);font-weight:600;">
               ${BOOK.title}
             </h1>
-            <p class="book-info__description">${BOOK.description}</p>
+            <p class="book-info__description">${book.description}</p>
 
             ${hasExcerpt ? `
               <!-- Chapter 1 Excerpt -->
@@ -88,7 +99,7 @@ export function renderBook(app) {
               </h3>
               <div class="price-display">
                 <span class="price-display__label">Price (inclusive of Nairobi delivery)</span>
-                <span class="price-display__value">KES ${BOOK.price.toLocaleString()}</span>
+                <span class="price-display__value">KES ${book.price.toLocaleString()}</span>
               </div>
 
               <div class="form-group">
@@ -121,7 +132,7 @@ export function renderBook(app) {
 
               <button class="btn btn--primary" id="pay-btn"
                 style="width:100%;justify-content:center;padding:1rem;margin-top:var(--space-4);">
-                Pay KES ${BOOK.price.toLocaleString()} via M-Pesa
+                Pay KES ${book.price.toLocaleString()} via M-Pesa
               </button>
 
               <div class="stk-status" id="stk-status"></div>
@@ -204,7 +215,7 @@ async function handleStkPush() {
     const res = await fetch('/api/stk-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleaned, name, address, amount: BOOK.price, signed }),
+      body: JSON.stringify({ phone: cleaned, name, address, amount: book.price, signed }),
     });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
@@ -212,7 +223,7 @@ async function handleStkPush() {
   } catch (err) {
     setStatus(status, 'error', `${err.message}. Try again or WhatsApp Vic directly.`);
     btn.disabled = false;
-    btn.textContent = `Pay KES ${BOOK.price.toLocaleString()} via M-Pesa`;
+    btn.textContent = `Pay KES ${book.price.toLocaleString()} via M-Pesa`;
   }
 }
 
@@ -236,14 +247,14 @@ async function pollStkStatus(checkoutRequestID, statusEl, btn) {
         clearInterval(interval);
         setStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Unknown error'}. Please try again.`);
         btn.disabled = false;
-        btn.textContent = `Pay KES ${BOOK.price.toLocaleString()} via M-Pesa`;
+        btn.textContent = `Pay KES ${book.price.toLocaleString()} via M-Pesa`;
       }
     } catch (_) {}
     if (attempts >= max) {
       clearInterval(interval);
       setStatus(statusEl, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages — or contact Vic directly.');
       btn.disabled = false;
-      btn.textContent = `Pay KES ${BOOK.price.toLocaleString()} via M-Pesa`;
+      btn.textContent = `Pay KES ${book.price.toLocaleString()} via M-Pesa`;
     }
   }, 3000);
 }

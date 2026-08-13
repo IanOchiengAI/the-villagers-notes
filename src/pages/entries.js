@@ -1,4 +1,4 @@
-import { ENTRIES } from '../data/entries.js';
+import { getEntries } from './admin.js';
 
 const CATEGORIES = ['All', 'Essay', 'Teaser', 'Review', 'Article'];
 
@@ -6,6 +6,7 @@ export function renderEntries(app) {
   let active = 'All';
 
   function render() {
+    const ENTRIES = getEntries();
     const filtered = active === 'All' ? ENTRIES : ENTRIES.filter(e => e.category === active);
     app.innerHTML = `
       <section class="entries-hero">

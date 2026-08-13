@@ -1,7 +1,8 @@
-import { ENTRIES } from '../data/entries.js';
+import { getEntries } from './admin.js';
 import { renderNewsletter } from '../components/newsletter.js';
 
 export function renderEntry(app, id) {
+  const ENTRIES = getEntries();
   const idx   = ENTRIES.findIndex(e => e.id === id);
   const entry = ENTRIES[idx];
   const prev  = ENTRIES[idx - 1] ?? null;
@@ -17,8 +18,10 @@ export function renderEntry(app, id) {
   }
 
   // Reading time — average 200 wpm
-  const wordCount = entry.body.join(' ').split(/\s+/).length + entry.excerpt.split(/\s+/).length;
-  const readMins  = Math.max(1, Math.ceil(wordCount / 200));
+  const bodyText   = Array.isArray(entry.body) ? entry.body.join(' ') : '';
+  const excerptText = entry.excerpt || '';
+  const wordCount  = bodyText.split(/\s+/).length + excerptText.split(/\s+/).length;
+  const readMins   = Math.max(1, Math.ceil(wordCount / 200));
 
   // Reading progress bar element
   const progressBar = document.createElement('div');
