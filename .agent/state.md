@@ -94,6 +94,7 @@
 | 2026-08-13 | Session 3: Content & UX — added full entry body text, clickable entry detail pages, prev/next navigation, reading time, progress bar, share button, newsletter component, dynamic OG/title tags, JSON-LD schema, "why buy direct" panel, signed copy checkbox, WhatsApp fallback on book page. Newsletter wired to api/subscribe.js → Buttondown (awaiting API key). |
 | 2026-08-13 | Session 4: Admin CMS, proposal & pricing — built password-protected admin page (#/admin, pw: village2026) with entry CRUD and book settings editor. Built Kasuku proposal PDF (KSh 20,000, 50/50 payment, Ian Ochieng sign-off). Fixed name typo Mumala → Munala across all 6 files. |
 | 2026-08-13 | Session 5: Developer audit, mobile responsiveness, GitHub + Vercel deployment — fixed ghost admin so public pages read localStorage, created missing stk-status endpoint, fixed mobile menu close bug, fixed projects page mobile stacking, connected GitHub repo and Vercel CI/CD production domain, updated Vic's real WhatsApp number (0710276333). |
+| 2026-08-13 | Session 6: Admin customer tracking, calendar picker, proposal polish — built People & Orders tracking tab in admin with order dispatch statuses and email list export. Upgraded Admin date input to native calendar with auto British/Kenyan formatting. Fixed CSS spacing scale tokens (--space-5, --space-10). Replaced proposal emojis with bespoke studio SVG line icons, removed developer jargon, and highlighted done-for-you tracking support in proposal PDF. |
 
 ---
 
