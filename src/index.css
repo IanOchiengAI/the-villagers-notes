@@ -17,7 +17,7 @@
   /* Typography */
   --font-serif: 'Playfair Display', Georgia, serif;
   --font-sans:  'Inter', system-ui, sans-serif;
-  --font-hand:  'Caveat', cursive;
+  --font-hand:  'Shadows Into Light', cursive;
 
   /* Spacing scale */
   --space-1:  0.25rem;
@@ -210,6 +210,8 @@ p { max-width: 65ch; }
   border-bottom: 1px solid var(--border);
 }
 .nav__mobile.open { display: flex; }
+/* Book CTA hidden per design (pages are just Entries and Projects) */
+.nav__book-cta { display: none !important; }
 
 /* ============================================
    HOME — HERO (minimal centered quote style)
@@ -220,22 +222,24 @@ p { max-width: 65ch; }
 }
 .hero__quote {
   font-family: var(--font-hand);
-  font-size: clamp(2.6rem, 7vw, 5rem);
-  font-weight: 600;
-  line-height: 1.15;
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  font-weight: 400;
+  line-height: 1.45;
   color: var(--text);
-  max-width: 640px;
+  max-width: 340px;
   margin: 0 auto var(--space-6);
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
+  white-space: pre-line;
 }
 .hero__sub {
   font-family: var(--font-hand);
-  font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+  font-size: clamp(1rem, 2.5vw, 1.3rem);
   color: var(--text-muted);
-  max-width: 440px;
+  max-width: 340px;
   margin: 0 auto;
-  line-height: 1.5;
+  line-height: 1.6;
 }
+/* Removed: .hero__identity */
 /* Latest entries strip on home */
 .home-entries {
   padding: var(--space-16) 0 var(--space-24);
@@ -650,6 +654,27 @@ p { max-width: 65ch; }
   flex-wrap: wrap;
   padding: var(--space-8) 0 0;
 }
+/* Synopsis expand — read more toggle */
+.project-synopsis {
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+.project-synopsis--collapsed { max-height: 0; }
+.project-synopsis--expanded  { max-height: 2000px; }
+.synopsis-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 0;
+  margin-top: var(--space-4);
+  transition: color var(--t-fast);
+}
+.synopsis-toggle:hover { color: var(--accent-dark); }
 
 /* ============================================
    BOOK PAGE (STK PUSH)
@@ -849,54 +874,34 @@ p { max-width: 65ch; }
 .section-header p { margin-top: var(--space-4); color: var(--text-muted); }
 
 /* ============================================
-   FOOTER
+   FOOTER — minimal, light background
    ============================================ */
 .footer {
-  background: var(--text);
-  color: hsl(40 30% 85%);
-  padding: var(--space-16) 0 var(--space-8);
+  background: var(--bg-subtle);
+  border-top: 1px solid var(--border);
+  padding: var(--space-8) 0;
 }
-.footer__inner {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: var(--space-12);
-  margin-bottom: var(--space-12);
-}
-.footer__brand-name {
-  font-family: var(--font-serif);
-  font-size: 1.6rem;
-  font-style: italic;
-  color: var(--white);
-  margin-bottom: var(--space-3);
-}
-.footer__bio { font-size: 0.875rem; line-height: 1.7; max-width: 35ch; }
-.footer__heading {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--white);
-  margin-bottom: var(--space-4);
-}
-.footer__links { list-style: none; }
-.footer__links li + li { margin-top: var(--space-3); }
-.footer__links a {
-  font-size: 0.875rem;
-  color: hsl(40 30% 75%);
-  transition: color var(--t-fast);
-}
-.footer__links a:hover { color: var(--white); }
-.footer__bottom {
-  border-top: 1px solid hsl(40 10% 25%);
-  padding-top: var(--space-6);
+.footer__bottom--simple {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.8rem;
-  color: hsl(40 10% 50%);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }
-/* NAP — critical for local SEO */
-.footer__nap { font-size: 0.8rem; color: hsl(40 10% 55%); }
+.footer__socials {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+.footer__social-icon {
+  color: var(--text-muted);
+  transition: color var(--t-fast);
+  display: flex;
+  align-items: center;
+}
+.footer__social-icon:hover { color: var(--text); }
 
 /* ============================================
    RESPONSIVE

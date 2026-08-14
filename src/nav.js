@@ -14,7 +14,6 @@ export function initNav() {
           <a href="#/" class="nav__logo">The Villager's Notes</a>
           <ul class="nav__links">
             ${LINKS.map(l => `<li><a href="${l.href}" data-page="${l.page}">${l.label}</a></li>`).join('')}
-            <li><a href="#/book" class="nav__book-cta">Get the Book</a></li>
           </ul>
           <button class="nav__hamburger" id="hamburger" aria-label="Menu">
             <span></span><span></span><span></span>
@@ -22,7 +21,6 @@ export function initNav() {
         </div>
         <div class="nav__mobile" id="mobile-menu">
           ${LINKS.map(l => `<a href="${l.href}">${l.label}</a>`).join('')}
-          <a href="#/book" style="font-size:0.8rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);padding:var(--space-2) 0;">Get the Book</a>
         </div>
       </div>
     </nav>`;

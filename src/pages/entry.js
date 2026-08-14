@@ -1,5 +1,6 @@
 import { getEntries } from './admin.js';
 import { renderNewsletter } from '../components/newsletter.js';
+import { footerHTML } from '../components/footer.js';
 
 export function renderEntry(app, id) {
   const ENTRIES = getEntries();
@@ -83,16 +84,12 @@ export function renderEntry(app, id) {
           </div>
         </nav>
 
-        <!-- Footer -->
-        <div class="entry-detail__footer">
-          The Villager's Notes — © ${new Date().getFullYear()}
-          &nbsp;·&nbsp;
-          <a href="mailto:hello@villagersnotes.com">Email</a>
-        </div>
-
       </div>
     </div>
   `;
+
+  // Footer
+  app.insertAdjacentHTML('beforeend', footerHTML());
 
   // Newsletter component
   const nlWrap = document.getElementById('entry-newsletter');

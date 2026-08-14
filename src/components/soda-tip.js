@@ -15,7 +15,7 @@ export function renderSodaTip(container) {
       <section class="soda-section">
         <div class="container">
           <div class="soda-section__emoji">🥤</div>
-          <h2 class="soda-section__title">Buy Vic a soda.</h2>
+          <h2 class="soda-section__title">Buy me a soda.</h2>
           <p class="soda-section__subtitle">
             If a piece moved you, made you think, or you just want to say thanks — 
             this is the way.

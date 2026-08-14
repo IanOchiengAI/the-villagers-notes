@@ -1,5 +1,6 @@
 import { renderSodaTip } from '../components/soda-tip.js';
 import { getBookData, addOrder } from './admin.js';
+import { footerHTML } from '../components/footer.js';
 
 const BOOK_DEFAULT = {
   title:       'Under the Mango Tree',
@@ -41,31 +42,6 @@ export function renderBook(app) {
             <img src="/images/book-cover.png" alt="Under the Mango Tree by Vic Munala"
               style="width:100%;max-width:340px;border-radius:var(--radius-lg);
                      box-shadow:12px 12px 40px hsl(30 10% 12% / 0.15);display:block;margin:0 auto;" />
-
-
-            <!-- Why buy direct -->
-            <div style="margin-top:var(--space-6);padding:var(--space-5);
-                        background:var(--bg-subtle);border-radius:var(--radius);
-                        border:1px solid var(--border);max-width:340px;margin-left:auto;margin-right:auto;">
-              <p style="font-size:0.68rem;font-weight:600;letter-spacing:0.1em;
-                        text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--space-3);">
-                Why buy directly?
-              </p>
-              <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2);">
-                <li style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;display:flex;gap:var(--space-2);">
-                  <span style="color:var(--accent);flex-shrink:0;">→</span>
-                  Every shilling goes directly to the author
-                </li>
-                <li style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;display:flex;gap:var(--space-2);">
-                  <span style="color:var(--accent);flex-shrink:0;">→</span>
-                  All direct copies are <strong>signed by Vic Munala</strong>
-                </li>
-                <li style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;display:flex;gap:var(--space-2);">
-                  <span style="color:var(--accent);flex-shrink:0;">→</span>
-                  Nairobi delivery included in the price
-                </li>
-              </ul>
-            </div>
           </div>
 
           <!-- Book info + order form -->
@@ -170,6 +146,9 @@ export function renderBook(app) {
   const sodaWrap = document.createElement('div');
   app.appendChild(sodaWrap);
   renderSodaTip(sodaWrap);
+
+  // Footer on every page
+  app.insertAdjacentHTML('beforeend', footerHTML());
 
   // Excerpt expand toggle
   if (hasExcerpt) {

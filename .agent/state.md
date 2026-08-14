@@ -60,6 +60,17 @@
 | 2026-08-13 | Accent color = mango yellow hsl(44,95%,52%) | Client explicitly said "he likes this yellow" |
 | 2026-08-13 | Signed copies + "why buy direct" on book page | Standard author direct-sales best practice |
 | 2026-08-13 | Newsletter via api/subscribe.js → Buttondown | Owns the list; Buttondown simplest for writers |
+| 2026-08-14 | Font changed Caveat → Shadows Into The Light | Vic's explicit preference for his title font |
+| 2026-08-14 | Hero squeezed to max-width:340px, 4-line format | Client wants dead space on the sides, not full-width |
+| 2026-08-14 | Nav pages = Entries + Projects only | Client removed Get the Book from nav |
+| 2026-08-14 | Newsletter moved from home to Entries page bottom | Client wants home uncluttered; entries is where readers are |
+| 2026-08-14 | Footer stripped: light bg, copyright + social icons only | Client hates clutter; icons not names; no black bg |
+| 2026-08-14 | Footer shared component across ALL pages | Client wants consistent footer everywhere |
+| 2026-08-14 | Projects page: no filter pills, no Selected Work, synopsis via Read more toggle | Client prefers clean, minimal approach |
+| 2026-08-14 | Projects layout: image top, synopsis below (consistent for both play and book) | Consistency between all project entries |
+| 2026-08-14 | Soda tip: "Buy me a soda" (not "Buy Vic a soda") | Vic's voice; first-person feels more personal |
+| 2026-08-14 | Soda tip moved to bottom of Projects page | Client wanted it there, not just on book page |
+| 2026-08-14 | "Why buy directly" block removed from book page | Client said "toa" (remove) — too much copy |
 
 ---
 
@@ -74,6 +85,7 @@
 - [ ] Submit sitemap to Google Search Console after launch
 - [ ] Collect KSh 10,000 deposit from Vic (M-Pesa to +254 713 812 392)
 - [ ] Post-launch checklist (see KNOWLEDGE.md)
+- [ ] Vic to provide additional photos for projects page (he's looking)
 - [x] ~~Deploy to Vercel and GitHub~~ — https://the-villagers-notes.vercel.app & https://github.com/IanOchiengAI/the-villagers-notes
 - [x] ~~Replace WhatsApp placeholder with Vic's real number~~ — 254710276333 updated across book.js, projects.js, and whatsapp-fab.js
 - [x] ~~Get book title, price, cover image~~ — Under the Mango Tree, KES 1,500, cover in /images/
@@ -95,6 +107,7 @@
 | 2026-08-13 | Session 4: Admin CMS, proposal & pricing — built password-protected admin page (#/admin, pw: village2026) with entry CRUD and book settings editor. Built Kasuku proposal PDF (KSh 20,000, 50/50 payment, Ian Ochieng sign-off). Fixed name typo Mumala → Munala across all 6 files. |
 | 2026-08-13 | Session 5: Developer audit, mobile responsiveness, GitHub + Vercel deployment — fixed ghost admin so public pages read localStorage, created missing stk-status endpoint, fixed mobile menu close bug, fixed projects page mobile stacking, connected GitHub repo and Vercel CI/CD production domain, updated Vic's real WhatsApp number (0710276333). |
 | 2026-08-13 | Session 6: Admin customer tracking, calendar picker, proposal polish — built People & Orders tracking tab in admin with order dispatch statuses and email list export. Upgraded Admin date input to native calendar with auto British/Kenyan formatting. Fixed CSS spacing scale tokens (--space-5, --space-10). Replaced proposal emojis with bespoke studio SVG line icons, removed developer jargon, and highlighted done-for-you tracking support in proposal PDF. |
+| 2026-08-14 | Session 7: Design refinements from Vic's notes — Shadows Into The Light font; hero squeezed to 4-line format with dead space; nav stripped to Entries + Projects only; home cleaned (no identity para, no subscribe); newsletter moved to Entries with 'sign up for random good things' copy; footer rebuilt as minimal light strip with social icons on all pages; projects page cleaned (no filter pills, no Selected Work, Read more synopsis toggles, consistent image-top layout); soda tip renamed Buy me a soda and added to Projects; Why buy directly removed from book page. |
 
 ---
 
