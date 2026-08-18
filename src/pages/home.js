@@ -9,9 +9,10 @@ export function renderHome(app) {
     <section class="hero">
       <div class="container">
         <p class="hero__quote">You can
-Remove the village
-From a person
-But you…</p>
+remove the
+village from a
+person but
+you...</p>
         <p class="hero__sub">wait, how does that saying go?<br>Anyway, something is being removed.</p>
       </div>
     </section>
@@ -21,7 +22,7 @@ But you…</p>
       <div class="container">
         <div class="home-entries__header">
           <span class="home-entries__title">Latest entries</span>
-          <a href="#/entries" class="home-entries__all">All Entries →</a>
+          <a href="#/entries" class="home-entries__all">ALL ENTRIES →</a>
         </div>
         ${LATEST.map(e => `
           <a href="#/entry/${e.id}" class="entry-item" style="display:block;text-decoration:none;color:inherit;">
