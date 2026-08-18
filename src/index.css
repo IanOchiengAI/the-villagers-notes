@@ -426,7 +426,7 @@ p { max-width: 65ch; }
 }
 .project-content-col h2 {
   font-family: var(--font-hand);
-  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
   font-weight: 400;
   color: var(--text);
   margin-bottom: var(--space-4);
@@ -447,7 +447,7 @@ p { max-width: 65ch; }
   border: 1px solid var(--border);
 }
 .project-synopsis-text {
-  font-size: 0.92rem;
+  font-size: 1rem;
   color: var(--text);
   line-height: 1.75;
   margin: var(--space-5) 0 var(--space-4);
