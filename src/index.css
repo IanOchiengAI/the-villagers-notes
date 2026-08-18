@@ -465,7 +465,7 @@ p { max-width: 65ch; }
   transition: max-height 0.35s ease, opacity 0.25s ease;
 }
 .synopsis-full[aria-hidden="false"] {
-  max-height: 300px;
+  max-height: 600px;
   opacity: 1;
 }
 .synopsis-toggle {
