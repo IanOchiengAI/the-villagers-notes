@@ -450,8 +450,155 @@ p { max-width: 65ch; }
   font-size: 0.92rem;
   color: var(--text);
   line-height: 1.75;
-  margin: var(--space-5) 0 var(--space-6);
+  margin: var(--space-5) 0 var(--space-4);
 }
+.project-synopsis-text--muted {
+  color: var(--text-muted);
+  margin-top: var(--space-3);
+}
+
+/* Synopsis accordion */
+.synopsis-full {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+.synopsis-full[aria-hidden="false"] {
+  max-height: 300px;
+  opacity: 1;
+}
+.synopsis-toggle {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: var(--space-5);
+  cursor: pointer;
+  transition: color var(--t-fast);
+}
+.synopsis-toggle:hover { color: var(--text); }
+
+.project-cta-row { margin-top: var(--space-2); }
+
+/* ============================================
+   BOOK PAGE
+   ============================================ */
+.book-page {
+  padding: var(--space-12) 0 var(--space-16);
+}
+.book-page__inner {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: var(--space-10);
+  align-items: start;
+}
+.book-info__eyebrow { margin-bottom: var(--space-3); }
+.book-info__title   { margin-bottom: var(--space-4); }
+.book-info__description {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin-bottom: var(--space-6);
+}
+
+/* Order form card */
+.book-order-form {
+  border: 1px solid var(--border);
+  padding: var(--space-6);
+  margin-top: var(--space-6);
+  background: var(--surface);
+}
+
+/* Form primitives */
+.form-group  { margin-bottom: var(--space-5); }
+.form-label  {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+.form-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: border-color var(--t-fast);
+  outline: none;
+}
+.form-input:focus { border-color: var(--text); }
+.form-input::placeholder { color: var(--text-muted); }
+.form-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+  line-height: 1.4;
+}
+
+/* Price display */
+.price-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-6);
+}
+.price-display__label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.price-display__value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* STK status feedback */
+.stk-status {
+  display: none;
+  padding: var(--space-4);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-top: var(--space-4);
+  border-left: 3px solid transparent;
+}
+.stk-status.pending {
+  display: block;
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+  color: var(--text);
+}
+.stk-status.success {
+  display: block;
+  background: hsl(140, 40%, 95%);
+  border-left-color: hsl(140, 50%, 40%);
+  color: hsl(140, 40%, 25%);
+}
+.stk-status.error {
+  display: block;
+  background: hsl(0, 40%, 96%);
+  border-left-color: hsl(0, 60%, 55%);
+  color: hsl(0, 50%, 35%);
+}
+
+@media (max-width: 680px) {
+  .book-page__inner { grid-template-columns: 1fr; }
+}
+
 
 /* ============================================
    BUY ME SODA MADIABA

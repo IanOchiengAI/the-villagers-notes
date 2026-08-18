@@ -11,9 +11,10 @@ const PROJECTS = [
     metaDetails: ['PUBLISHED 2024', 'PAPERBACK', 'KES 1500', 'DELIVERED'],
     title: 'under the Mango Tree',
     synopsis: 'A novel about losing yourself and trying to find your way back home.',
+    synopsisFull: `Set between Nairobi's leafy suburbs and the Kenyan coast, the novel follows Kwame — a young architect who returns home after five years abroad to find that everything he built his identity around has quietly shifted in his absence.\n\nTold in alternating timelines across two seasons, it asks a deceptively simple question: when you leave a place that made you, does it keep a version of you behind?`,
     images: ['/images/book-cover.png'],
     cta: {
-      label: 'READ MORE →',
+      label: 'ORDER YOUR COPY →',
       href: '#/book',
       isExternal: false,
     },
@@ -66,7 +67,15 @@ export function renderProjects(app) {
               `).join('')}
             </div>
             <p class="project-synopsis-text">${p.synopsis}</p>
-            <div>
+            ${p.synopsisFull ? `
+              <div class="synopsis-full" id="synopsis-full-${p.id}" aria-hidden="true">
+                ${p.synopsisFull.split('\n\n').map(para => `<p class="project-synopsis-text project-synopsis-text--muted">${para}</p>`).join('')}
+              </div>
+              <button class="synopsis-toggle" data-target="synopsis-full-${p.id}" aria-expanded="false">
+                READ MORE ↓
+              </button>
+            ` : ''}
+            <div class="project-cta-row">
               <a href="${p.cta.href}" ${p.cta.isExternal ? 'target="_blank" rel="noopener"' : ''}
                  class="btn--sharp">
                 ${p.cta.label}
@@ -83,6 +92,17 @@ export function renderProjects(app) {
       <div id="contact-container"></div>
     </div>
   `;
+
+  // Wire synopsis toggles
+  app.querySelectorAll('.synopsis-toggle').forEach(btn => {
+    const panel = document.getElementById(btn.dataset.target);
+    btn.addEventListener('click', () => {
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!open));
+      panel.setAttribute('aria-hidden', String(open));
+      btn.textContent = open ? 'READ MORE ↓' : 'SHOW LESS ↑';
+    });
+  });
 
   // Render Soda tip
   const sodaEl = app.querySelector('#soda-container');
