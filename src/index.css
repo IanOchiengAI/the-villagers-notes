@@ -228,7 +228,7 @@ p { max-width: 65ch; }
    HOME — HERO
    ============================================ */
 .hero {
-  padding: var(--space-20) 0 var(--space-12);
+  padding: 120px 0 var(--space-12);
   text-align: center;
 }
 .hero__quote {
