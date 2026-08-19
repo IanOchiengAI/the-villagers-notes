@@ -486,7 +486,113 @@ p { max-width: 65ch; }
 }
 .synopsis-toggle:hover { color: var(--text); }
 
-.project-cta-row { margin-top: var(--space-2); }
+.project-cta-row {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* Terracotta / Rust Button (Lovable style) */
+.btn--sharp-terracotta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  border: 1px solid hsl(24, 75%, 45%);
+  border-radius: 0;
+  background: hsl(24, 75%, 45%);
+  color: var(--white);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: all var(--t-fast);
+  cursor: pointer;
+}
+.btn--sharp-terracotta:hover {
+  background: hsl(24, 85%, 38%);
+  border-color: hsl(24, 85%, 38%);
+  color: var(--white);
+}
+
+.btn--sharp-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  border: 1px solid hsl(24, 75%, 45%);
+  border-radius: 0;
+  background: transparent;
+  color: hsl(24, 75%, 45%);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: all var(--t-fast);
+  cursor: pointer;
+}
+.btn--sharp-close:hover {
+  background: hsl(24, 75%, 45%);
+  color: var(--white);
+}
+
+/* Play Payment Card */
+.play-pay-box {
+  border: 1px solid var(--border);
+  padding: var(--space-6);
+  margin-top: var(--space-5);
+  background: var(--surface);
+}
+.play-pay-desc {
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: var(--space-6);
+}
+.form-label-underlined {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+.form-input-underlined {
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  color: var(--text);
+  border-radius: 0;
+  outline: none;
+  transition: border-color var(--t-fast);
+  margin-bottom: var(--space-5);
+}
+.form-input-underlined:focus {
+  border-bottom-color: var(--text);
+}
+.form-input-underlined::placeholder {
+  color: var(--text-muted);
+}
+
+/* Trailer Placeholder Box (Dashed) */
+.trailer-placeholder-box {
+  border: 1px dashed var(--border);
+  padding: var(--space-5) var(--space-6);
+  margin-top: var(--space-5);
+  background: transparent;
+}
+.trailer-placeholder-box p {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
 
 /* ============================================
    BOOK PAGE
