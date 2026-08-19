@@ -34,37 +34,35 @@ export function renderBook(app) {
   app.innerHTML = `
     <section class="book-page">
       <div class="container">
+
+        <!-- Full-width page header -->
+        <div class="book-hero">
+          <p class="eyebrow">Novel · 2024</p>
+          <h1 class="book-hero__title">${book.title}</h1>
+          <p class="book-hero__desc">${book.description}</p>
+        </div>
+
         <div class="book-page__inner">
 
-          <!-- Book cover -->
+          <!-- Book cover (sticky on desktop) -->
           <style>.book-cover-sticky{position:static}@media(min-width:700px){.book-cover-sticky{position:sticky;top:88px;align-self:start}}</style>
           <div class="book-cover-sticky">
             <img src="/images/book-cover.png" alt="Under the Mango Tree by Vic Munala"
-              style="width:100%;max-width:340px;border-radius:var(--radius-lg);
-                     box-shadow:12px 12px 40px hsl(30 10% 12% / 0.15);display:block;margin:0 auto;" />
+              style="width:100%;max-width:340px;box-shadow:12px 12px 40px hsl(30 10% 12% / 0.12);display:block;margin:0 auto;" />
           </div>
 
-          <!-- Book info + order form -->
+          <!-- Order form (clean, no card) -->
           <div class="book-info">
-            <p class="eyebrow book-info__eyebrow">Novel · 2024</p>
-            <h1 class="book-info__title" style="font-family:var(--font-hand);font-size:clamp(2rem,5vw,3rem);font-weight:600;">
-              ${book.title}
-            </h1>
-            <p class="book-info__description">${book.description}</p>
 
             ${hasExcerpt ? `
-              <!-- Chapter 1 Excerpt -->
-              <div style="margin:var(--space-8) 0;padding:var(--space-6);
-                          border-left:3px solid var(--accent);background:var(--bg-subtle);
-                          border-radius:0 var(--radius) var(--radius) 0;">
+              <div style="margin-bottom:var(--space-8);padding-bottom:var(--space-8);border-bottom:1px solid var(--border);">
                 <p style="font-size:0.68rem;font-weight:600;letter-spacing:0.1em;
                            text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--space-4);">
                   Read — Chapter One
                 </p>
                 <div id="excerpt-body" style="font-size:0.95rem;line-height:1.85;color:var(--text);max-height:180px;overflow:hidden;position:relative;">
                   ${excerpt.split('\n\n').map(p => `<p style="margin-bottom:var(--space-4);">${p}</p>`).join('')}
-                  <div style="position:absolute;bottom:0;left:0;right:0;
-                              height:80px;background:linear-gradient(transparent,var(--bg-subtle));"></div>
+                  <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(transparent,var(--bg));"></div>
                 </div>
                 <button id="excerpt-toggle"
                   style="margin-top:var(--space-3);font-size:0.8rem;font-weight:600;
@@ -76,68 +74,63 @@ export function renderBook(app) {
             ` : ''}
 
             <div class="book-order-form" id="order-form">
-              <h3 style="font-family:var(--font-hand);font-size:1.5rem;font-weight:600;margin-bottom:var(--space-6);">
-                Order Your Copy
-              </h3>
-              <div class="price-display">
-                <span class="price-display__label">Price (inclusive of Nairobi delivery)</span>
-                <span class="price-display__value">KES ${book.price.toLocaleString()}</span>
+
+              <div class="book-price-row">
+                <span class="book-price-amount">KES ${book.price.toLocaleString()}</span>
+                <span class="book-price-note">delivered to your door</span>
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="buyer-name">Full Name</label>
-                <input class="form-input" type="text" id="buyer-name" placeholder="Jane Mwangi" />
+                <label class="form-label-underlined" for="buyer-name">Full Name</label>
+                <input class="form-input-underlined" type="text" id="buyer-name" placeholder="Jane Mwangi" />
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="buyer-phone">M-Pesa Phone Number</label>
-                <input class="form-input" type="tel" id="buyer-phone" placeholder="0712 345 678" maxlength="12" />
-                <p class="form-hint">You'll receive an STK push prompt on this number.</p>
+                <label class="form-label-underlined" for="buyer-phone">M-Pesa Number</label>
+                <input class="form-input-underlined" type="tel" id="buyer-phone" placeholder="07XX XXX XXX" maxlength="12" />
+                <p class="form-hint-inline">You'll receive an STK push prompt on this number.</p>
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="delivery-address">Delivery Address</label>
-                <input class="form-input" type="text" id="delivery-address" placeholder="e.g. Westlands, Nairobi" />
+                <label class="form-label-underlined" for="delivery-address">Delivery Address</label>
+                <input class="form-input-underlined" type="text" id="delivery-address" placeholder="e.g. Westlands, Nairobi" />
               </div>
 
               <!-- Signed copy checkbox -->
-              <div class="form-group" style="display:flex;align-items:flex-start;gap:var(--space-3);margin-bottom:var(--space-2);">
+              <div class="form-group book-signed-row">
                 <input type="checkbox" id="signed-copy" checked
-                  style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent);flex-shrink:0;" />
-                <label for="signed-copy" style="font-size:0.875rem;color:var(--text);line-height:1.5;cursor:pointer;">
+                  style="width:16px;height:16px;accent-color:var(--text);flex-shrink:0;margin-top:2px;" />
+                <label for="signed-copy" style="font-size:0.88rem;color:var(--text);line-height:1.5;cursor:pointer;">
                   <strong>Request a signed copy</strong>
-                  <span style="display:block;color:var(--text-muted);font-size:0.82rem;">
+                  <span style="display:block;color:var(--text-muted);font-size:0.8rem;">
                     Signed by Vic Munala — free, no extra cost
                   </span>
                 </label>
               </div>
 
-              <button class="btn btn--primary" id="pay-btn"
-                style="width:100%;justify-content:center;padding:1rem;margin-top:var(--space-4);">
-                Pay KES ${book.price.toLocaleString()} via M-Pesa
+              <button class="btn--sharp book-pay-btn" id="pay-btn">
+                PAY KES ${book.price.toLocaleString()} →
               </button>
 
               <div class="stk-status" id="stk-status"></div>
 
-              <!-- WhatsApp alternative -->
-              <div style="margin-top:var(--space-6);padding-top:var(--space-6);
-                          border-top:1px solid var(--border);text-align:center;">
-                <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:var(--space-3);">
-                  Prefer WhatsApp, or need bulk copies?
-                </p>
+              <!-- WhatsApp fallback -->
+              <div class="book-whatsapp-row">
+                <p class="book-whatsapp-label">Prefer WhatsApp, or need bulk copies?</p>
                 <a href="https://wa.me/254710276333?text=Hi%20Vic%2C%20I'd%20like%20to%20order%20a%20copy%20of%20Under%20the%20Mango%20Tree."
-                   target="_blank" rel="noopener"
-                   class="btn btn--outline" style="display:inline-flex;gap:var(--space-2);">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;">
+                   target="_blank" rel="noopener" class="book-whatsapp-link">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
                     <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.553 4.116 1.52 5.845L.057 23.8a.5.5 0 00.614.666l6.162-1.453A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22a9.947 9.947 0 01-5.088-1.394l-.365-.216-3.785.893.908-3.682-.236-.38A9.947 9.947 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
                   </svg>
                   Order via WhatsApp
                 </a>
               </div>
+
             </div>
           </div>
         </div>
+
       </div>
     </section>
   `;
@@ -166,6 +159,7 @@ export function renderBook(app) {
   // Wire up STK push
   document.getElementById('pay-btn')?.addEventListener('click', handleStkPush);
 }
+
 
 async function handleStkPush() {
   const currentBook  = getCurrentBook();
