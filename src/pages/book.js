@@ -131,14 +131,16 @@ export function renderBook(app) {
           </div>
         </div>
 
+        <!-- Buy me soda madiaba inside container -->
+        <div id="soda-container"></div>
+
       </div>
     </section>
   `;
 
   // Soda tip below
-  const sodaWrap = document.createElement('div');
-  app.appendChild(sodaWrap);
-  renderSodaTip(sodaWrap);
+  const sodaEl = app.querySelector('#soda-container');
+  if (sodaEl) renderSodaTip(sodaEl);
 
   // Footer on every page
   app.insertAdjacentHTML('beforeend', footerHTML());
