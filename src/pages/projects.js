@@ -13,7 +13,7 @@ const PROJECTS = [
     title: 'under the Mango Tree',
     synopsis: 'A novel about losing yourself and trying to find your way back home.',
     synopsisFull: `One minute, Esibanda is running as fast as he can because the teacher on duty will work a number on his buttocks because of lateness. The next minute, he is running away, and hiding from his landlord because the rent is due, the rent is always due, and he doesn't have the money.\n\nAfter the simplicity of life in the village with his two friends, Omulindi and Dennis, navigating school, play and mischief, he finds himself on the streets of Nairobi, with its complexities, where he stumbles on a dream, a dream he did not know he had because where he came from dreams like that were not within reach.\n\nDespite the title, no one in the story eats a mango. Neither does a mango fall on anyone's head. Disappointing as that may be, the narrative does well to compensate for that by bringing you into the full range of the human experience, dancing around themes of losing yourself and trying to find your way home. It takes you on a journey about childhood friendship, becoming a man and fatherhood, or lack thereof.`,
-    images: ['/images/book-cover.png'],
+    images: ['/images/utmt-1.jpg', '/images/utmt-2.jpg'],
     type: 'novel',
     cta: {
       label: 'ORDER YOUR COPY →',
