@@ -4,15 +4,25 @@ export default async function handler(req, res) {
   const { CheckoutRequestID } = req.body || {};
   if (!CheckoutRequestID) return res.status(400).json({ error: 'Missing CheckoutRequestID' });
 
-  const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY } = process.env;
+  const {
+    MPESA_CONSUMER_KEY,
+    MPESA_CONSUMER_SECRET,
+    MPESA_SHORTCODE,
+    MPESA_PASSKEY,
+    MPESA_ENV = 'production',
+  } = process.env;
 
   if (!MPESA_CONSUMER_KEY || !MPESA_CONSUMER_SECRET) {
     return res.status(500).json({ error: 'M-Pesa API credentials not configured' });
   }
 
+  const baseUrl = MPESA_ENV === 'sandbox' 
+    ? 'https://sandbox.safaricom.co.ke' 
+    : 'https://api.safaricom.co.ke';
+
   try {
     const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString('base64');
-    const tokenRes = await fetch('https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', {
+    const tokenRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
       headers: { Authorization: `Basic ${auth}` },
     });
     const { access_token } = await tokenRes.json();
@@ -20,7 +30,7 @@ export default async function handler(req, res) {
     const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
     const password  = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
 
-    const queryRes = await fetch('https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query', {
+    const queryRes = await fetch(`${baseUrl}/mpesa/stkpushquery/v1/query`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -37,3 +47,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 }
+

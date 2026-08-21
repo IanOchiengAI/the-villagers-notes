@@ -1,4 +1,6 @@
-// Vercel serverless function — runs server-side, credentials never exposed to browser
+// Vercel serverless function — M-Pesa STK Push (Daraja API)
+// Supports Buy Goods Till & Paybill in Production or Sandbox
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -11,17 +13,23 @@ export default async function handler(req, res) {
     MPESA_SHORTCODE,
     MPESA_PASSKEY,
     MPESA_CALLBACK_URL,
+    MPESA_ENV = 'production',
+    MPESA_TRANSACTION_TYPE = 'CustomerBuyGoodsOnline', // Default to Till (Buy Goods)
+    MPESA_PARTY_B,
   } = process.env;
 
   if (!MPESA_CONSUMER_KEY || !MPESA_CONSUMER_SECRET) {
     return res.status(500).json({ error: 'M-Pesa API credentials not configured in environment variables' });
   }
 
+  const baseUrl = MPESA_ENV === 'sandbox' 
+    ? 'https://sandbox.safaricom.co.ke' 
+    : 'https://api.safaricom.co.ke';
+
   try {
     // 1. Get OAuth token
     const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString('base64');
-    const tokenRes = await fetch('https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', {
-      // NOTE: Change to https://api.safaricom.co.ke for PRODUCTION
+    const tokenRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
       headers: { Authorization: `Basic ${auth}` },
     });
     const tokenData = await tokenRes.json();
@@ -34,10 +42,10 @@ export default async function handler(req, res) {
     // 2. Build STK payload
     const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
     const password  = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
+    const partyB    = MPESA_PARTY_B || MPESA_SHORTCODE;
 
     // 3. Trigger STK push
-    const stkRes = await fetch('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', {
-      // NOTE: Change to https://api.safaricom.co.ke for PRODUCTION
+    const stkRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -47,14 +55,14 @@ export default async function handler(req, res) {
         BusinessShortCode: MPESA_SHORTCODE,
         Password: password,
         Timestamp: timestamp,
-        TransactionType: 'CustomerPayBillOnline',
-        Amount: amount,
+        TransactionType: MPESA_TRANSACTION_TYPE,
+        Amount: Math.round(Number(amount)),
         PartyA: phone,
-        PartyB: MPESA_SHORTCODE,
+        PartyB: partyB,
         PhoneNumber: phone,
-        CallBackURL: MPESA_CALLBACK_URL || 'https://example.com/api/callback',
-        AccountReference: 'VikBook',
-        TransactionDesc: `Book order - ${name || 'Customer'} - ${address || 'N/A'}`,
+        CallBackURL: MPESA_CALLBACK_URL || 'https://thevillagersnotes.com/api/callback',
+        AccountReference: 'VillagersNotes',
+        TransactionDesc: `Villagers Notes - ${name || 'Order'}`,
       }),
     });
 
@@ -67,3 +75,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 }
+
