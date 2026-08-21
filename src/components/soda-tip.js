@@ -40,7 +40,7 @@ export function renderSodaTip(container) {
           </button>
 
           <p style="color:var(--muted-foreground);font-size:0.95rem;font-family:var(--font-body);margin-top:0.5rem;">
-            A payment prompt comes to your phone. Nothing is charged until you enter your PIN.
+            A payment prompt comes to your phone.
           </p>
 
           <div class="stk-status" id="soda-status" style="margin-top:0.75rem;"></div>
