@@ -67,19 +67,20 @@ export function renderProjects(app) {
             </div>
             <p class="project-synopsis-text">${p.synopsis}</p>
             ${p.synopsisFull ? `
-              <div class="synopsis-full" id="synopsis-full-${p.id}" aria-hidden="true">
-                ${p.synopsisFull.split('\n\n').map(para => `<p class="project-synopsis-text project-synopsis-text--muted">${para}</p>`).join('')}
+              <div class="synopsis-full" id="synopsis-full-${p.id}" aria-hidden="true" style="display:none;margin-top:0.5rem;">
+                ${p.synopsisFull.split('\n\n').map(para => `<p class="project-synopsis-text project-synopsis-text--muted" style="margin-top:0.75rem;">${para}</p>`).join('')}
               </div>
-              <button class="synopsis-toggle" data-target="synopsis-full-${p.id}" aria-expanded="false">
-                READ MORE ↓
-              </button>
             ` : ''}
 
             ${p.type === 'novel' ? `
-              <div class="project-cta-row">
-                <a href="${p.cta.href}" ${p.cta.isExternal ? 'target="_blank" rel="noopener"' : ''}
-                   class="btn--sharp">
-                  ${p.cta.label}
+              <div class="project-cta-row" style="display:flex;align-items:center;gap:1.5rem;margin-top:1.5rem;flex-wrap:wrap;">
+                ${p.synopsisFull ? `
+                  <button class="synopsis-toggle label" data-target="synopsis-full-${p.id}" aria-expanded="false" style="color:var(--accent);cursor:pointer;background:none;border:none;padding:0;letter-spacing:0.16em;transition:opacity 0.15s ease;">
+                    READ MORE →
+                  </button>
+                ` : ''}
+                <a href="#/book" class="label" style="border:1px solid var(--accent);color:var(--accent);padding:0.55rem 1.25rem;text-decoration:none;letter-spacing:0.16em;transition:all 0.15s ease;" onmouseover="this.style.background='var(--accent)';this.style.color='var(--accent-foreground)'" onmouseout="this.style.background='transparent';this.style.color='var(--accent)'">
+                  GET A COPY →
                 </a>
               </div>
             ` : `
@@ -134,8 +135,8 @@ export function renderProjects(app) {
     btn.addEventListener('click', () => {
       const open = btn.getAttribute('aria-expanded') === 'true';
       btn.setAttribute('aria-expanded', String(!open));
-      panel.setAttribute('aria-hidden', String(open));
-      btn.textContent = open ? 'READ MORE ↓' : 'SHOW LESS ↑';
+      if (panel) panel.style.display = open ? 'none' : 'block';
+      btn.textContent = open ? 'READ MORE →' : 'SHOW LESS ↑';
     });
   });
 
