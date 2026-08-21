@@ -1173,10 +1173,10 @@ p { max-width: 65ch; }
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.35rem 0;
+    padding: 0.5rem 0;
   }
   .nav__logo img {
-    height: 80px !important;
+    height: 42px !important;
   }
   .nav__links {
     display: flex;
