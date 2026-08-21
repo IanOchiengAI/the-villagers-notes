@@ -1164,17 +1164,24 @@ p { max-width: 65ch; }
     box-sizing: border-box;
   }
 
-  /* Navigation: clean minimal text links stacked on mobile */
+  /* Navigation: keep logo on the left, ENTRIES and PROJECTS on the far right */
   .nav__inner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
-    padding: 1.1rem 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 0;
   }
-  .nav__logo {
-    font-size: 1.65rem;
+  .nav__logo img {
+    height: 32px !important;
   }
-  .nav__links { display: flex; gap: 1.25rem; align-items: baseline; padding: 0; margin: 0; }
+  .nav__links {
+    display: flex;
+    gap: 1.25rem;
+    align-items: baseline;
+    padding: 0;
+    margin: 0;
+  }
   .nav__hamburger { display: none !important; }
   .nav__mobile { display: none !important; }
 
