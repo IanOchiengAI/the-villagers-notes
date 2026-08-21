@@ -227,14 +227,14 @@ p { max-width: 65ch; }
   margin: var(--space-10) 0;
 }
 
-/* Reading progress bar — sits below sticky nav, fades on completion */
+/* Reading progress bar — sits below sticky nav, delicate 1px hairline, fades on completion */
 .reading-progress {
   position: fixed;
   top: var(--nav-height, 62px);
   left: 0;
-  height: 2px;
+  height: 1px;
   width: 0;
-  background: oklch(0.52 0.13 40 / 0.35);
+  background: oklch(0.52 0.13 40 / 0.15);
   z-index: 9999;
   pointer-events: none;
   transition: width 0.12s linear, opacity 0.6s ease;
@@ -1176,7 +1176,7 @@ p { max-width: 65ch; }
     padding: 0.85rem 0;
   }
   .nav__logo img {
-    height: 32px !important;
+    height: 46px !important;
   }
   .nav__links {
     display: flex;
