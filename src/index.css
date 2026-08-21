@@ -255,10 +255,10 @@ p { max-width: 65ch; }
 }
 .nav__inner {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  padding: 1.25rem 0;
+  padding: 0.5rem 0;
 }
 .nav__logo {
   font-family: var(--font-hand);
@@ -1173,10 +1173,10 @@ p { max-width: 65ch; }
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.85rem 0;
+    padding: 0.35rem 0;
   }
   .nav__logo img {
-    height: 46px !important;
+    height: 80px !important;
   }
   .nav__links {
     display: flex;
