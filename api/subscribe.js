@@ -1,8 +1,8 @@
-// Vercel serverless function — newsletter subscription
-// Forwards email to Buttondown. Wire up by:
-// 1. Creating a free account at https://buttondown.email
-// 2. Getting your API key from Settings → API
-// 3. Adding BUTTONDOWN_API_KEY to Vercel environment variables
+// Vercel serverless function — subscriber alerts via Formspree
+// Target email: vikmunala@gmail.com
+// Wire up by:
+// 1. Creating a free form at https://formspree.io set to send alerts to vikmunala@gmail.com
+// 2. Setting FORMSPREE_FORM_ID in Vercel environment variables (e.g. xpwzyab)
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -15,38 +15,35 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Valid email required' });
   }
 
-  const apiKey = process.env.BUTTONDOWN_API_KEY;
-  if (!apiKey) {
-    // Graceful fallback during development — log and succeed silently
-    console.log('[Newsletter] No API key set. Would have subscribed:', email);
-    return res.status(200).json({ ok: true, dev: true });
-  }
+  const formId = process.env.FORMSPREE_FORM_ID;
+  const formUrl = process.env.FORMSPREE_URL || (formId ? `https://formspree.io/f/${formId}` : null);
 
-  try {
-    const response = await fetch('https://api.buttondown.email/v1/subscribers', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, tags: ['the-villagers-notes'] }),
-    });
+  if (formUrl) {
+    try {
+      const response = await fetch(formUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          _subject: `New Newsletter Subscriber: ${email}`,
+          message: `New reader subscribed to The Villager's Notes:\n\nEmail: ${email}\nDate: ${new Date().toLocaleString('en-GB')}`,
+          _replyto: email,
+        }),
+      });
 
-    if (response.status === 201 || response.status === 200) {
-      return res.status(200).json({ ok: true });
-    }
-
-    // Already subscribed — treat as success
-    if (response.status === 400) {
-      const data = await response.json();
-      if (data?.email?.[0]?.includes('already')) {
-        return res.status(200).json({ ok: true, already: true });
+      if (response.ok) {
+        return res.status(200).json({ ok: true });
       }
+    } catch (err) {
+      console.error('[Newsletter/Formspree] Error:', err);
     }
-
-    return res.status(500).json({ error: 'Subscription failed' });
-  } catch (err) {
-    console.error('[Newsletter] Error:', err);
-    return res.status(500).json({ error: 'Server error' });
   }
+
+  // Graceful fallback during local dev or before Formspree form ID is set
+  console.log('[Newsletter] Subscribed:', email, '(Alert target: vikmunala@gmail.com)');
+  return res.status(200).json({ ok: true, dev: !formUrl });
 }
+

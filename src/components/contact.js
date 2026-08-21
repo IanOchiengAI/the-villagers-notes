@@ -32,7 +32,7 @@ export function renderContact(container) {
       if (!email || !msg) return;
 
       // Direct mailto fallback / feedback
-      const mailtoUrl = `mailto:hello@vicmunala.com?subject=${encodeURIComponent('Note from ' + email)}&body=${encodeURIComponent(msg + '\n\nFrom: ' + email)}`;
+      const mailtoUrl = `mailto:vikmunala@gmail.com?subject=${encodeURIComponent('Note from ' + email)}&body=${encodeURIComponent(msg + '\n\nFrom: ' + email)}`;
       window.location.href = mailtoUrl;
 
       if (status) {

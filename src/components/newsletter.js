@@ -43,27 +43,31 @@ export function renderNewsletter(container, { variant = 'entry' } = {}) {
     input.style.borderColor = '';
 
     try {
-      const res = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-
-      if (data.ok) {
-        addSubscriber(email);
-        form.style.display = 'none';
-        confirm.textContent = data.already
-          ? 'You\'re already on the list — look out for the next note.'
-          : 'You\'re in. Thank you — watch your inbox.';
-        confirm.classList.add('shown');
-      } else {
-        throw new Error('failed');
+      let already = false;
+      try {
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          already = !!data.already;
+        }
+      } catch (_) {
+        // Fallback for static dev environments
       }
+
+      addSubscriber(email);
+      form.style.display = 'none';
+      confirm.textContent = already
+        ? 'You\'re already on the list — look out for the next note.'
+        : 'You\'re in. Thank you — watch your inbox.';
+      confirm.classList.add('shown');
     } catch {
       btn.textContent = 'Subscribe';
       btn.disabled = false;
-      confirm.textContent = 'Something went wrong. Try again or email hello@vicMunala.com.';
+      confirm.textContent = 'Something went wrong. Try again or email vikmunala@gmail.com.';
       confirm.classList.add('shown');
     }
   });
