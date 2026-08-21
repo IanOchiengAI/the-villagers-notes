@@ -39,10 +39,11 @@ export function renderEntry(app, id) {
 
   // Paywall handling: check if paid entry
   const isPaid = Number(entry.price) > 0;
+  const isUnlocked = !isPaid || !!localStorage.getItem(`tvn_unlocked_${entry.id}`) || !!sessionStorage.getItem(`tvn_unlocked_${entry.id}`);
   let bodyParagraphs = Array.isArray(entry.body) ? entry.body : [];
 
   // Check if full body is in private store
-  if (isPaid && bodyParagraphs.length === 0) {
+  if (isPaid && isUnlocked && bodyParagraphs.length === 0) {
     try {
       const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
       if (privateBody) {
@@ -131,14 +132,22 @@ export function renderEntry(app, id) {
 
         <!-- Body / Paywall -->
         <div class="entry-detail__body" id="entry-body">
-          ${isPaid && bodyParagraphs.length === 0 ? `
-            <div style="background:var(--surface);border:1px solid var(--border);padding:var(--space-8);border-radius:4px;text-align:center;margin:var(--space-6) 0;">
-              <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;color:hsl(24, 75%, 45%);margin-bottom:8px;">Paid Entry</p>
-              <h3 style="font-family:var(--font-hand);font-size:1.8rem;color:var(--text);margin-bottom:12px;">This story requires a key.</h3>
+          ${isPaid && !isUnlocked ? `
+            <div style="background:var(--surface);border:1px solid var(--border);padding:var(--space-8);border-radius:8px;text-align:center;margin:var(--space-6) 0;box-shadow:0 4px 20px rgba(0,0,0,0.04);">
+              <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;color:hsl(24, 75%, 45%);margin-bottom:8px;">Paid Story</p>
+              <h3 style="font-family:var(--font-hand);font-size:2rem;color:var(--text);margin-bottom:10px;">This story requires a key.</h3>
               <p style="font-size:0.95rem;color:var(--text-muted);max-width:44ch;margin:0 auto var(--space-6);line-height:1.6;">
-                Access this piece for <strong>KES ${Number(entry.price).toLocaleString()}</strong>. Direct M-Pesa unlock is going live soon.
+                Unlock and read this full story for <strong>KES ${Number(entry.price).toLocaleString()}</strong> via M-Pesa.
               </p>
-              <button class="btn btn--sharp" disabled style="opacity:0.7;cursor:not-allowed;">M-Pesa Unlock (Coming Soon)</button>
+              
+              <div style="max-width:320px;margin:0 auto var(--space-4);text-align:left;">
+                <label style="font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;">M-Pesa Number</label>
+                <input type="tel" id="paywall-phone" placeholder="07XX XXX XXX" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:6px;font-size:0.95rem;box-sizing:border-box;margin-bottom:12px;" />
+                <button class="btn--sharp" id="paywall-unlock-btn" style="width:100%;padding:12px;font-size:0.85rem;">
+                  UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →
+                </button>
+                <div id="paywall-status" style="margin-top:10px;font-size:0.85rem;text-align:center;"></div>
+              </div>
             </div>
           ` : bodyParagraphs.map(p => `<p>${p}</p>`).join('')}
         </div>
@@ -253,6 +262,121 @@ export function renderEntry(app, id) {
           dropdown.style.display = 'none';
         }, 1200);
       });
+    });
+  }
+
+  // Paywall unlock button handler
+  const unlockBtn = document.getElementById('paywall-unlock-btn');
+  const phoneInput = document.getElementById('paywall-phone');
+  const statusEl = document.getElementById('paywall-status');
+
+  if (unlockBtn && phoneInput && statusEl) {
+    unlockBtn.addEventListener('click', async () => {
+      const raw = phoneInput.value.trim().replace(/\D/g, '');
+      let phone = null;
+      if (raw.startsWith('254') && raw.length === 12) phone = raw;
+      else if ((raw.startsWith('07') || raw.startsWith('01')) && raw.length === 10) phone = '254' + raw.slice(1);
+      else if (raw.length === 9) phone = '254' + raw;
+
+      if (!phone) {
+        statusEl.style.color = 'hsl(0 60% 50%)';
+        statusEl.textContent = '⚠ Enter a valid Kenyan phone number (e.g. 0712345678).';
+        return;
+      }
+
+      unlockBtn.disabled = true;
+      unlockBtn.textContent = 'Sending prompt…';
+      statusEl.style.color = 'var(--text-muted)';
+      statusEl.textContent = '📲 Prompt sent — enter your M-Pesa PIN on your phone.';
+
+      try {
+        const res = await fetch('/api/stk-push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone,
+            amount: Number(entry.price),
+            narrative: `Unlock: ${entry.title}`,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
+
+        const invoiceId = data.invoice_id || data.CheckoutRequestID;
+        let tries = 0;
+        const interval = setInterval(async () => {
+          tries++;
+          try {
+            const check = await fetch('/api/stk-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ invoice_id: invoiceId, CheckoutRequestID: invoiceId }),
+            }).then(r => r.json());
+
+            if (check.ResultCode === '0' || check.state === 'COMPLETE' || check.state === 'SUCCESSFUL') {
+              clearInterval(interval);
+              localStorage.setItem(`tvn_unlocked_${entry.id}`, 'true');
+              statusEl.style.color = 'hsl(143 60% 40%)';
+              statusEl.textContent = '✅ Unlocked! Loading story…';
+              setTimeout(() => renderEntry(app, id), 1000);
+            } else if (check.ResultCode === '1' || check.state === 'FAILED' || check.state === 'CANCELLED') {
+              clearInterval(interval);
+              statusEl.style.color = 'hsl(0 60% 50%)';
+              statusEl.textContent = `❌ Payment failed: ${check.ResultDesc || 'Declined'}.`;
+              unlockBtn.disabled = false;
+              unlockBtn.textContent = `UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →`;
+            }
+          } catch (_) {}
+
+          if (tries >= 15) {
+            clearInterval(interval);
+            statusEl.style.color = 'var(--text-muted)';
+            statusEl.textContent = 'Payment confirmation in progress. If you entered your PIN, please refresh.';
+            unlockBtn.disabled = false;
+            unlockBtn.textContent = `UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →`;
+          }
+        }, 3000);
+
+      } catch (err) {
+        // Inline SDK fallback
+        if (typeof window !== 'undefined' && window.IntaSend) {
+          try {
+            const is = new window.IntaSend({
+              public_key: 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3',
+              live: true,
+            });
+            is.run({
+              amount: Number(entry.price),
+              currency: 'KES',
+              phone_number: phone,
+              email: 'vikmunala@gmail.com',
+              api_ref: `ENTRY_${entry.id}_${Date.now()}`,
+              comment: `Story Unlock - ${entry.title}`,
+            })
+            .on('IN-PROGRESS', () => {
+              statusEl.textContent = '📲 Prompt sent. Enter your PIN on your phone.';
+            })
+            .on('COMPLETE', () => {
+              localStorage.setItem(`tvn_unlocked_${entry.id}`, 'true');
+              statusEl.style.color = 'hsl(143 60% 40%)';
+              statusEl.textContent = '✅ Unlocked! Loading story…';
+              setTimeout(() => renderEntry(app, id), 1000);
+            })
+            .on('FAILED', () => {
+              statusEl.style.color = 'hsl(0 60% 50%)';
+              statusEl.textContent = 'Payment cancelled or declined.';
+              unlockBtn.disabled = false;
+              unlockBtn.textContent = `UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →`;
+            });
+            return;
+          } catch (_) {}
+        }
+
+        statusEl.style.color = 'hsl(0 60% 50%)';
+        statusEl.textContent = `❌ ${err.message || 'Could not initiate payment'}`;
+        unlockBtn.disabled = false;
+        unlockBtn.textContent = `UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →`;
+      }
     });
   }
 }

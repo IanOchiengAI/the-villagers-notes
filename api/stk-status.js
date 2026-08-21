@@ -1,50 +1,50 @@
+// Vercel serverless function — Query M-Pesa STK Status via IntaSend
+
+const DEFAULT_INTASEND_KEY = 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { CheckoutRequestID } = req.body || {};
-  if (!CheckoutRequestID) return res.status(400).json({ error: 'Missing CheckoutRequestID' });
+  const { invoice_id, CheckoutRequestID } = req.body || {};
+  const id = invoice_id || CheckoutRequestID;
+  if (!id) return res.status(400).json({ error: 'Missing invoice_id or CheckoutRequestID' });
 
-  const {
-    MPESA_CONSUMER_KEY,
-    MPESA_CONSUMER_SECRET,
-    MPESA_SHORTCODE,
-    MPESA_PASSKEY,
-    MPESA_ENV = 'production',
-  } = process.env;
-
-  if (!MPESA_CONSUMER_KEY || !MPESA_CONSUMER_SECRET) {
-    return res.status(500).json({ error: 'M-Pesa API credentials not configured' });
-  }
-
-  const baseUrl = MPESA_ENV === 'sandbox' 
-    ? 'https://sandbox.safaricom.co.ke' 
-    : 'https://api.safaricom.co.ke';
+  const publicKey = process.env.INTASEND_PUBLISHABLE_KEY || process.env.INTASEND_PUBLIC_KEY || DEFAULT_INTASEND_KEY;
 
   try {
-    const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString('base64');
-    const tokenRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-      headers: { Authorization: `Basic ${auth}` },
-    });
-    const { access_token } = await tokenRes.json();
-
-    const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
-    const password  = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
-
-    const queryRes = await fetch(`${baseUrl}/mpesa/stkpushquery/v1/query`, {
+    const response = await fetch('https://payment.intasend.com/api/v1/payment/mpesa-stk-push-status/', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
       body: JSON.stringify({
-        BusinessShortCode: MPESA_SHORTCODE,
-        Password: password,
-        Timestamp: timestamp,
-        CheckoutRequestID,
+        public_key: publicKey,
+        invoice_id: id,
       }),
     });
 
-    const data = await queryRes.json();
-    return res.status(200).json(data);
+    const data = await response.json();
+    const invoice = data.invoice || data;
+    const state = invoice.state; // 'COMPLETE', 'FAILED', 'PENDING', 'PROCESSING'
+
+    let ResultCode = '1032'; // pending / default
+    if (state === 'COMPLETE' || state === 'SUCCESSFUL') {
+      ResultCode = '0';
+    } else if (state === 'FAILED' || state === 'RETRY' || state === 'CANCELLED') {
+      ResultCode = '1';
+    }
+
+    return res.status(200).json({
+      ResultCode,
+      ResultDesc: invoice.failed_reason || state,
+      state: state,
+      raw: data,
+    });
   } catch (err) {
+    console.error('[M-Pesa Status Error]:', err);
     return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 }
+
 

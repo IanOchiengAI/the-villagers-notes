@@ -200,13 +200,52 @@ async function handleStkPush() {
     const res = await fetch('/api/stk-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleaned, name, address, amount: currentBook.price, signed }),
+      body: JSON.stringify({
+        phone: cleaned,
+        name,
+        address,
+        amount: currentBook.price,
+        narrative: `Book: Under the Mango Tree - ${name}`,
+      }),
     });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
-    pollStkStatus(data.CheckoutRequestID, status, btn);
+    pollStkStatus(data.invoice_id || data.CheckoutRequestID, status, btn);
   } catch (err) {
-    setStatus(status, 'error', `${err.message}. Try again or WhatsApp Vic directly.`);
+    // Try client-side IntaSend inline SDK if API endpoint failed (e.g. static dev)
+    if (typeof window !== 'undefined' && window.IntaSend) {
+      try {
+        const is = new window.IntaSend({
+          public_key: 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3',
+          live: true,
+        });
+        is.run({
+          amount: currentBook.price,
+          currency: 'KES',
+          phone_number: cleaned,
+          email: 'vikmunala@gmail.com',
+          first_name: name.split(' ')[0] || 'Reader',
+          last_name: name.split(' ').slice(1).join(' ') || 'Customer',
+          api_ref: `BOOK_${Date.now()}`,
+          comment: `Book order - ${name}`,
+        })
+        .on('IN-PROGRESS', () => {
+          setStatus(status, 'pending', '📲 M-Pesa prompt sent. Enter your PIN on your phone.');
+        })
+        .on('COMPLETE', () => {
+          setStatus(status, 'success', '✅ Payment received! Your signed copy will be delivered within 3–5 business days. Thank you!');
+          btn.textContent = 'Order Placed ✓';
+        })
+        .on('FAILED', () => {
+          setStatus(status, 'error', 'Payment declined or cancelled. Please try again.');
+          btn.disabled = false;
+          btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
+        });
+        return;
+      } catch (_) {}
+    }
+
+    setStatus(status, 'error', `${err.message || 'Could not initiate STK push'}. Try again or WhatsApp Vic directly.`);
     btn.disabled = false;
     btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
   }
@@ -215,21 +254,21 @@ async function handleStkPush() {
 async function pollStkStatus(checkoutRequestID, statusEl, btn) {
   const currentBook = getCurrentBook();
   let attempts = 0;
-  const max = 10;
+  const max = 15;
   const interval = setInterval(async () => {
     attempts++;
     try {
       const res  = await fetch('/api/stk-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ CheckoutRequestID: checkoutRequestID }),
+        body: JSON.stringify({ invoice_id: checkoutRequestID, CheckoutRequestID: checkoutRequestID }),
       });
       const data = await res.json();
-      if (data.ResultCode === '0') {
+      if (data.ResultCode === '0' || data.state === 'COMPLETE' || data.state === 'SUCCESSFUL') {
         clearInterval(interval);
         setStatus(statusEl, 'success', '✅ Payment received! Your signed copy will be delivered within 3–5 business days. Thank you!');
         btn.textContent = 'Order Placed ✓';
-      } else if (data.ResultCode && data.ResultCode !== '1032') {
+      } else if (data.ResultCode === '1' || data.state === 'FAILED' || data.state === 'CANCELLED') {
         clearInterval(interval);
         setStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Unknown error'}. Please try again.`);
         btn.disabled = false;
@@ -238,7 +277,7 @@ async function pollStkStatus(checkoutRequestID, statusEl, btn) {
     } catch (_) {}
     if (attempts >= max) {
       clearInterval(interval);
-      setStatus(statusEl, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages — or contact Vic directly.');
+      setStatus(statusEl, 'error', 'Payment confirmation in progress. If you entered your PIN, you will receive an SMS and your order is recorded.');
       btn.disabled = false;
       btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
     }

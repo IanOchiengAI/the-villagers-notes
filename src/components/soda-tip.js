@@ -86,39 +86,76 @@ export function renderSodaTip(container) {
           const res = await fetch('/api/stk-push', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone, amount: selected, name: 'Soda Tip', address: 'Buy me soda madiaba' }),
+            body: JSON.stringify({
+              phone,
+              amount: selected,
+              name: 'Soda Supporter',
+              narrative: 'Buy me soda madiaba',
+            }),
           });
           const data = await res.json();
           if (!res.ok || data.error) throw new Error(data.error || 'Failed');
 
-          // Polling
+          const invoiceId = data.invoice_id || data.CheckoutRequestID;
           let tries = 0;
           const iv = setInterval(async () => {
             tries++;
             const s = await fetch('/api/stk-status', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ CheckoutRequestID: data.CheckoutRequestID }),
+              body: JSON.stringify({ invoice_id: invoiceId, CheckoutRequestID: invoiceId }),
             }).then(r => r.json());
 
-            if (s.ResultCode === '0') {
+            if (s.ResultCode === '0' || s.state === 'COMPLETE' || s.state === 'SUCCESSFUL') {
               clearInterval(iv);
               setStatus(statusEl, 'success', '✅ Thank you for the soda! ❤️');
               payBtn.textContent = 'SENT ✓';
-            } else if (s.ResultCode && s.ResultCode !== '1032') {
+            } else if (s.ResultCode === '1' || s.state === 'FAILED' || s.state === 'CANCELLED') {
               clearInterval(iv);
               setStatus(statusEl, 'error', '❌ Payment declined or timed out.');
               payBtn.disabled = false;
               payBtn.textContent = 'SEND THE SODA';
             }
-            if (tries >= 10) {
+            if (tries >= 15) {
               clearInterval(iv);
               payBtn.disabled = false;
+              payBtn.textContent = 'SEND THE SODA';
             }
           }, 3000);
 
         } catch (err) {
-          setStatus(statusEl, 'error', `❌ ${err.message}`);
+          // Inline SDK fallback
+          if (typeof window !== 'undefined' && window.IntaSend) {
+            try {
+              const is = new window.IntaSend({
+                public_key: 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3',
+                live: true,
+              });
+              is.run({
+                amount: selected,
+                currency: 'KES',
+                phone_number: phone,
+                email: 'vikmunala@gmail.com',
+                api_ref: `SODA_${Date.now()}`,
+                comment: 'Soda Tip - Buy me soda madiaba',
+              })
+              .on('IN-PROGRESS', () => {
+                setStatus(statusEl, 'pending', '📲 M-Pesa prompt sent. Enter your PIN on your phone.');
+              })
+              .on('COMPLETE', () => {
+                setStatus(statusEl, 'success', '✅ Thank you for the soda! ❤️');
+                payBtn.textContent = 'SENT ✓';
+              })
+              .on('FAILED', () => {
+                setStatus(statusEl, 'error', '❌ Payment cancelled or declined.');
+                payBtn.disabled = false;
+                payBtn.textContent = 'SEND THE SODA';
+              });
+              return;
+            } catch (_) {}
+          }
+
+          setStatus(statusEl, 'error', `❌ ${err.message || 'Could not initiate payment'}`);
           payBtn.disabled = false;
           payBtn.textContent = 'SEND THE SODA';
         }
