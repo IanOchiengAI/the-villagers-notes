@@ -71,8 +71,12 @@ export function renderEntry(app, id) {
   const storedLikeDelta = isLiked ? 1 : 0;
   let currentLikes = baseLikes + storedLikeDelta;
 
-  // Clean any stale progress bar
+  // Reading progress bar element — remove any stale bar first
   document.querySelectorAll('.reading-progress').forEach(el => el.remove());
+  const progressBar = document.createElement('div');
+  progressBar.className = 'reading-progress';
+  progressBar.id = 'reading-progress';
+  document.body.appendChild(progressBar);
 
   // Set page title & OG dynamically
   document.title = `${entry.title} — The Villager's Notes`;
@@ -323,15 +327,17 @@ export function renderEntry(app, id) {
     });
   }
 
-  // Completion tracker
+  // Reading progress and completion tracker
   let completedLogged = false;
   function onScroll() {
     const body = document.getElementById('entry-body');
+    const bar  = document.getElementById('reading-progress');
     if (!body) return;
     const bodyTop  = body.getBoundingClientRect().top + window.scrollY;
     const bodyEnd  = bodyTop + body.offsetHeight;
     const scrolled = window.scrollY + window.innerHeight;
     const pct      = Math.min(100, Math.max(0, ((scrolled - bodyTop) / (bodyEnd - bodyTop)) * 100));
+    if (bar) bar.style.width = pct + '%';
 
     if (pct >= 95 && !completedLogged) {
       completedLogged = true;
@@ -341,6 +347,7 @@ export function renderEntry(app, id) {
   window.addEventListener('scroll', onScroll, { passive: true });
   const cleanup = () => {
     window.removeEventListener('scroll', onScroll);
+    progressBar.remove();
     window.removeEventListener('hashchange', cleanup);
   };
   window.addEventListener('hashchange', cleanup);
