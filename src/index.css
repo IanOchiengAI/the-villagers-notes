@@ -227,17 +227,20 @@ p { max-width: 65ch; }
   margin: var(--space-10) 0;
 }
 
-/* Reading progress bar (pinned to top of viewport) */
+/* Reading progress bar — sits below sticky nav, fades on completion */
 .reading-progress {
   position: fixed;
-  top: 0;
+  top: var(--nav-height, 62px);
   left: 0;
   height: 2px;
   width: 0;
-  background: var(--rule);
+  background: oklch(0.52 0.13 40 / 0.35);
   z-index: 9999;
   pointer-events: none;
-  transition: width 0.1s linear;
+  transition: width 0.12s linear, opacity 0.6s ease;
+}
+.reading-progress.is-done {
+  opacity: 0;
 }
 
 /* ============================================

@@ -71,12 +71,23 @@ export function renderEntry(app, id) {
   const storedLikeDelta = isLiked ? 1 : 0;
   let currentLikes = baseLikes + storedLikeDelta;
 
-  // Reading progress bar element — remove any stale bar first
+  // Reading progress bar — remove any stale bar first, then create fresh
   document.querySelectorAll('.reading-progress').forEach(el => el.remove());
   const progressBar = document.createElement('div');
   progressBar.className = 'reading-progress';
   progressBar.id = 'reading-progress';
+  progressBar.setAttribute('role', 'progressbar');
+  progressBar.setAttribute('aria-valuemin', '0');
+  progressBar.setAttribute('aria-valuemax', '100');
+  progressBar.setAttribute('aria-valuenow', '0');
+  progressBar.setAttribute('aria-label', 'Reading progress');
   document.body.appendChild(progressBar);
+
+  // Tell CSS exactly where the nav bottom is
+  const nav = document.getElementById('site-nav');
+  if (nav) {
+    document.documentElement.style.setProperty('--nav-height', nav.offsetHeight + 'px');
+  }
 
   // Set page title & OG dynamically
   document.title = `${entry.title} — The Villager's Notes`;
@@ -327,9 +338,12 @@ export function renderEntry(app, id) {
     });
   }
 
-  // Reading progress and completion tracker
+  // Reading progress and completion tracker — rAF throttled
   let completedLogged = false;
-  function onScroll() {
+  let rafId = null;
+
+  function updateProgress() {
+    rafId = null; // reset so next scroll queues a new frame
     const body = document.getElementById('entry-body');
     const bar  = document.getElementById('reading-progress');
     if (!body) return;
@@ -337,16 +351,31 @@ export function renderEntry(app, id) {
     const bodyEnd  = bodyTop + body.offsetHeight;
     const scrolled = window.scrollY + window.innerHeight;
     const pct      = Math.min(100, Math.max(0, ((scrolled - bodyTop) / (bodyEnd - bodyTop)) * 100));
-    if (bar) bar.style.width = pct + '%';
+
+    if (bar) {
+      bar.style.width = pct + '%';
+      bar.setAttribute('aria-valuenow', Math.round(pct));
+    }
 
     if (pct >= 95 && !completedLogged) {
       completedLogged = true;
       logAnalyticsEvent('read_complete', { entryId: entry.id, title: entry.title });
+      // Fade bar out after a short delay — it's done its job
+      setTimeout(() => {
+        if (bar) bar.classList.add('is-done');
+      }, 800);
     }
   }
+
+  function onScroll() {
+    if (rafId) return; // already queued for this frame
+    rafId = requestAnimationFrame(updateProgress);
+  }
+
   window.addEventListener('scroll', onScroll, { passive: true });
   const cleanup = () => {
     window.removeEventListener('scroll', onScroll);
+    if (rafId) cancelAnimationFrame(rafId);
     progressBar.remove();
     window.removeEventListener('hashchange', cleanup);
   };
