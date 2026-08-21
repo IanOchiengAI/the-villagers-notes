@@ -579,10 +579,11 @@ p { max-width: 65ch; }
   overflow: hidden;
   max-height: 0;
   opacity: 0;
-  transition: max-height 0.35s ease, opacity 0.25s ease;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
 }
-.synopsis-full[aria-hidden="false"] {
-  max-height: 600px;
+.synopsis-full[aria-hidden="false"],
+.synopsis-full.is-open {
+  max-height: 2500px;
   opacity: 1;
 }
 .synopsis-toggle {

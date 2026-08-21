@@ -66,11 +66,6 @@ export function renderProjects(app) {
               `).join('')}
             </div>
             <p class="project-synopsis-text">${p.synopsis}</p>
-            ${p.synopsisFull ? `
-              <div class="synopsis-full" id="synopsis-full-${p.id}" aria-hidden="true" style="display:none;margin-top:0.5rem;">
-                ${p.synopsisFull.split('\n\n').map(para => `<p class="project-synopsis-text project-synopsis-text--muted" style="margin-top:0.75rem;">${para}</p>`).join('')}
-              </div>
-            ` : ''}
 
             ${p.type === 'novel' ? `
               <div class="project-cta-row" style="display:flex;align-items:center;gap:1.5rem;margin-top:1.5rem;flex-wrap:wrap;">
@@ -83,6 +78,12 @@ export function renderProjects(app) {
                   GET A COPY →
                 </a>
               </div>
+
+              ${p.synopsisFull ? `
+                <div class="synopsis-full" id="synopsis-full-${p.id}" aria-hidden="true" style="margin-top:1.5rem;max-width:62ch;">
+                  ${p.synopsisFull.split('\n\n').map(para => `<p style="margin-top:1.15rem;font-family:var(--font-body);font-size:1.0625rem;line-height:1.7;color:var(--foreground);">${para}</p>`).join('')}
+                </div>
+              ` : ''}
             ` : `
               <div class="project-cta-row">
                 <button class="btn--sharp" id="toggle-trailer-btn" aria-expanded="false">
@@ -135,8 +136,11 @@ export function renderProjects(app) {
     btn.addEventListener('click', () => {
       const open = btn.getAttribute('aria-expanded') === 'true';
       btn.setAttribute('aria-expanded', String(!open));
-      if (panel) panel.style.display = open ? 'none' : 'block';
-      btn.textContent = open ? 'READ MORE →' : 'SHOW LESS ↑';
+      if (panel) {
+        panel.setAttribute('aria-hidden', String(open));
+        panel.classList.toggle('is-open', !open);
+      }
+      btn.textContent = open ? 'READ MORE →' : 'READ LESS ↑';
     });
   });
 
