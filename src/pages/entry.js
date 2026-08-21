@@ -104,7 +104,7 @@ export function renderEntry(app, id) {
         </h1>
 
         <!-- Excerpt / lede -->
-        <p style="margin-top:1.25rem;max-width:54ch;font-size:1.25rem;line-height:1.35;color:var(--muted-foreground);font-family:var(--font-body);font-style:italic;">
+        <p style="margin-top:1.25rem;max-width:54ch;font-size:1.25rem;line-height:1.35;color:var(--muted-foreground);font-family:var(--font-body);">
           ${entry.excerpt || ''}
         </p>
 
@@ -183,17 +183,17 @@ export function renderEntry(app, id) {
             </button>
           </div>
 
-          <div id="comment-form-container" style="display:none;margin-bottom:2rem;background:var(--card);padding:1.5rem;border:1px solid var(--rule);">
+          <div id="comment-form-container" style="display:none;margin-bottom:2rem;padding:1.5rem 0;border-top:1px solid var(--rule);">
             <form id="new-comment-form">
-              <div style="margin-bottom:1rem;">
-                <label class="label" for="comment-author" style="display:block;margin-bottom:0.35rem;">Your Name</label>
-                <input type="text" id="comment-author" required placeholder="e.g. Aoko" style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding:0.35rem 0;font-family:var(--font-body);outline:none;font-size:1rem;" />
+              <div style="margin-bottom:1.5rem;">
+                <label class="label" for="comment-author" style="display:block;margin-bottom:0.5rem;">Your Name</label>
+                <input type="text" id="comment-author" required placeholder="e.g. Aoko" style="width:100%;border:none;border-bottom:1px solid var(--foreground);background:transparent;padding-bottom:0.5rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);" />
               </div>
-              <div style="margin-bottom:1rem;">
-                <label class="label" for="comment-text" style="display:block;margin-bottom:0.35rem;">Your Thoughts</label>
-                <textarea id="comment-text" required rows="3" placeholder="Leave a reflection or note…" style="width:100%;border:1px solid var(--rule);background:transparent;padding:0.5rem;font-family:var(--font-body);outline:none;font-size:1rem;"></textarea>
+              <div style="margin-bottom:1.5rem;">
+                <label class="label" for="comment-text" style="display:block;margin-bottom:0.5rem;">Your Thoughts</label>
+                <textarea id="comment-text" required rows="3" placeholder="Leave a reflection or note…" style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding-bottom:0.5rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);resize:vertical;"></textarea>
               </div>
-              <button type="submit" class="label" style="background:var(--foreground);color:var(--background);border:none;padding:0.6rem 1.25rem;cursor:pointer;">
+              <button type="submit" class="label" style="background:var(--foreground);color:var(--background);border:none;padding:0.6rem 1.25rem;cursor:pointer;letter-spacing:0.16em;">
                 Submit Note
               </button>
             </form>
@@ -224,7 +224,7 @@ export function renderEntry(app, id) {
     const target = document.getElementById('comments-container');
     if (!target) return;
     if (list.length === 0) {
-      target.innerHTML = `<p class="label" style="color:var(--muted-foreground);font-size:0.8rem;">No comments yet. Be the first to leave a reflection.</p>`;
+      target.innerHTML = '';
       return;
     }
     target.innerHTML = `

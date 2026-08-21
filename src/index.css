@@ -227,6 +227,19 @@ p { max-width: 65ch; }
   margin: var(--space-10) 0;
 }
 
+/* Reading progress bar (top of viewport) */
+.reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 0;
+  background: var(--accent);
+  z-index: 9999;
+  transition: width 0.1s linear;
+  pointer-events: none;
+}
+
 /* ============================================
    NAV (Lovable Editorial Header)
    ============================================ */
@@ -903,7 +916,6 @@ p { max-width: 65ch; }
    ============================================ */
 .soda-section {
   padding: var(--space-12) 0;
-  border-bottom: 1px solid var(--border);
 }
 .soda-section__title {
   font-family: var(--font-hand);
@@ -1296,8 +1308,8 @@ p { max-width: 65ch; }
   .contact-section {
     padding: var(--space-8) 0;
   }
-  .contact-grid {
-    grid-template-columns: 1fr;
+  .contact-section > div {
+    grid-template-columns: 1fr !important;
     gap: var(--space-6);
   }
 

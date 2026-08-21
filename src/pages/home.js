@@ -6,16 +6,24 @@ export function renderHome(app) {
 
   app.innerHTML = `
     <!-- HERO: centered squeezed quote -->
-    <section class="hero-section" style="min-height:52vh;display:flex;flex-direction:column;align-items:center;justify-content:center;border-bottom:1px solid var(--rule);padding:4.5rem 0;text-align:center;">
-      <div class="container">
-        <h1 style="margin:0 auto;max-width:14ch;font-size:clamp(2.25rem, 7.5vw, 4.5rem);line-height:1.08;font-family:var(--font-hand);font-weight:400;">
-          You can remove the village from a person but you<span style="color:var(--accent);letter-spacing:0.08em;margin-left:0.1em;">...</span>
-        </h1>
-        <p style="margin:2rem auto 0;max-width:24ch;font-family:var(--font-hand);font-size:clamp(1.2rem, 3.8vw, 1.85rem);line-height:1.25;color:var(--muted-foreground);">
-          wait, how does that saying go? Anyway, something is being removed.
-        </p>
-      </div>
-    </section>
+    <div style="border-bottom:1px solid var(--rule);">
+      <section class="hero-section" style="min-height:52vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4.5rem 0;text-align:center;">
+        <div class="container">
+          <h1 style="margin:0 auto;font-size:clamp(2.25rem, 7.5vw, 4.5rem);line-height:1.15;font-family:var(--font-hand);font-weight:400;">
+            You can<br>
+            remove the<br>
+            village from a<br>
+            person but<br>
+            you<span style="color:var(--accent);letter-spacing:0.08em;margin-left:0.1em;">...</span>
+          </h1>
+          <p style="margin:2rem auto 0;font-family:var(--font-hand);font-size:clamp(1.2rem, 3.8vw, 1.85rem);line-height:1.3;color:var(--muted-foreground);">
+            wait, how does that saying go?<br>
+            Anyway, something is being<br>
+            removed.
+          </p>
+        </div>
+      </section>
+    </div>
 
     <!-- LATEST ENTRIES -->
     <section class="home-entries" style="padding:3.5rem 0;">

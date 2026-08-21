@@ -1,7 +1,7 @@
 export function renderContact(container) {
   container.innerHTML = `
-    <section class="contact-section" style="margin-top:5rem;border-top:1px solid var(--foreground);padding-top:3rem;">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:2.5rem;">
+    <section class="contact-section" style="margin-top:4rem;border-top:1px solid var(--foreground);padding-top:3rem;">
+      <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:3rem;align-items:start;">
         <div>
           <h2 style="font-size:clamp(1.75rem, 4.5vw, 2.5rem);font-family:var(--font-hand);font-weight:400;margin:0 0 1rem;">
             Write to me

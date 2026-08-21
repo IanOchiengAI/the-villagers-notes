@@ -8,8 +8,8 @@ const PROJECTS = [
     id: '01',
     num: '01',
     category: 'NOVEL',
-    year: '2024',
-    metaDetails: ['PUBLISHED 2024', 'PAPERBACK', 'KES 1500', 'DELIVERED'],
+    year: '',
+    metaDetails: ['PUBLISHED 2024', 'PAPERBACK', 'KES 1500'],
     title: 'under the Mango Tree',
     synopsis: 'A novel about losing yourself and trying to find your way back home.',
     synopsisFull: `One minute, Esibanda is running as fast as he can because the teacher on duty will work a number on his buttocks because of lateness. The next minute, he is running away, and hiding from his landlord because the rent is due, the rent is always due, and he doesn't have the money.\n\nAfter the simplicity of life in the village with his two friends, Omulindi and Dennis, navigating school, play and mischief, he finds himself on the streets of Nairobi, with its complexities, where he stumbles on a dream, a dream he did not know he had because where he came from dreams like that were not within reach.\n\nDespite the title, no one in the story eats a mango. Neither does a mango fall on anyone's head. Disappointing as that may be, the narrative does well to compensate for that by bringing you into the full range of the human experience, dancing around themes of losing yourself and trying to find your way home. It takes you on a journey about childhood friendship, becoming a man and fatherhood, or lack thereof.`,
@@ -26,7 +26,7 @@ const PROJECTS = [
     num: '02',
     category: 'PLAY',
     year: 'JULY 2026',
-    metaDetails: ['STAGED JULY 2026', 'TWO-HANDER - 77 MINUTES', 'SCRIPT & RIGHTS AVAILABLE'],
+    metaDetails: ['STAGED JULY 2026', '77 MINUTES'],
     title: 'Beneath the Surface',
     synopsis: 'A married couple\'s evening unfolds over dinner. The wife demands presence; the husband asks for endurance. With each word uttered, neither realises that the other is afraid of losing the marriage by speaking the truth. You are a fly on the wall listening in on their conversation.',
     images: ['/images/play-scene-2.png', '/images/play-scene-1.png'],
@@ -40,7 +40,6 @@ export function renderProjects(app) {
     <section class="projects-hero">
       <div class="container">
         <h1>Projects</h1>
-        <p>There is more in drawers. These are the ones that left the house.</p>
       </div>
     </section>
 
@@ -51,7 +50,7 @@ export function renderProjects(app) {
           <div class="project-meta-col">
             <div class="proj-num">${p.num}</div>
             <div class="proj-cat">${p.category}</div>
-            <div>${p.year}</div>
+            ${p.year ? `<div>${p.year}</div>` : ''}
             <div class="proj-details">
               ${p.metaDetails.map(d => `<div>${d}</div>`).join('')}
             </div>
@@ -86,10 +85,10 @@ export function renderProjects(app) {
               ` : ''}
             ` : `
               <div class="project-cta-row">
-                <button class="btn--sharp" id="toggle-trailer-btn" aria-expanded="false">
+                <button class="btn--sharp-terracotta" id="toggle-trailer-btn" aria-expanded="false">
                   WATCH THE TRAILER →
                 </button>
-                <button class="btn--sharp-terracotta" id="toggle-play-pay-btn" aria-expanded="false">
+                <button class="btn--sharp" id="toggle-play-pay-btn" aria-expanded="false">
                   WATCH THE PLAY — KES 1,000 →
                 </button>
               </div>
@@ -123,7 +122,7 @@ export function renderProjects(app) {
       `).join('')}
 
       <!-- Buy me soda madiaba -->
-      <div id="soda-container"></div>
+      <div id="soda-container" style="border-top:1px solid var(--rule);"></div>
 
       <!-- Write to me -->
       <div id="contact-container"></div>
@@ -169,7 +168,7 @@ export function renderProjects(app) {
         playPayBtn.className = 'btn--sharp-close';
       } else {
         playPayBtn.textContent = 'WATCH THE PLAY — KES 1,000 →';
-        playPayBtn.className = 'btn--sharp-terracotta';
+        playPayBtn.className = 'btn--sharp';
       }
     });
   }

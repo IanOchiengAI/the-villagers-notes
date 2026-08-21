@@ -11,7 +11,9 @@ export function initNav() {
     <nav class="nav" id="site-nav">
       <div class="container">
         <div class="nav__inner">
-          <a href="#/" class="nav__logo">The Villager's Notes</a>
+          <a href="#/" class="nav__logo" style="display:inline-flex;align-items:center;">
+            <img src="/images/vn-logo.png" alt="The Villager's Notes" style="height:38px;width:auto;mix-blend-mode:multiply;display:block;" />
+          </a>
           <ul class="nav__links">
             ${LINKS.map(l => `<li><a href="${l.href}" data-page="${l.page}">${l.label}</a></li>`).join('')}
           </ul>
