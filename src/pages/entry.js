@@ -58,14 +58,11 @@ export function renderEntry(app, id) {
   const wordCount  = bodyText.split(/\s+/).length + excerptText.split(/\s+/).length;
   const readMins   = Math.max(1, Math.ceil(wordCount / 200));
 
-  // Author formatting
-  const author = toTitleCase(entry.author || 'Vic Munala');
+  // Author formatting & meta
   const metaParts = [];
-  if (entry.category) metaParts.push(entry.category);
-  if (entry.date) metaParts.push(entry.date);
-  metaParts.push(`${readMins} min read`);
-  if (author) metaParts.push(`by ${author}`);
-  const metaText = metaParts.join(' · ');
+  if (entry.category) metaParts.push(entry.category.toUpperCase());
+  if (entry.date) metaParts.push(entry.date.toUpperCase());
+  const metaText = metaParts.length > 0 ? metaParts.join(' · ') : (entry.meta?.toUpperCase() || 'ESSAY');
 
   // Likes tracking
   const likedKey = `tvn_liked_${entry.id}`;
@@ -74,12 +71,8 @@ export function renderEntry(app, id) {
   const storedLikeDelta = isLiked ? 1 : 0;
   let currentLikes = baseLikes + storedLikeDelta;
 
-  // Reading progress bar element — remove any stale bar first
+  // Clean any stale progress bar
   document.querySelectorAll('.reading-progress').forEach(el => el.remove());
-  const progressBar = document.createElement('div');
-  progressBar.className = 'reading-progress';
-  progressBar.id = 'reading-progress';
-  document.body.appendChild(progressBar);
 
   // Set page title & OG dynamically
   document.title = `${entry.title} — The Villager's Notes`;
@@ -93,8 +86,8 @@ export function renderEntry(app, id) {
           ← ENTRIES
         </a>
 
-        <!-- Meta + read time -->
-        <div class="label" style="margin-top:2.5rem;">
+        <!-- Meta -->
+        <div class="label" style="margin-top:2.5rem;letter-spacing:0.16em;">
           ${metaText}
         </div>
 
@@ -103,8 +96,8 @@ export function renderEntry(app, id) {
           ${entry.title}
         </h1>
 
-        <!-- Excerpt / lede -->
-        <p style="margin-top:1.25rem;max-width:54ch;font-size:1.25rem;line-height:1.35;color:var(--muted-foreground);font-family:var(--font-body);">
+        <!-- Excerpt / standfirst -->
+        <p style="margin-top:1.25rem;max-width:54ch;font-size:1.15rem;line-height:1.65;color:var(--foreground);font-family:var(--font-body);font-style:normal;">
           ${entry.excerpt || ''}
         </p>
 
@@ -330,17 +323,15 @@ export function renderEntry(app, id) {
     });
   }
 
-  // Reading progress bar and completion tracker
+  // Completion tracker
   let completedLogged = false;
   function onScroll() {
-    const body   = document.getElementById('entry-body');
-    const bar    = document.getElementById('reading-progress');
-    if (!body || !bar) return;
+    const body = document.getElementById('entry-body');
+    if (!body) return;
     const bodyTop  = body.getBoundingClientRect().top + window.scrollY;
     const bodyEnd  = bodyTop + body.offsetHeight;
     const scrolled = window.scrollY + window.innerHeight;
     const pct      = Math.min(100, Math.max(0, ((scrolled - bodyTop) / (bodyEnd - bodyTop)) * 100));
-    bar.style.width = pct + '%';
 
     if (pct >= 95 && !completedLogged) {
       completedLogged = true;
@@ -350,7 +341,6 @@ export function renderEntry(app, id) {
   window.addEventListener('scroll', onScroll, { passive: true });
   const cleanup = () => {
     window.removeEventListener('scroll', onScroll);
-    progressBar.remove();
     window.removeEventListener('hashchange', cleanup);
   };
   window.addEventListener('hashchange', cleanup);

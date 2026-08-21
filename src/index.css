@@ -227,19 +227,6 @@ p { max-width: 65ch; }
   margin: var(--space-10) 0;
 }
 
-/* Reading progress bar (top of viewport) */
-.reading-progress {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 2px;
-  width: 0;
-  background: var(--accent);
-  z-index: 9999;
-  transition: width 0.1s linear;
-  pointer-events: none;
-}
-
 /* ============================================
    NAV (Lovable Editorial Header)
    ============================================ */
@@ -482,9 +469,9 @@ p { max-width: 65ch; }
   margin-bottom: var(--space-6);
 }
 .entry-detail__excerpt {
-  font-style: italic;
-  font-size: 1rem;
-  color: var(--text-muted);
+  font-style: normal;
+  font-size: 1.15rem;
+  color: var(--foreground);
   line-height: 1.65;
   margin-bottom: var(--space-8);
 }

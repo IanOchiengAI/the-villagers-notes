@@ -46,7 +46,7 @@ export function renderHome(app) {
                 <a href="#/entries/${e.id}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
                   <div class="label" style="margin-bottom:0.5rem;">${metaText}</div>
                   <h3 style="font-size:clamp(1.4rem, 4vw, 1.75rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--foreground)'">${e.title}</h3>
-                  <p style="margin-top:0.4rem;max-width:60ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;font-style:italic;">${e.excerpt || ''}</p>
+                  <p style="margin-top:0.4rem;max-width:60ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;">${e.excerpt || ''}</p>
                 </a>
               </li>
             `;
