@@ -8,35 +8,42 @@ export function renderSodaTip(container) {
 
   function render() {
     container.innerHTML = `
-      <section class="soda-section">
-        <h2 class="soda-section__title">Buy me soda madiaba</h2>
-        <p class="soda-section__subtitle">
-          Everything here is free to read and always will be. If something landed, you can send the price of a soda. No tiers, no members-only anything.
-        </p>
+      <section class="soda-section" style="margin-top:5rem;border-top:1px solid var(--foreground);padding-top:3rem;">
+        <h2 style="font-size:clamp(1.75rem, 4.5vw, 2.5rem);font-family:var(--font-hand);font-weight:400;margin:0 0 1.5rem;">
+          Enjoying the work here, buy me soda madiaba.
+        </h2>
 
-        <div class="soda-box">
-          <div class="soda-box__label">AMOUNT (KES)</div>
-          <div class="soda-box__amounts">
+        <div class="soda-box" style="border:1px solid var(--rule);background:var(--card);padding:2rem;max-width:36rem;">
+          <div class="label" style="margin-bottom:0.75rem;">AMOUNT (KES)</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:1.25rem;">
             ${AMOUNTS.map(a => `
-              <button class="soda-box__amount-btn ${a === selected ? 'selected' : ''}" data-val="${a}">
+              <button class="label" type="button" data-val="${a}"
+                      style="border:1px solid ${a === selected ? 'var(--accent)' : 'var(--rule)'};color:${a === selected ? 'var(--accent)' : 'var(--foreground)'};background:transparent;padding:0.5rem 1rem;cursor:pointer;transition:all 0.15s ease;">
                 ${a}
               </button>
             `).join('')}
-            <input type="number" class="soda-box__custom-input" id="soda-custom-val" value="${selected}" min="10" step="10" />
+            <input type="number" id="soda-custom-val" value="${selected}" min="1" aria-label="Custom amount in shillings"
+                   style="width:5.5rem;border:none;border-bottom:1px solid var(--rule);background:transparent;padding-bottom:0.25rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);" />
           </div>
 
-          <div class="soda-box__label">M-PESA NUMBER</div>
-          <input class="soda-box__phone-input" type="tel" id="soda-phone" placeholder="07XX XXX XXX" />
+          <div style="margin-bottom:1.25rem;">
+            <label class="label" for="soda-phone" style="display:block;margin-bottom:0.5rem;">M-Pesa number</label>
+            <input type="tel" id="soda-phone" placeholder="07XX XXX XXX" inputmode="tel" required
+                   style="width:100%;border:none;border-bottom:1px solid var(--foreground);background:transparent;padding-bottom:0.5rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);" />
+          </div>
 
-          <button class="btn--sharp" id="soda-pay" style="width:100%;padding:11px;font-size:0.75rem;">
-            SEND THE SODA
+          <button class="label" id="soda-pay" type="button"
+                  style="border:1px solid var(--foreground);background:transparent;padding:0.625rem 1.25rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;margin-bottom:0.75rem;"
+                  onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
+                  onmouseout="this.style.borderColor='var(--foreground)';this.style.color='var(--foreground)';">
+            Send the soda
           </button>
 
-          <div class="stk-status" id="soda-status" style="margin-top:10px;"></div>
-
-          <p class="soda-box__note">
+          <p style="color:var(--muted-foreground);font-size:0.95rem;font-family:var(--font-body);margin-top:0.5rem;">
             A payment prompt comes to your phone. Nothing is charged until you enter your PIN.
           </p>
+
+          <div class="stk-status" id="soda-status" style="margin-top:0.75rem;"></div>
         </div>
       </section>`;
 

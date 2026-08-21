@@ -9,6 +9,7 @@ const routes = {
   '':         { render: renderHome,     title: "The Villager's Notes — Vic Munala",           desc: 'Writing by Vic Munala — novelist and playwright from Nairobi, Kenya.' },
   'entries':  { render: renderEntries,  title: "Entries — The Villager's Notes",               desc: 'Essays, teasers, reviews, and notes from Vic Munala.' },
   'projects': { render: renderProjects, title: "Projects — The Villager's Notes",              desc: 'Under the Mango Tree (Novel) and Beneath the Surface (Play) by Vic Munala.' },
+  'works':    { render: renderProjects, title: "Projects — The Villager's Notes",              desc: 'Under the Mango Tree (Novel) and Beneath the Surface (Play) by Vic Munala.' },
   'book':     { render: renderBook,     title: "Get the Book — Under the Mango Tree",          desc: 'Order Under the Mango Tree by Vic Munala directly via M-Pesa. Nairobi delivery available.' },
   'admin':    { render: renderAdmin,    title: "Admin — The Villager's Notes",                desc: '' },
 };
@@ -39,22 +40,22 @@ function logPageVisit(path) {
 
 export function initRouter() {
   function route() {
-    const hash = location.hash.replace('#/', '') || '';
-    const app  = document.getElementById('app');
+    const rawHash = location.hash.replace(/^#\/?/, '').replace(/\/$/, '') || '';
+    const app = document.getElementById('app');
     if (!app) return;
     app.innerHTML = '';
     window.scrollTo(0, 0);
 
-    logPageVisit(hash);
+    logPageVisit(rawHash);
 
-    // entry/:id — title set inside renderEntry()
-    if (hash.startsWith('entry/')) {
-      const id = hash.replace('entry/', '');
-      renderEntry(app, id);
+    // Support both #/entries/:slug and #/entry/:id
+    if (rawHash.startsWith('entry/') || (rawHash.startsWith('entries/') && rawHash.replace('entries/', '').length > 0)) {
+      const slugOrId = rawHash.replace(/^(entry|entries)\//, '');
+      renderEntry(app, slugOrId);
       return;
     }
 
-    const page = routes[hash] ?? routes[''];
+    const page = routes[rawHash] ?? routes[''];
     setMeta(page.title, page.desc);
     page.render(app);
   }

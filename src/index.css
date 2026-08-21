@@ -1,23 +1,44 @@
 /* ============================================
-   DESIGN TOKENS
+   DESIGN TOKENS (Lovable Editorial Design System)
    ============================================ */
 :root {
-  /* Colors */
-  --bg:          hsl(40, 30%, 97%);
-  --bg-subtle:   hsl(40, 20%, 93%);
-  --surface:     hsl(40, 25%, 95%);
-  --border:      hsl(40, 15%, 85%);
-  --text:        hsl(30, 10%, 12%);
-  --text-muted:  hsl(30, 8%, 45%);
-  --accent:      hsl(44, 95%, 52%);
-  --accent-dark: hsl(44, 95%, 38%);
-  --accent-bg:   hsl(44, 100%, 94%);
-  --white:       hsl(0, 0%, 100%);
+  --radius: 0.125rem;
+  --background: oklch(0.985 0.006 92);
+  --foreground: oklch(0.22 0.014 60);
+  --card: oklch(0.992 0.004 92);
+  --card-foreground: oklch(0.22 0.014 60);
+  --popover: oklch(0.978 0.01 92);
+  --popover-foreground: oklch(0.22 0.014 60);
+  --primary: oklch(0.22 0.014 60);
+  --primary-foreground: oklch(0.968 0.012 92);
+  --secondary: oklch(0.93 0.016 92);
+  --secondary-foreground: oklch(0.22 0.014 60);
+  --muted: oklch(0.93 0.016 92);
+  --muted-foreground: oklch(0.47 0.017 65);
+  --accent: oklch(0.52 0.13 40);
+  --accent-foreground: oklch(0.98 0.01 92);
+  --destructive: oklch(0.51 0.17 27);
+  --destructive-foreground: oklch(0.98 0.01 92);
+  --border: oklch(0.86 0.017 85);
+  --input: oklch(0.86 0.017 85);
+  --ring: oklch(0.52 0.13 40);
+  --rule: oklch(0.78 0.02 82);
 
-  /* Typography */
-  --font-serif: 'Playfair Display', Georgia, serif;
-  --font-sans:  'Inter', system-ui, sans-serif;
-  --font-hand:  'Shadows Into Light', cursive;
+  /* Legacy aliases */
+  --bg: var(--background);
+  --bg-subtle: var(--secondary);
+  --surface: var(--card);
+  --text: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --white: var(--accent-foreground);
+
+  /* Typography (Exact Lovable Declaration) */
+  --font-display: "Caveat", "Instrument Serif", cursive;
+  --font-hand: "Shadows Into Light", "Caveat", cursive;
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-body: "Newsreader", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: "IBM Plex Mono", ui-monospace, monospace;
 
   /* Spacing scale */
   --space-1:  0.25rem;
@@ -32,10 +53,11 @@
   --space-16: 4rem;
   --space-24: 6rem;
 
-  /* Squeezed Central Layout (Vic Lovable match) */
-  --max-width: 720px;
-  --radius:    0px;
-  --radius-lg: 4px;
+  /* Squeezed Central Layout (Vic Lovable max-w-3xl) */
+  --max-width: 48rem;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
 
   /* Transitions */
   --t-fast:   150ms ease;
@@ -43,21 +65,68 @@
 }
 
 /* ============================================
-   RESET
+   RESET & BASE
    ============================================ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border-color: var(--border); }
 html { scroll-behavior: smooth; }
 body {
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--text);
-  background: var(--bg);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--foreground);
+  background-color: var(--background);
   -webkit-font-smoothing: antialiased;
 }
 img { display: block; max-width: 100%; }
-a { color: inherit; text-decoration: none; }
-button { cursor: pointer; font-family: var(--font-sans); border: none; background: none; }
+a { color: inherit; text-decoration: none; text-underline-offset: 3px; }
+button { cursor: pointer; font-family: inherit; border: none; background: none; }
+
+::selection {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* ============================================
+   UTILITIES
+   ============================================ */
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.text-accent {
+  color: var(--accent) !important;
+}
+
+.prose-note p {
+  margin-block: 1.15rem;
+}
+.prose-note p:first-child {
+  margin-top: 0;
+}
+.prose-note blockquote {
+  border-left: 2px solid var(--accent);
+  padding-left: 1rem;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.reveal {
+  animation: reveal 0.4s ease-out both;
+}
 
 /* ============================================
    LAYOUT UTILITIES
@@ -73,11 +142,16 @@ button { cursor: pointer; font-family: var(--font-sans); border: none; backgroun
 /* ============================================
    TYPOGRAPHY
    ============================================ */
-h1, h2, h3, h4 { font-family: var(--font-serif); line-height: 1.2; font-weight: 700; }
-h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); letter-spacing: -0.02em; }
-h2 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); letter-spacing: -0.015em; }
-h3 { font-size: clamp(1.1rem, 2vw, 1.4rem); }
-h4 { font-size: 1rem; }
+h1, h2, h3 {
+  font-family: var(--font-hand);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+h1 { font-size: clamp(2.25rem, 6.5vw, 4.5rem); }
+h2 { font-size: clamp(1.75rem, 4.5vw, 2.75rem); }
+h3 { font-size: clamp(1.25rem, 2.5vw, 1.75rem); }
+h4 { font-size: 1.1rem; }
 p { max-width: 65ch; }
 
 .eyebrow {
@@ -154,46 +228,47 @@ p { max-width: 65ch; }
 }
 
 /* ============================================
-   NAV (Squeezed Central)
+   NAV (Lovable Editorial Header)
    ============================================ */
 .nav {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: hsl(40 30% 97% / 0.95);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
+  background: var(--background);
+  border-bottom: 1px solid var(--rule);
 }
 .nav__inner {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  height: 58px;
+  gap: 1.5rem;
+  padding: 1.25rem 0;
 }
 .nav__logo {
   font-family: var(--font-hand);
-  font-size: 1.55rem;
+  font-size: 1.5rem;
   font-weight: 400;
-  color: var(--text);
-  letter-spacing: 0.01em;
+  line-height: 1;
+  color: var(--foreground);
+  text-decoration: none;
 }
 .nav__links {
   display: flex;
-  align-items: center;
-  gap: var(--space-6);
+  align-items: baseline;
+  gap: 1.25rem;
   list-style: none;
 }
 .nav__links a {
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.14em;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
+  text-decoration: none;
   transition: color var(--t-fast);
 }
 .nav__links a:hover,
-.nav__links a.active { color: var(--text); }
+.nav__links a.active { color: var(--accent); }
 .nav__hamburger {
   display: none;
   flex-direction: column;
@@ -1072,11 +1147,19 @@ p { max-width: 65ch; }
     box-sizing: border-box;
   }
 
-  /* Navigation */
-  .nav__links { display: none; }
-  .nav__hamburger { display: flex; }
-  .nav__mobile { padding: var(--space-3) 0 var(--space-4); }
-  .nav__mobile a { padding: var(--space-3) 0; font-size: 0.85rem; }
+  /* Navigation: clean minimal text links stacked on mobile */
+  .nav__inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding: 1.1rem 0;
+  }
+  .nav__logo {
+    font-size: 1.65rem;
+  }
+  .nav__links { display: flex; gap: 1.25rem; align-items: baseline; padding: 0; margin: 0; }
+  .nav__hamburger { display: none !important; }
+  .nav__mobile { display: none !important; }
 
   /* Home Hero */
   .hero {

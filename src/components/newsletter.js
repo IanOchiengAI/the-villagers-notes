@@ -1,46 +1,54 @@
 import { addSubscriber } from '../pages/admin.js';
 
 export function renderNewsletter(container, { variant = 'entry' } = {}) {
-  const label = variant === 'entries'
-    ? 'sign up for random good things'
-    : "The Villager's Notes";
-
-  const copy = variant === 'entries'
-    ? 'Notes, essays, and random dispatches — straight to your inbox.'
-    : variant === 'home'
-    ? 'Notes, essays, and play updates — straight to your inbox. No spam, ever.'
-    : 'If this landed, there\'s more. Notes, dispatches, and the occasional announcement — straight to your inbox.';
-
   container.innerHTML = `
-    <div class="newsletter">
-      <div class="newsletter__label">${label}</div>
-      <p class="newsletter__text">${copy}</p>
-      <form class="newsletter__form" id="nl-form-${variant}" novalidate>
-        <input class="newsletter__input" type="email" id="nl-email-${variant}"
-               placeholder="your@email.com" required autocomplete="email" />
-        <button class="newsletter__btn" type="submit">Subscribe</button>
+    <section class="newsletter-section" style="margin-top:4.5rem;border-top:1px solid var(--rule);padding-top:3rem;">
+      <h2 style="font-size:clamp(1.85rem, 5vw, 2.5rem);font-family:var(--font-hand);font-weight:400;margin:0 0 2rem;color:var(--foreground);">Sign up for random good things</h2>
+      <form class="newsletter__form" id="nl-form-${variant}" novalidate style="max-width:28rem;display:flex;flex-direction:column;gap:1.5rem;">
+        <div>
+          <label class="label" for="nl-email-${variant}" style="display:block;margin-bottom:0.6rem;font-size:0.6875rem;letter-spacing:0.16em;">EMAIL</label>
+          <input class="form-input-underlined" type="email" id="nl-email-${variant}"
+                 placeholder="you@somewhere" required autocomplete="email"
+                 style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding:0.4rem 0 0.6rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);border-radius:0;"
+                 onfocus="this.style.borderBottomColor='var(--foreground)'"
+                 onblur="this.style.borderBottomColor='var(--rule)'" />
+        </div>
+        <div>
+          <label class="label" for="nl-note-${variant}" style="display:block;margin-bottom:0.6rem;font-size:0.6875rem;letter-spacing:0.16em;">CITY, OR ANYTHING (OPTIONAL)</label>
+          <input class="form-input-underlined" type="text" id="nl-note-${variant}"
+                 placeholder="Nairobi"
+                 style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding:0.4rem 0 0.6rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);border-radius:0;"
+                 onfocus="this.style.borderBottomColor='var(--foreground)'"
+                 onblur="this.style.borderBottomColor='var(--rule)'" />
+        </div>
+        <button class="label" type="submit"
+                style="align-self:flex-start;border:1px solid var(--foreground);background:transparent;padding:0.65rem 1.4rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;margin-top:0.5rem;font-size:0.6875rem;letter-spacing:0.16em;text-transform:uppercase;border-radius:0;"
+                onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
+                onmouseout="this.style.borderColor='var(--foreground)';this.style.color='var(--foreground)';">
+          PUT ME ON THE LIST
+        </button>
       </form>
-      <p class="newsletter__confirm" id="nl-confirm-${variant}"></p>
-    </div>`;
+      <p class="font-hand" id="nl-confirm-${variant}" style="display:none;margin-top:1.5rem;font-size:1.5rem;font-family:var(--font-hand);color:var(--foreground);"></p>
+    </section>`;
 
   const form    = container.querySelector(`#nl-form-${variant}`);
   const confirm = container.querySelector(`#nl-confirm-${variant}`);
   const input   = container.querySelector(`#nl-email-${variant}`);
-  const btn     = container.querySelector('.newsletter__btn');
+  const btn     = container.querySelector('button[type="submit"]');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = input.value.trim();
     if (!email || !email.includes('@')) {
-      input.style.borderColor = 'hsl(0 60% 60%)';
+      input.style.borderBottomColor = 'var(--destructive)';
       input.focus();
       return;
     }
 
     // Loading state
-    btn.textContent = 'Subscribing…';
+    btn.textContent = 'Sending…';
     btn.disabled = true;
-    input.style.borderColor = '';
+    input.style.borderBottomColor = 'var(--foreground)';
 
     try {
       let already = false;
@@ -61,14 +69,14 @@ export function renderNewsletter(container, { variant = 'entry' } = {}) {
       addSubscriber(email);
       form.style.display = 'none';
       confirm.textContent = already
-        ? 'You\'re already on the list — look out for the next note.'
-        : 'You\'re in. Thank you — watch your inbox.';
-      confirm.classList.add('shown');
+        ? "You're already on the list. Nothing more to do."
+        : "Done. You'll hear from me only when there's something to hear.";
+      confirm.style.display = 'block';
     } catch {
-      btn.textContent = 'Subscribe';
+      btn.textContent = 'Put me on the list';
       btn.disabled = false;
-      confirm.textContent = 'Something went wrong. Try again or email vikmunala@gmail.com.';
-      confirm.classList.add('shown');
+      confirm.textContent = 'That didn\'t go through. Try again.';
+      confirm.style.display = 'block';
     }
   });
 }

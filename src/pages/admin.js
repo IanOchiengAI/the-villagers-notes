@@ -37,7 +37,10 @@ export function saveData(data) {
 }
 export function getEntries() {
   const d = loadData();
-  return d?.entries ?? DEFAULT_ENTRIES;
+  if (d?.entries && d.entries.length > 0 && d.entries[0].id !== '1') {
+    return d.entries;
+  }
+  return DEFAULT_ENTRIES;
 }
 export function getProjects() {
   const d = loadData();

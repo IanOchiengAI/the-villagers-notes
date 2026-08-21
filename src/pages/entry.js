@@ -23,7 +23,7 @@ function logAnalyticsEvent(type, payload = {}) {
 
 export function renderEntry(app, id) {
   const ENTRIES = getEntries();
-  const idx   = ENTRIES.findIndex(e => e.id === id);
+  const idx   = ENTRIES.findIndex(e => e.id === id || e.slug === id);
   const entry = ENTRIES[idx];
   const prev  = ENTRIES[idx - 1] ?? null;
   const next  = ENTRIES[idx + 1] ?? null;
@@ -32,7 +32,7 @@ export function renderEntry(app, id) {
     app.innerHTML = `
       <div class="container" style="padding:var(--space-24) 0;text-align:center;">
         <p style="color:var(--text-muted)">Entry not found.</p>
-        <a href="#/entries" class="btn btn--outline" style="margin-top:var(--space-6);display:inline-flex">← Back to Entries</a>
+        <a href="#/entries" class="label" style="margin-top:var(--space-6);display:inline-flex;text-decoration:none;">← Back to Entries</a>
       </div>`;
     return;
   }
@@ -63,10 +63,19 @@ export function renderEntry(app, id) {
   const metaParts = [];
   if (entry.category) metaParts.push(entry.category);
   if (entry.date) metaParts.push(entry.date);
-  if (author) metaParts.push(author);
-  const metaText = metaParts.length > 0 ? metaParts.join(' · ') : entry.meta;
+  metaParts.push(`${readMins} min read`);
+  if (author) metaParts.push(`by ${author}`);
+  const metaText = metaParts.join(' · ');
 
-  // Reading progress bar element
+  // Likes tracking
+  const likedKey = `tvn_liked_${entry.id}`;
+  const isLiked = !!localStorage.getItem(likedKey);
+  const baseLikes = typeof entry.likes === 'number' ? entry.likes : 0;
+  const storedLikeDelta = isLiked ? 1 : 0;
+  let currentLikes = baseLikes + storedLikeDelta;
+
+  // Reading progress bar element — remove any stale bar first
+  document.querySelectorAll('.reading-progress').forEach(el => el.remove());
   const progressBar = document.createElement('div');
   progressBar.className = 'reading-progress';
   progressBar.id = 'reading-progress';
@@ -76,111 +85,250 @@ export function renderEntry(app, id) {
   document.title = `${entry.title} — The Villager's Notes`;
 
   app.innerHTML = `
-    <div class="entry-detail">
+    <article style="padding:4rem 0;">
       <div class="container">
 
         <!-- Back link -->
-        <a href="#/entries" class="entry-detail__back">← Entries</a>
+        <a href="#/entries" class="label" style="text-decoration:none;transition:color 0.15s ease;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted-foreground)'">
+          ← ENTRIES
+        </a>
 
-        <!-- Toolbar: meta + read time + share -->
-        <div class="entry-detail__toolbar">
-          <div class="entry-detail__meta">${metaText}</div>
-          <div style="display:flex;align-items:center;gap:var(--space-4);">
-            <span class="entry-detail__readtime">${readMins} min read</span>
-            <div class="share-btn-wrap">
-              <button class="share-btn" id="share-btn" aria-label="Share this entry" aria-expanded="false">
-                <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                Share
-              </button>
-              <div class="share-dropdown" id="share-dropdown" style="display:none;">
-                <button class="share-dropdown__item" data-share="ig">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-                  Instagram
-                </button>
-                <a class="share-dropdown__item" data-share="twitter" target="_blank" rel="noopener">
-                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                  Twitter / X
-                </a>
-                <a class="share-dropdown__item" data-share="facebook" target="_blank" rel="noopener">
-                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                  Facebook
-                </a>
-                <a class="share-dropdown__item" data-share="whatsapp" target="_blank" rel="noopener">
-                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 6.46 17.5 2 12.04 2M12.05 20.15C10.57 20.15 9.12 19.75 7.85 19L7.55 18.82L4.43 19.64L5.26 16.59L5.07 16.29C4.24 14.97 3.81 13.46 3.81 11.91C3.81 7.37 7.5 3.69 12.05 3.69C14.25 3.69 16.32 4.55 17.88 6.11C19.44 7.67 20.3 9.74 20.3 11.94C20.3 16.48 16.6 20.15 12.05 20.15M16.57 14.46C16.32 14.33 15.1 13.73 14.88 13.65C14.65 13.56 14.49 13.52 14.32 13.77C14.16 14.02 13.69 14.57 13.54 14.73C13.4 14.9 13.25 14.92 13 14.8C12.75 14.67 11.71 14.33 10.47 13.23C9.51 12.38 8.86 11.32 8.68 11C8.5 10.68 8.66 10.5 8.79 10.37C8.9 10.26 9.03 10.08 9.16 9.94C9.28 9.79 9.32 9.69 9.4 9.52C9.48 9.36 9.44 9.21 9.38 9.09C9.32 8.97 8.83 7.76 8.63 7.27C8.43 6.79 8.23 6.85 8.08 6.85C7.94 6.84 7.78 6.84 7.61 6.84C7.45 6.84 7.18 6.9 6.96 7.15C6.73 7.39 6.12 7.97 6.12 9.15C6.12 10.33 6.98 11.47 7.1 11.63C7.22 11.79 8.8 14.23 11.23 15.28C11.81 15.53 12.26 15.68 12.61 15.79C13.19 15.98 13.72 15.95 14.14 15.89C14.61 15.82 15.58 15.3 15.78 14.73C15.99 14.15 15.99 13.66 15.93 13.56C15.86 13.46 15.71 13.4 15.46 13.27"/></svg>
-                  WhatsApp
-                </a>
-                <a class="share-dropdown__item" data-share="email">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  Email
-                </a>
-                <button class="share-dropdown__item" data-share="copy">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  <span id="copy-label">Copy Link</span>
-                </button>
-              </div>
-            </div>
-          </div>
+        <!-- Meta + read time -->
+        <div class="label" style="margin-top:2.5rem;">
+          ${metaText}
         </div>
 
         <!-- Title -->
-        <h1 class="entry-detail__title">${entry.title}</h1>
+        <h1 style="margin-top:0.75rem;max-width:22ch;font-size:clamp(2.25rem, 6.5vw, 3.75rem);font-family:var(--font-hand);font-weight:400;line-height:1.05;">
+          ${entry.title}
+        </h1>
 
         <!-- Excerpt / lede -->
-        <p class="entry-detail__excerpt">${entry.excerpt || ''}</p>
-
-        <hr class="divider" />
+        <p style="margin-top:1.25rem;max-width:54ch;font-size:1.25rem;line-height:1.35;color:var(--muted-foreground);font-family:var(--font-body);font-style:italic;">
+          ${entry.excerpt || ''}
+        </p>
 
         <!-- Body / Paywall -->
-        <div class="entry-detail__body" id="entry-body">
+        <div class="prose-note" id="entry-body" style="margin-top:2.5rem;max-width:62ch;border-top:1px solid var(--rule);padding-top:2rem;font-size:1.25rem;line-height:1.75;">
           ${isPaid && !isUnlocked ? `
-            <div style="background:var(--surface);border:1px solid var(--border);padding:var(--space-8);border-radius:8px;text-align:center;margin:var(--space-6) 0;box-shadow:0 4px 20px rgba(0,0,0,0.04);">
-              <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;color:hsl(24, 75%, 45%);margin-bottom:8px;">Paid Story</p>
-              <h3 style="font-family:var(--font-hand);font-size:2rem;color:var(--text);margin-bottom:10px;">This story requires a key.</h3>
-              <p style="font-size:0.95rem;color:var(--text-muted);max-width:44ch;margin:0 auto var(--space-6);line-height:1.6;">
-                Unlock and read this full story for <strong>KES ${Number(entry.price).toLocaleString()}</strong> via M-Pesa.
-              </p>
-              
-              <div style="max-width:320px;margin:0 auto var(--space-4);text-align:left;">
-                <label style="font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;">M-Pesa Number</label>
-                <input type="tel" id="paywall-phone" placeholder="07XX XXX XXX" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:6px;font-size:0.95rem;box-sizing:border-box;margin-bottom:12px;" />
-                <button class="btn--sharp" id="paywall-unlock-btn" style="width:100%;padding:12px;font-size:0.85rem;">
-                  UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →
-                </button>
-                <div id="paywall-status" style="margin-top:10px;font-size:0.85rem;text-align:center;"></div>
+            <div style="background:var(--card);border:1px solid var(--rule);padding:2rem;margin:1.5rem 0;">
+              <div class="label" style="margin-bottom:0.75rem;">Rest of this one is paid</div>
+              <h2 style="font-size:clamp(1.5rem, 4vw, 2rem);font-family:var(--font-hand);font-weight:400;margin-bottom:1rem;">
+                Read the whole thing — KES ${Number(entry.price).toLocaleString()}
+              </h2>
+              <div style="max-width:28rem;margin-top:1.5rem;display:flex;flex-direction:column;gap:1.25rem;">
+                <div>
+                  <label class="label" for="paywall-phone" style="display:block;margin-bottom:0.5rem;">M-Pesa Number</label>
+                  <input type="tel" id="paywall-phone" placeholder="07XX XXX XXX"
+                         style="width:100%;border:none;border-bottom:1px solid var(--foreground);background:transparent;padding-bottom:0.5rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);" />
+                </div>
+                <div style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;margin-top:0.5rem;">
+                  <button class="label" id="paywall-unlock-btn"
+                          style="border:1px solid var(--foreground);background:transparent;padding:0.625rem 1.25rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;"
+                          onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
+                          onmouseout="this.style.borderColor='var(--foreground)';this.style.color='var(--foreground)';">
+                    Pay KES ${Number(entry.price).toLocaleString()}
+                  </button>
+                </div>
+                <div id="paywall-status" style="font-size:0.85rem;"></div>
               </div>
             </div>
-          ` : bodyParagraphs.map(p => `<p>${p}</p>`).join('')}
+          ` : bodyParagraphs.map(p => {
+              if (p.startsWith('*') && p.endsWith('*')) {
+                return `<p><em>${p.slice(1, -1)}</em></p>`;
+              }
+              return `<p>${p}</p>`;
+            }).join('')}
         </div>
 
-        <!-- Newsletter at end of every entry -->
-        <div id="entry-newsletter"></div>
+        <!-- Social interactions: Likes & Share -->
+        <div style="display:flex;align-items:center;gap:1.5rem;margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--rule);max-width:62ch;">
+          <button id="like-btn" class="label" style="background:transparent;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;color:${isLiked ? 'var(--accent)' : 'inherit'};font-size:0.85rem;padding:0;">
+            <span id="like-icon" style="font-size:1.1rem;line-height:1;">${isLiked ? '♥' : '♡'}</span>
+            <span id="like-count">${currentLikes} ${currentLikes === 1 ? 'like' : 'likes'}</span>
+          </button>
+
+          <button id="share-btn" class="label" style="background:transparent;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;font-size:0.85rem;padding:0;color:inherit;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='inherit'">
+            Share
+          </button>
+          <span id="share-feedback" class="label" style="display:none;color:var(--accent);">Link copied ✓</span>
+        </div>
 
         <!-- Prev / Next navigation -->
-        <nav class="entry-nav" style="display:flex;justify-content:space-between;margin-top:var(--space-12);padding-top:var(--space-6);border-top:1px solid var(--border);gap:var(--space-4);">
+        <nav style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--rule);max-width:62ch;">
           <div>
             ${prev ? `
-              <a href="#/entry/${prev.id}" style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;color:var(--text-muted);">← Previous</a>
-              <div style="font-family:var(--font-hand);font-size:1.1rem;color:var(--accent);margin-top:var(--space-1);">${prev.title}</div>
+              <a href="#/entries/${prev.id}" style="text-decoration:none;color:inherit;display:block;" class="entry-link-group">
+                <div class="label">← Previous entry</div>
+                <div style="font-family:var(--font-hand);font-size:1.35rem;margin-top:0.25rem;transition:color 0.15s ease;">${prev.title}</div>
+              </a>
             ` : ''}
           </div>
           <div style="text-align:right;">
             ${next ? `
-              <a href="#/entry/${next.id}" style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;color:var(--text-muted);">Next →</a>
-              <div style="font-family:var(--font-hand);font-size:1.1rem;color:var(--accent);margin-top:var(--space-1);">${next.title}</div>
+              <a href="#/entries/${next.id}" style="text-decoration:none;color:inherit;display:block;" class="entry-link-group">
+                <div class="label">Next entry →</div>
+                <div style="font-family:var(--font-hand);font-size:1.35rem;margin-top:0.25rem;transition:color 0.15s ease;">${next.title}</div>
+              </a>
             ` : ''}
           </div>
         </nav>
 
+        <!-- Comments Section -->
+        <section style="margin-top:3rem;padding-top:2rem;border-top:1px solid var(--rule);max-width:62ch;" id="comments-section">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;">
+            <h2 style="font-family:var(--font-hand);font-size:2rem;margin:0;font-weight:400;">Comments</h2>
+            <button id="toggle-comment-btn" class="label" style="background:transparent;border:1px solid var(--rule);padding:0.4rem 0.85rem;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.borderColor='var(--foreground)'" onmouseout="this.style.borderColor='var(--rule)'">
+              Leave a comment
+            </button>
+          </div>
+
+          <div id="comment-form-container" style="display:none;margin-bottom:2rem;background:var(--card);padding:1.5rem;border:1px solid var(--rule);">
+            <form id="new-comment-form">
+              <div style="margin-bottom:1rem;">
+                <label class="label" for="comment-author" style="display:block;margin-bottom:0.35rem;">Your Name</label>
+                <input type="text" id="comment-author" required placeholder="e.g. Aoko" style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding:0.35rem 0;font-family:var(--font-body);outline:none;font-size:1rem;" />
+              </div>
+              <div style="margin-bottom:1rem;">
+                <label class="label" for="comment-text" style="display:block;margin-bottom:0.35rem;">Your Thoughts</label>
+                <textarea id="comment-text" required rows="3" placeholder="Leave a reflection or note…" style="width:100%;border:1px solid var(--rule);background:transparent;padding:0.5rem;font-family:var(--font-body);outline:none;font-size:1rem;"></textarea>
+              </div>
+              <button type="submit" class="label" style="background:var(--foreground);color:var(--background);border:none;padding:0.6rem 1.25rem;cursor:pointer;">
+                Submit Note
+              </button>
+            </form>
+          </div>
+
+          <div id="comments-container">
+            <!-- Rendered dynamically -->
+          </div>
+        </section>
+
       </div>
-    </div>
+    </article>
   `;
 
-  // Footer
-  app.insertAdjacentHTML('beforeend', footerHTML());
+  // Comments rendering & persistence
+  const commentsKey = `tvn_comments_${entry.id}`;
+  function loadComments() {
+    try {
+      const raw = localStorage.getItem(commentsKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  }
+  function saveComments(cmts) {
+    localStorage.setItem(commentsKey, JSON.stringify(cmts));
+  }
+  function renderCommentsList() {
+    const list = loadComments();
+    const target = document.getElementById('comments-container');
+    if (!target) return;
+    if (list.length === 0) {
+      target.innerHTML = `<p class="label" style="color:var(--muted-foreground);font-size:0.8rem;">No comments yet. Be the first to leave a reflection.</p>`;
+      return;
+    }
+    target.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        ${list.map(c => `
+          <div style="border-top:1px solid var(--rule);padding-top:1rem;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;">
+              <span class="label" style="font-weight:600;">${c.author}</span>
+              <span class="label" style="font-size:0.65rem;color:var(--muted-foreground);">${c.date}</span>
+            </div>
+            <p style="margin-top:0.5rem;font-family:var(--font-body);font-size:1.05rem;line-height:1.5;">${c.text}</p>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+  renderCommentsList();
 
-  // Newsletter component
-  const nlWrap = document.getElementById('entry-newsletter');
-  if (nlWrap) renderNewsletter(nlWrap, { variant: `entry-${entry.id}` });
+  // Toggle comment form
+  const toggleCommentBtn = document.getElementById('toggle-comment-btn');
+  const commentFormWrap = document.getElementById('comment-form-container');
+  if (toggleCommentBtn && commentFormWrap) {
+    toggleCommentBtn.addEventListener('click', () => {
+      const isHidden = commentFormWrap.style.display === 'none';
+      commentFormWrap.style.display = isHidden ? 'block' : 'none';
+      toggleCommentBtn.textContent = isHidden ? 'Cancel' : 'Leave a comment';
+    });
+  }
+
+  // Handle comment submit
+  const newCommentForm = document.getElementById('new-comment-form');
+  if (newCommentForm) {
+    newCommentForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const authorInput = document.getElementById('comment-author');
+      const textInput = document.getElementById('comment-text');
+      const authorVal = authorInput.value.trim();
+      const textVal = textInput.value.trim();
+      if (!authorVal || !textVal) return;
+
+      const currentList = loadComments();
+      currentList.unshift({
+        author: authorVal,
+        text: textVal,
+        date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      });
+      saveComments(currentList);
+      renderCommentsList();
+
+      authorInput.value = '';
+      textInput.value = '';
+      commentFormWrap.style.display = 'none';
+      if (toggleCommentBtn) toggleCommentBtn.textContent = 'Leave a comment';
+    });
+  }
+
+  // Like button handling
+  const likeBtn = document.getElementById('like-btn');
+  const likeIcon = document.getElementById('like-icon');
+  const likeCountEl = document.getElementById('like-count');
+  if (likeBtn && likeIcon && likeCountEl) {
+    likeBtn.addEventListener('click', () => {
+      const alreadyLiked = !!localStorage.getItem(likedKey);
+      if (alreadyLiked) {
+        localStorage.removeItem(likedKey);
+        currentLikes = Math.max(0, currentLikes - 1);
+        likeIcon.textContent = '♡';
+        likeBtn.style.color = 'inherit';
+      } else {
+        localStorage.setItem(likedKey, 'true');
+        currentLikes = currentLikes + 1;
+        likeIcon.textContent = '♥';
+        likeBtn.style.color = 'var(--accent)';
+      }
+      likeCountEl.textContent = `${currentLikes} ${currentLikes === 1 ? 'like' : 'likes'}`;
+    });
+  }
+
+  // Share button handling
+  const shareBtn = document.getElementById('share-btn');
+  const shareFeedback = document.getElementById('share-feedback');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', async () => {
+      const shareData = {
+        title: entry.title,
+        text: entry.excerpt || entry.title,
+        url: window.location.href,
+      };
+      if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+          return;
+        } catch (_) {}
+      }
+      // Fallback: clipboard
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        if (shareFeedback) {
+          shareFeedback.style.display = 'inline';
+          setTimeout(() => { shareFeedback.style.display = 'none'; }, 2000);
+        }
+      } catch (_) {}
+    });
+  }
 
   // Reading progress bar and completion tracker
   let completedLogged = false;
@@ -206,64 +354,6 @@ export function renderEntry(app, id) {
     window.removeEventListener('hashchange', cleanup);
   };
   window.addEventListener('hashchange', cleanup);
-
-  // Share dropdown wiring
-  const shareBtn = document.getElementById('share-btn');
-  const dropdown = document.getElementById('share-dropdown');
-  const shareUrl = window.location.href;
-  const shareTitle = entry.title;
-  const shareExcerpt = entry.excerpt || '';
-
-  if (shareBtn && dropdown) {
-    // Populate social URLs
-    const twitterLink = dropdown.querySelector('[data-share="twitter"]');
-    if (twitterLink) twitterLink.href = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}`;
-
-    const fbLink = dropdown.querySelector('[data-share="facebook"]');
-    if (fbLink) fbLink.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
-
-    const waLink = dropdown.querySelector('[data-share="whatsapp"]');
-    if (waLink) waLink.href = `https://wa.me/?text=${encodeURIComponent(`${shareTitle} — ${shareUrl}`)}`;
-
-    const mailLink = dropdown.querySelector('[data-share="email"]');
-    if (mailLink) mailLink.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(`${shareExcerpt}\n\nRead more at: ${shareUrl}`)}`;
-
-    // Toggle menu
-    shareBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isClosed = dropdown.style.display === 'none';
-      dropdown.style.display = isClosed ? 'flex' : 'none';
-      shareBtn.setAttribute('aria-expanded', isClosed ? 'true' : 'false');
-    });
-
-    // Close on click outside
-    document.addEventListener('click', (e) => {
-      if (!dropdown.contains(e.target) && e.target !== shareBtn) {
-        dropdown.style.display = 'none';
-        shareBtn.setAttribute('aria-expanded', 'false');
-      }
-    });
-
-    // IG share / copy action
-    dropdown.querySelector('[data-share="ig"]')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        alert('Link copied! You can now paste and share it on Instagram.');
-        dropdown.style.display = 'none';
-      });
-    });
-
-    // Copy link item
-    dropdown.querySelector('[data-share="copy"]')?.addEventListener('click', () => {
-      const copyLabel = document.getElementById('copy-label');
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        if (copyLabel) copyLabel.textContent = 'Copied ✓';
-        setTimeout(() => {
-          if (copyLabel) copyLabel.textContent = 'Copy Link';
-          dropdown.style.display = 'none';
-        }, 1200);
-      });
-    });
-  }
 
   // Paywall unlock button handler
   const unlockBtn = document.getElementById('paywall-unlock-btn');
@@ -338,40 +428,6 @@ export function renderEntry(app, id) {
         }, 3000);
 
       } catch (err) {
-        // Inline SDK fallback
-        if (typeof window !== 'undefined' && window.IntaSend) {
-          try {
-            const is = new window.IntaSend({
-              public_key: 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3',
-              live: true,
-            });
-            is.run({
-              amount: Number(entry.price),
-              currency: 'KES',
-              phone_number: phone,
-              email: 'vikmunala@gmail.com',
-              api_ref: `ENTRY_${entry.id}_${Date.now()}`,
-              comment: `Story Unlock - ${entry.title}`,
-            })
-            .on('IN-PROGRESS', () => {
-              statusEl.textContent = '📲 Prompt sent. Enter your PIN on your phone.';
-            })
-            .on('COMPLETE', () => {
-              localStorage.setItem(`tvn_unlocked_${entry.id}`, 'true');
-              statusEl.style.color = 'hsl(143 60% 40%)';
-              statusEl.textContent = '✅ Unlocked! Loading story…';
-              setTimeout(() => renderEntry(app, id), 1000);
-            })
-            .on('FAILED', () => {
-              statusEl.style.color = 'hsl(0 60% 50%)';
-              statusEl.textContent = 'Payment cancelled or declined.';
-              unlockBtn.disabled = false;
-              unlockBtn.textContent = `UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →`;
-            });
-            return;
-          } catch (_) {}
-        }
-
         statusEl.style.color = 'hsl(0 60% 50%)';
         statusEl.textContent = `❌ ${err.message || 'Could not initiate payment'}`;
         unlockBtn.disabled = false;
@@ -379,5 +435,8 @@ export function renderEntry(app, id) {
       }
     });
   }
+
+  // Footer
+  app.insertAdjacentHTML('beforeend', footerHTML());
 }
 

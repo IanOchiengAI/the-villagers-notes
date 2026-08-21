@@ -11,36 +11,35 @@ export function renderEntries(app) {
   const ENTRIES = getEntries();
 
   app.innerHTML = `
-    <section class="entries-hero">
+    <div style="padding:4rem 0;">
       <div class="container">
-        <div class="entries-hero__header">
-          <h1>Entries.</h1>
-          <div class="entries-search-box">
-            <svg class="entries-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input class="entries-search-input" id="entries-search" type="search" placeholder="Search entries..." aria-label="Search entries" autocomplete="off" />
-          </div>
+        <div style="display:flex;align-items:baseline;gap:1.5rem;border-bottom:1px solid var(--rule);padding-bottom:0.75rem;margin-bottom:2.5rem;">
+          <label for="entries-search" class="label" style="flex-shrink:0;letter-spacing:0.16em;">SEARCH</label>
+          <input id="entries-search" type="search" placeholder="a word, a name, a kind…"
+                 style="width:100%;background:transparent;border:none;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);border-radius:0;" />
+          <span class="label" id="search-count" style="flex-shrink:0;display:none;"></span>
         </div>
-        <hr class="divider" style="margin:var(--space-6) 0 var(--space-4);" />
+
+        <ul style="list-style:none;padding:0;margin:0;" id="entries-container">
+          ${renderEntriesList(ENTRIES)}
+        </ul>
+
+        <div id="newsletter-container"></div>
       </div>
-    </section>
-    <section class="entries-list">
-      <div class="container" id="entries-container">
-        ${renderEntriesList(ENTRIES)}
-      </div>
-    </section>
+    </div>
   `;
 
   // Live search filtering
   const searchInput = app.querySelector('#entries-search');
   const container = app.querySelector('#entries-container');
+  const countEl = app.querySelector('#search-count');
+
   if (searchInput && container) {
     searchInput.addEventListener('input', () => {
       const q = searchInput.value.trim().toLowerCase();
       if (!q) {
         container.innerHTML = renderEntriesList(ENTRIES);
+        if (countEl) countEl.style.display = 'none';
         return;
       }
       const filtered = ENTRIES.filter(e => {
@@ -50,17 +49,23 @@ export function renderEntries(app) {
         const cat = (e.category || '').toLowerCase();
         return title.includes(q) || excerpt.includes(q) || author.includes(q) || cat.includes(q);
       });
+
+      if (countEl) {
+        countEl.textContent = `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}`;
+        countEl.style.display = 'inline';
+      }
+
       container.innerHTML = filtered.length > 0 
         ? renderEntriesList(filtered)
-        : `<p style="padding:var(--space-8) 0;color:var(--text-muted);font-size:0.9rem;">No matching entries found.</p>`;
+        : `<p style="padding:2.5rem 0;color:var(--muted-foreground);border-top:1px solid var(--rule);">Nothing here by that word. Try a shorter one.</p>`;
     });
   }
 
   // Newsletter at bottom of entries
-  const nlWrap = document.createElement('div');
-  nlWrap.style.cssText = 'max-width:640px;margin:0 auto;padding:var(--space-12) var(--space-6) var(--space-12)';
-  app.appendChild(nlWrap);
-  renderNewsletter(nlWrap, { variant: 'entries' });
+  const nlWrap = app.querySelector('#newsletter-container');
+  if (nlWrap) {
+    renderNewsletter(nlWrap, { variant: 'entries' });
+  }
 
   // Footer on every page
   app.insertAdjacentHTML('beforeend', footerHTML());
@@ -68,19 +73,19 @@ export function renderEntries(app) {
 
 function renderEntriesList(list) {
   return list.map(e => {
-    const author = toTitleCase(e.author || 'Vic Munala');
     const metaParts = [];
-    if (e.category) metaParts.push(e.category);
-    if (e.date) metaParts.push(e.date);
-    if (author) metaParts.push(author);
-    const metaText = metaParts.length > 0 ? metaParts.join(' · ') : e.meta;
+    if (e.category) metaParts.push(e.category.toUpperCase());
+    if (e.date) metaParts.push(e.date.toUpperCase());
+    const metaText = metaParts.length > 0 ? metaParts.join(' · ') : (e.meta?.toUpperCase() || 'ESSAY');
 
     return `
-      <a href="#/entry/${e.id}" class="entry-item" data-id="${e.id}" style="display:block;text-decoration:none;color:inherit;">
-        <div class="entry-item__meta">${metaText}</div>
-        <div class="entry-item__title">${e.title}</div>
-        <p class="entry-item__excerpt">${e.excerpt || ''}</p>
-      </a>
+      <li style="border-top:1px solid var(--rule);padding:1.75rem 0;">
+        <a href="#/entries/${e.id}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
+          <div class="label" style="margin-bottom:0.5rem;">${metaText}</div>
+          <h2 style="font-size:clamp(1.5rem, 4vw, 1.85rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--foreground)'">${e.title}</h2>
+          <p style="margin-top:0.4rem;max-width:62ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;font-style:italic;">${e.excerpt || ''}</p>
+        </a>
+      </li>
     `;
   }).join('');
 }

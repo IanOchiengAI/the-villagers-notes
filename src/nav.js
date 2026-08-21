@@ -46,8 +46,10 @@ export function initNav() {
 }
 
 function highlightActive() {
-  const page = location.hash.replace('#/', '') || '';
+  const hash = location.hash.replace('#/', '') || '';
+  const page = hash.split('/')[0];
   document.querySelectorAll('.nav__links a').forEach(a => {
-    a.classList.toggle('active', a.dataset.page === page);
+    const isMatch = a.dataset.page === page || (page.startsWith('entry') && a.dataset.page === 'entries');
+    a.classList.toggle('active', isMatch);
   });
 }
