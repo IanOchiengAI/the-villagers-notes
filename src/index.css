@@ -283,15 +283,54 @@ p { max-width: 65ch; }
    ENTRIES PAGE
    ============================================ */
 .entries-hero {
-  padding: var(--space-12) 0 var(--space-4);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-4);
+  padding: var(--space-12) 0 var(--space-2);
+}
+.entries-hero__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
 }
 .entries-hero h1 {
   font-family: var(--font-hand);
-  font-size: clamp(2rem, 5vw, 3rem);
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
   font-weight: 400;
   color: var(--text);
+  margin: 0;
+  line-height: 1;
+}
+.entries-search-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1.5px solid var(--border);
+  padding: 6px 2px;
+  width: 220px;
+  transition: border-color var(--t-fast);
+}
+.entries-search-box:focus-within {
+  border-bottom-color: var(--text);
+}
+.entries-search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+}
+.entries-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--text);
+  width: 100%;
+  padding: 0;
+}
+.entries-search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 .entries-list { padding: var(--space-2) 0 var(--space-16); }
 .entry-item {
@@ -300,10 +339,9 @@ p { max-width: 65ch; }
   cursor: pointer;
 }
 .entry-item__meta {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
   margin-bottom: var(--space-2);
 }
@@ -341,10 +379,9 @@ p { max-width: 65ch; }
 }
 .entry-detail__back:hover { color: var(--text); }
 .entry-detail__meta {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
   margin-bottom: var(--space-4);
 }

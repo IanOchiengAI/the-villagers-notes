@@ -2,6 +2,25 @@ import { getEntries } from './admin.js';
 import { renderNewsletter } from '../components/newsletter.js';
 import { footerHTML } from '../components/footer.js';
 
+function toTitleCase(str) {
+  if (!str) return '';
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function logAnalyticsEvent(type, payload = {}) {
+  try {
+    const raw = localStorage.getItem('tvn_analytics');
+    const log = raw ? JSON.parse(raw) : [];
+    log.push({
+      type,
+      time: new Date().toISOString(),
+      ...payload
+    });
+    if (log.length > 500) log.splice(0, log.length - 500); // keep recent
+    localStorage.setItem('tvn_analytics', JSON.stringify(log));
+  } catch (_) {}
+}
+
 export function renderEntry(app, id) {
   const ENTRIES = getEntries();
   const idx   = ENTRIES.findIndex(e => e.id === id);
@@ -18,11 +37,33 @@ export function renderEntry(app, id) {
     return;
   }
 
+  // Paywall handling: check if paid entry
+  const isPaid = Number(entry.price) > 0;
+  let bodyParagraphs = Array.isArray(entry.body) ? entry.body : [];
+
+  // Check if full body is in private store
+  if (isPaid && bodyParagraphs.length === 0) {
+    try {
+      const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
+      if (privateBody) {
+        bodyParagraphs = JSON.parse(privateBody);
+      }
+    } catch (_) {}
+  }
+
   // Reading time — average 200 wpm
-  const bodyText   = Array.isArray(entry.body) ? entry.body.join(' ') : '';
+  const bodyText   = bodyParagraphs.join(' ');
   const excerptText = entry.excerpt || '';
   const wordCount  = bodyText.split(/\s+/).length + excerptText.split(/\s+/).length;
   const readMins   = Math.max(1, Math.ceil(wordCount / 200));
+
+  // Author formatting
+  const author = toTitleCase(entry.author || 'Vic Munala');
+  const metaParts = [];
+  if (entry.category) metaParts.push(entry.category);
+  if (entry.date) metaParts.push(entry.date);
+  if (author) metaParts.push(author);
+  const metaText = metaParts.length > 0 ? metaParts.join(' · ') : entry.meta;
 
   // Reading progress bar element
   const progressBar = document.createElement('div');
@@ -42,13 +83,41 @@ export function renderEntry(app, id) {
 
         <!-- Toolbar: meta + read time + share -->
         <div class="entry-detail__toolbar">
-          <div class="entry-detail__meta">${entry.meta}</div>
+          <div class="entry-detail__meta">${metaText}</div>
           <div style="display:flex;align-items:center;gap:var(--space-4);">
             <span class="entry-detail__readtime">${readMins} min read</span>
-            <button class="share-btn" id="share-btn" aria-label="Share this entry">
-              <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-              Share
-            </button>
+            <div class="share-btn-wrap">
+              <button class="share-btn" id="share-btn" aria-label="Share this entry" aria-expanded="false">
+                <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Share
+              </button>
+              <div class="share-dropdown" id="share-dropdown" style="display:none;">
+                <button class="share-dropdown__item" data-share="ig">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                  Instagram
+                </button>
+                <a class="share-dropdown__item" data-share="twitter" target="_blank" rel="noopener">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  Twitter / X
+                </a>
+                <a class="share-dropdown__item" data-share="facebook" target="_blank" rel="noopener">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  Facebook
+                </a>
+                <a class="share-dropdown__item" data-share="whatsapp" target="_blank" rel="noopener">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 6.46 17.5 2 12.04 2M12.05 20.15C10.57 20.15 9.12 19.75 7.85 19L7.55 18.82L4.43 19.64L5.26 16.59L5.07 16.29C4.24 14.97 3.81 13.46 3.81 11.91C3.81 7.37 7.5 3.69 12.05 3.69C14.25 3.69 16.32 4.55 17.88 6.11C19.44 7.67 20.3 9.74 20.3 11.94C20.3 16.48 16.6 20.15 12.05 20.15M16.57 14.46C16.32 14.33 15.1 13.73 14.88 13.65C14.65 13.56 14.49 13.52 14.32 13.77C14.16 14.02 13.69 14.57 13.54 14.73C13.4 14.9 13.25 14.92 13 14.8C12.75 14.67 11.71 14.33 10.47 13.23C9.51 12.38 8.86 11.32 8.68 11C8.5 10.68 8.66 10.5 8.79 10.37C8.9 10.26 9.03 10.08 9.16 9.94C9.28 9.79 9.32 9.69 9.4 9.52C9.48 9.36 9.44 9.21 9.38 9.09C9.32 8.97 8.83 7.76 8.63 7.27C8.43 6.79 8.23 6.85 8.08 6.85C7.94 6.84 7.78 6.84 7.61 6.84C7.45 6.84 7.18 6.9 6.96 7.15C6.73 7.39 6.12 7.97 6.12 9.15C6.12 10.33 6.98 11.47 7.1 11.63C7.22 11.79 8.8 14.23 11.23 15.28C11.81 15.53 12.26 15.68 12.61 15.79C13.19 15.98 13.72 15.95 14.14 15.89C14.61 15.82 15.58 15.3 15.78 14.73C15.99 14.15 15.99 13.66 15.93 13.56C15.86 13.46 15.71 13.4 15.46 13.27"/></svg>
+                  WhatsApp
+                </a>
+                <a class="share-dropdown__item" data-share="email">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  Email
+                </a>
+                <button class="share-dropdown__item" data-share="copy">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span id="copy-label">Copy Link</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -56,13 +125,22 @@ export function renderEntry(app, id) {
         <h1 class="entry-detail__title">${entry.title}</h1>
 
         <!-- Excerpt / lede -->
-        <p class="entry-detail__excerpt">${entry.excerpt}</p>
+        <p class="entry-detail__excerpt">${entry.excerpt || ''}</p>
 
         <hr class="divider" />
 
-        <!-- Body -->
+        <!-- Body / Paywall -->
         <div class="entry-detail__body" id="entry-body">
-          ${entry.body.map(p => `<p>${p}</p>`).join('')}
+          ${isPaid && bodyParagraphs.length === 0 ? `
+            <div style="background:var(--surface);border:1px solid var(--border);padding:var(--space-8);border-radius:4px;text-align:center;margin:var(--space-6) 0;">
+              <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;color:hsl(24, 75%, 45%);margin-bottom:8px;">Paid Entry</p>
+              <h3 style="font-family:var(--font-hand);font-size:1.8rem;color:var(--text);margin-bottom:12px;">This story requires a key.</h3>
+              <p style="font-size:0.95rem;color:var(--text-muted);max-width:44ch;margin:0 auto var(--space-6);line-height:1.6;">
+                Access this piece for <strong>KES ${Number(entry.price).toLocaleString()}</strong>. Direct M-Pesa unlock is going live soon.
+              </p>
+              <button class="btn btn--sharp" disabled style="opacity:0.7;cursor:not-allowed;">M-Pesa Unlock (Coming Soon)</button>
+            </div>
+          ` : bodyParagraphs.map(p => `<p>${p}</p>`).join('')}
         </div>
 
         <!-- Newsletter at end of every entry -->
@@ -95,7 +173,8 @@ export function renderEntry(app, id) {
   const nlWrap = document.getElementById('entry-newsletter');
   if (nlWrap) renderNewsletter(nlWrap, { variant: `entry-${entry.id}` });
 
-  // Reading progress bar
+  // Reading progress bar and completion tracker
+  let completedLogged = false;
   function onScroll() {
     const body   = document.getElementById('entry-body');
     const bar    = document.getElementById('reading-progress');
@@ -105,9 +184,13 @@ export function renderEntry(app, id) {
     const scrolled = window.scrollY + window.innerHeight;
     const pct      = Math.min(100, Math.max(0, ((scrolled - bodyTop) / (bodyEnd - bodyTop)) * 100));
     bar.style.width = pct + '%';
+
+    if (pct >= 95 && !completedLogged) {
+      completedLogged = true;
+      logAnalyticsEvent('read_complete', { entryId: entry.id, title: entry.title });
+    }
   }
   window.addEventListener('scroll', onScroll, { passive: true });
-  // Clean up when route changes
   const cleanup = () => {
     window.removeEventListener('scroll', onScroll);
     progressBar.remove();
@@ -115,24 +198,62 @@ export function renderEntry(app, id) {
   };
   window.addEventListener('hashchange', cleanup);
 
-  // Share button
+  // Share dropdown wiring
   const shareBtn = document.getElementById('share-btn');
-  if (shareBtn) {
-    shareBtn.addEventListener('click', async () => {
-      const shareData = {
-        title: entry.title,
-        text:  entry.excerpt,
-        url:   window.location.href,
-      };
-      if (navigator.share) {
-        try { await navigator.share(shareData); } catch (_) {}
-      } else {
-        // Fallback: copy link
-        navigator.clipboard.writeText(window.location.href).then(() => {
-          shareBtn.textContent = 'Link copied!';
-          setTimeout(() => { shareBtn.innerHTML = `<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share`; }, 2000);
-        });
+  const dropdown = document.getElementById('share-dropdown');
+  const shareUrl = window.location.href;
+  const shareTitle = entry.title;
+  const shareExcerpt = entry.excerpt || '';
+
+  if (shareBtn && dropdown) {
+    // Populate social URLs
+    const twitterLink = dropdown.querySelector('[data-share="twitter"]');
+    if (twitterLink) twitterLink.href = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}`;
+
+    const fbLink = dropdown.querySelector('[data-share="facebook"]');
+    if (fbLink) fbLink.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+
+    const waLink = dropdown.querySelector('[data-share="whatsapp"]');
+    if (waLink) waLink.href = `https://wa.me/?text=${encodeURIComponent(`${shareTitle} — ${shareUrl}`)}`;
+
+    const mailLink = dropdown.querySelector('[data-share="email"]');
+    if (mailLink) mailLink.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(`${shareExcerpt}\n\nRead more at: ${shareUrl}`)}`;
+
+    // Toggle menu
+    shareBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isClosed = dropdown.style.display === 'none';
+      dropdown.style.display = isClosed ? 'flex' : 'none';
+      shareBtn.setAttribute('aria-expanded', isClosed ? 'true' : 'false');
+    });
+
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+      if (!dropdown.contains(e.target) && e.target !== shareBtn) {
+        dropdown.style.display = 'none';
+        shareBtn.setAttribute('aria-expanded', 'false');
       }
+    });
+
+    // IG share / copy action
+    dropdown.querySelector('[data-share="ig"]')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        alert('Link copied! You can now paste and share it on Instagram.');
+        dropdown.style.display = 'none';
+      });
+    });
+
+    // Copy link item
+    dropdown.querySelector('[data-share="copy"]')?.addEventListener('click', () => {
+      const copyLabel = document.getElementById('copy-label');
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        if (copyLabel) copyLabel.textContent = 'Copied ✓';
+        setTimeout(() => {
+          if (copyLabel) copyLabel.textContent = 'Copy Link';
+          dropdown.style.display = 'none';
+        }, 1200);
+      });
     });
   }
 }
+

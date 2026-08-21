@@ -124,6 +124,19 @@ export function addTip(tip) {
   saveTips(tips);
 }
 
+// ── Analytics Helpers ────────────────────────────────────────────────────────
+export function getAnalytics() {
+  try {
+    const raw = localStorage.getItem('tvn_analytics');
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+export function clearAnalytics() {
+  localStorage.removeItem('tvn_analytics');
+}
+
+
 // ── Admin page ───────────────────────────────────────────────────────────────
 export function renderAdmin(app) {
   if (!checkAuth()) { renderLogin(app); return; }
@@ -196,10 +209,11 @@ function renderDashboard(app) {
                     justify-content:space-between;height:56px;position:sticky;top:64px;z-index:50;gap:8px;">
           <div style="display:flex;gap:4px;overflow-x:auto;flex-shrink:1;min-width:0;">
             ${[
-              { id: 'people', short: 'People',  full: `People (${orders.length + subs.length})` },
-              { id: 'entries', short: 'Entries', full: `Entries (${entries.length})` },
-              { id: 'book',    short: 'Book',    full: 'Book' },
-              { id: 'logout',  short: 'Log out', full: 'Log out' },
+              { id: 'people',    short: 'People',    full: `People (${orders.length + subs.length})` },
+              { id: 'entries',   short: 'Entries',   full: `Entries (${entries.length})` },
+              { id: 'book',      short: 'Book',      full: 'Book' },
+              { id: 'analytics', short: 'Stats',     full: 'Analytics' },
+              { id: 'logout',    short: 'Log out',   full: 'Log out' },
             ].map(tab => `
               <button data-tab="${tab.id}"
                 style="padding:6px 10px;border-radius:999px;border:none;cursor:pointer;
@@ -215,9 +229,10 @@ function renderDashboard(app) {
         </div>
 
         <div style="max-width:880px;margin:0 auto;padding:40px 24px 80px;">
-          ${section === 'people'  ? renderPeopleSection(orders, subs, tips) : ''}
-          ${section === 'entries' ? renderEntriesSection(entries) : ''}
-          ${section === 'book'    ? renderBookSection(data.book) : ''}
+          ${section === 'people'    ? renderPeopleSection(orders, subs, tips) : ''}
+          ${section === 'entries'   ? renderEntriesSection(entries) : ''}
+          ${section === 'book'      ? renderBookSection(data.book) : ''}
+          ${section === 'analytics' ? renderAnalyticsSection() : ''}
         </div>
       </div>`;
 
@@ -237,6 +252,7 @@ function renderDashboard(app) {
     if (section === 'people') wirePeopleEvents(app, render);
     if (section === 'entries') wireEntriesEvents(app, data, render);
     if (section === 'book') wireBookEvents(app, data, render);
+    if (section === 'analytics') wireAnalyticsEvents(app, render);
   }
 
   render();
@@ -377,6 +393,100 @@ function wirePeopleEvents(app, render) {
   });
 }
 
+// ── Analytics Section ───────────────────────────────────────────────────────
+function renderAnalyticsSection() {
+  const events = getAnalytics();
+  const visits = events.filter(e => e.type === 'visit');
+  const reads = events.filter(e => e.type === 'read_complete');
+  const subs = getSubscribers();
+
+  // Page breakdowns
+  const pageCounts = {};
+  visits.forEach(v => {
+    const p = v.path || 'home';
+    pageCounts[p] = (pageCounts[p] || 0) + 1;
+  });
+
+  const sortedPages = Object.entries(pageCounts).sort((a, b) => b[1] - a[1]);
+
+  return `
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Readership &amp; Engagement</p>
+          <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Site Analytics</h2>
+        </div>
+        <button id="clear-analytics-btn" style="padding:6px 14px;border:1px solid hsl(0 60% 88%);border-radius:999px;background:none;font-size:0.75rem;font-weight:600;color:hsl(0 60% 55%);cursor:pointer;">
+          Reset Logs
+        </button>
+      </div>
+
+      <!-- Stat Cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:32px;">
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
+          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Total Page Views</div>
+          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:var(--text);line-height:1;margin-bottom:8px;">${visits.length}</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Across ${sortedPages.length} unique routes</div>
+        </div>
+
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
+          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Completed Reads</div>
+          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:var(--accent);line-height:1;margin-bottom:8px;">${reads.length}</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Reached end of articles</div>
+        </div>
+
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
+          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Subscribers</div>
+          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:hsl(143 60% 40%);line-height:1;margin-bottom:8px;">${subs.length}</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Audience conversion</div>
+        </div>
+      </div>
+
+      <!-- Page Views Breakdown -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
+        <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:18px;">Page Popularity</h3>
+        ${sortedPages.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;">No page views logged yet.</p>` : `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            ${sortedPages.map(([page, count]) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-subtle);border-radius:6px;font-size:0.88rem;">
+                <span style="font-family:monospace;color:var(--text);">/${page === 'home' ? '' : page}</span>
+                <span style="font-weight:600;color:var(--accent-dark);">${count} view${count > 1 ? 's' : ''}</span>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+
+      <!-- Recent Activity Log -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;box-sizing:border-box;">
+        <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:18px;">Recent Activity (${events.length})</h3>
+        ${events.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;">No activity logged yet.</p>` : `
+          <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
+            ${events.slice().reverse().slice(0, 30).map(e => `
+              <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;flex-wrap:wrap;gap:8px;">
+                <span>
+                  ${e.type === 'visit' 
+                    ? `👁️ Visited <code style="background:var(--white);padding:2px 6px;border-radius:4px;border:1px solid var(--border);">/${e.path || ''}</code>` 
+                    : `📖 Finished reading <strong>${e.title || 'entry'}</strong>`}
+                </span>
+                <span style="color:var(--text-muted);font-size:0.75rem;">${new Date(e.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}, ${new Date(e.time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+    </div>`;
+}
+
+function wireAnalyticsEvents(app, render) {
+  app.querySelector('#clear-analytics-btn')?.addEventListener('click', () => {
+    if (confirm('Reset all site analytics logs?')) {
+      clearAnalytics();
+      render();
+    }
+  });
+}
+
 // ── Entries section ──────────────────────────────────────────────────────────
 function renderEntriesSection(entries) {
   return `
@@ -433,12 +543,32 @@ function renderEntriesSection(entries) {
     </div>`;
 }
 
+function insertAtCursor(textarea, text) {
+  if (!textarea) return;
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const val = textarea.value;
+  textarea.value = val.substring(0, start) + text + val.substring(end);
+  textarea.selectionStart = textarea.selectionEnd = start + text.length;
+  textarea.focus();
+}
+
 function entryFormHTML(e, isNew, idx = '') {
-  const bodyText = Array.isArray(e.body) ? e.body.join('\n\n') : '';
+  let bodyList = Array.isArray(e.body) ? e.body : [];
+  if (e.id && Number(e.price) > 0 && bodyList.length === 0) {
+    try {
+      const privateBody = localStorage.getItem(`tvn_paid_${e.id}`);
+      if (privateBody) bodyList = JSON.parse(privateBody);
+    } catch (_) {}
+  }
+  const bodyText = bodyList.join('\n\n');
   const prefix = isNew ? 'new' : `edit-${idx}`;
+  const authorVal = e.author || 'Vic Munala';
+  const priceVal = e.price !== undefined ? e.price : 0;
+
   return `
     <div style="display:flex;flex-direction:column;gap:18px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;">
         <div>
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Category</label>
           <select id="${prefix}-category" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);">
@@ -449,6 +579,16 @@ function entryFormHTML(e, isNew, idx = '') {
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Date (Calendar)</label>
           <input type="date" id="${prefix}-date" value="${toDateInputValue(e.date)}"
             style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);box-sizing:border-box;cursor:pointer;" />
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Author</label>
+          <input id="${prefix}-author" value="${authorVal}" placeholder="Vic Munala"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Price (KES) — 0 = Free</label>
+          <input id="${prefix}-price" type="number" min="0" value="${priceVal}" placeholder="0"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
         </div>
       </div>
       <div>
@@ -462,10 +602,17 @@ function entryFormHTML(e, isNew, idx = '') {
           style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
       </div>
       <div>
-        <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Body (separate paragraphs with a blank line)</label>
-        <textarea id="${prefix}-body" rows="8" placeholder="First paragraph...&#10;&#10;Second paragraph..."
-          style="width:100%;padding:14px;border:1.5px solid var(--border);border-radius:8px;
-                 font-size:0.9rem;font-family:var(--font-sans);line-height:1.7;resize:vertical;box-sizing:border-box;">${bodyText}</textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0;">Body (separate paragraphs with a blank line)</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" data-format-hr="${prefix}" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.75rem;font-weight:600;color:var(--text);cursor:pointer;">
+              — HR (Divider)
+            </button>
+          </div>
+        </div>
+        <textarea id="${prefix}-body" rows="18" placeholder="First paragraph...&#10;&#10;Second paragraph..."
+          style="width:100%;min-height:380px;padding:16px;border:1.5px solid var(--border);border-radius:8px;
+                 font-size:0.95rem;font-family:var(--font-sans);line-height:1.75;resize:vertical;box-sizing:border-box;">${bodyText}</textarea>
       </div>
       <div style="display:flex;gap:12px;">
         <button data-save="${isNew ? 'new' : idx}"
@@ -485,6 +632,15 @@ function entryFormHTML(e, isNew, idx = '') {
 function wireEntriesEvents(app, data, render) {
   const entries = data.entries ?? [...DEFAULT_ENTRIES];
 
+  // Wire HR formatting buttons
+  app.querySelectorAll('[data-format-hr]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.formatHr;
+      const ta = app.querySelector(`#${p}-body`);
+      insertAtCursor(ta, '\n\n---\n\n');
+    });
+  });
+
   app.querySelector('#new-entry-btn')?.addEventListener('click', () => {
     const form = app.querySelector('#new-entry-form');
     if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
@@ -494,7 +650,16 @@ function wireEntriesEvents(app, data, render) {
     const e = readEntryForm(app, 'new');
     if (!e.title) return;
     const newId = String(Date.now());
-    entries.unshift({ ...e, id: newId });
+    
+    // If paid entry, save full body in private store
+    if (e.price > 0) {
+      localStorage.setItem(`tvn_paid_${newId}`, JSON.stringify(e.body));
+      entries.unshift({ ...e, id: newId, body: [] });
+    } else {
+      localStorage.removeItem(`tvn_paid_${newId}`);
+      entries.unshift({ ...e, id: newId });
+    }
+    
     saveData({ ...data, entries });
     render();
   });
@@ -504,7 +669,7 @@ function wireEntriesEvents(app, data, render) {
     if (form) form.style.display = 'none';
   });
 
-  entries.forEach((_, i) => {
+  entries.forEach((entry, i) => {
     app.querySelector(`[data-edit="${i}"]`)?.addEventListener('click', () => {
       const form = app.querySelector(`#edit-form-${i}`);
       if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
@@ -512,6 +677,7 @@ function wireEntriesEvents(app, data, render) {
 
     app.querySelector(`[data-delete="${i}"]`)?.addEventListener('click', () => {
       if (!confirm(`Delete "${entries[i].title}"?`)) return;
+      localStorage.removeItem(`tvn_paid_${entries[i].id}`);
       entries.splice(i, 1);
       saveData({ ...data, entries });
       render();
@@ -519,7 +685,17 @@ function wireEntriesEvents(app, data, render) {
 
     app.querySelector(`[data-save="${i}"]`)?.addEventListener('click', () => {
       const updated = readEntryForm(app, `edit-${i}`);
-      entries[i] = { ...entries[i], ...updated };
+      const entryId = entries[i].id;
+      
+      // If paid entry, save full body in private store
+      if (updated.price > 0) {
+        localStorage.setItem(`tvn_paid_${entryId}`, JSON.stringify(updated.body));
+        entries[i] = { ...entries[i], ...updated, body: [] };
+      } else {
+        localStorage.removeItem(`tvn_paid_${entryId}`);
+        entries[i] = { ...entries[i], ...updated };
+      }
+      
       saveData({ ...data, entries });
       render();
     });
@@ -532,7 +708,7 @@ function wireEntriesEvents(app, data, render) {
 }
 
 function readEntryForm(app, prefix) {
-  const cat  = app.querySelector(`#${prefix}-category`)?.value ?? 'Essay';
+  const cat     = app.querySelector(`#${prefix}-category`)?.value ?? 'Essay';
   const rawDate = app.querySelector(`#${prefix}-date`)?.value?.trim() ?? '';
   let date = '';
   if (rawDate) {
@@ -544,12 +720,14 @@ function readEntryForm(app, prefix) {
       date = rawDate;
     }
   }
+  const author  = app.querySelector(`#${prefix}-author`)?.value?.trim() || 'Vic Munala';
+  const price   = Number(app.querySelector(`#${prefix}-price`)?.value) || 0;
   const title   = app.querySelector(`#${prefix}-title`)?.value?.trim() ?? '';
   const excerpt = app.querySelector(`#${prefix}-excerpt`)?.value?.trim() ?? '';
   const bodyRaw = app.querySelector(`#${prefix}-body`)?.value?.trim() ?? '';
   const body    = bodyRaw.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  const meta    = `${cat} · ${date}`;
-  return { meta, category: cat, date, title, excerpt, body };
+  const meta    = `${cat} · ${date} · ${author}`;
+  return { meta, category: cat, date, author, price, title, excerpt, body };
 }
 
 function toDateInputValue(dateStr) {

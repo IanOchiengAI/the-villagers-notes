@@ -3,7 +3,11 @@ export function footerHTML() {
     <footer class="footer">
       <div class="container">
         <div class="footer__inner">
-          <div>THE VILLAGER'S NOTES — © ${new Date().getFullYear()}</div>
+          <div class="footer__brand" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <img src="/images/logo.svg" alt="Logo" class="footer__logo-img" style="height:18px;width:auto;display:none;" onload="this.style.display='inline-block'" onerror="this.remove()" />
+            <span>THE VILLAGER'S NOTES — © ${new Date().getFullYear()}</span>
+            <a href="#/admin" class="footer__admin-link" style="font-size:0.6rem;letter-spacing:0.08em;color:var(--border);text-transform:lowercase;text-decoration:none;transition:color 0.15s ease;" onmouseover="this.style.color='var(--text-muted)'" onmouseout="this.style.color='var(--border)'">·admin</a>
+          </div>
           <div class="footer__socials">
             <a href="https://instagram.com/" target="_blank" rel="noopener" aria-label="Instagram" class="footer__social-icon">
               <!-- Instagram -->

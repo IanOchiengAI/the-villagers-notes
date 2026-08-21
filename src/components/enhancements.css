@@ -145,3 +145,64 @@
 .hero__identity a:hover {
   text-decoration-color: var(--accent);
 }
+
+/* ============================================
+   REVEAL ANIMATION
+   ============================================ */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ============================================
+   SHARE DROPDOWN
+   ============================================ */
+.share-btn-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.share-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  min-width: 190px;
+  z-index: 200;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.share-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: background var(--t-fast);
+}
+.share-dropdown__item:hover {
+  background: var(--bg-subtle);
+}
+.share-dropdown__item svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+

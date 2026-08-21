@@ -24,13 +24,21 @@ you...</p>
           <span class="home-entries__title">Latest entries</span>
           <a href="#/entries" class="home-entries__all">ALL ENTRIES →</a>
         </div>
-        ${LATEST.map(e => `
-          <a href="#/entry/${e.id}" class="entry-item" style="display:block;text-decoration:none;color:inherit;">
-            <div class="entry-item__meta">${e.meta}</div>
-            <div class="entry-item__title">${e.title}</div>
-            <p class="entry-item__excerpt">${e.excerpt}</p>
-          </a>
-        `).join('')}
+        ${LATEST.map(e => {
+          const author = e.author ? e.author.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : 'Vic Munala';
+          const metaParts = [];
+          if (e.category) metaParts.push(e.category);
+          if (e.date) metaParts.push(e.date);
+          if (author) metaParts.push(author);
+          const metaText = metaParts.length > 0 ? metaParts.join(' · ') : e.meta;
+          return `
+            <a href="#/entry/${e.id}" class="entry-item" style="display:block;text-decoration:none;color:inherit;">
+              <div class="entry-item__meta">${metaText}</div>
+              <div class="entry-item__title">${e.title}</div>
+              <p class="entry-item__excerpt">${e.excerpt || ''}</p>
+            </a>
+          `;
+        }).join('')}
       </div>
     </section>
   `;

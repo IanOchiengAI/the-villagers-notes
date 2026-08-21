@@ -23,6 +23,20 @@ function setMeta(title, desc) {
   if (metaDesc) metaDesc.setAttribute('content', desc);
 }
 
+function logPageVisit(path) {
+  try {
+    const raw = localStorage.getItem('tvn_analytics');
+    const log = raw ? JSON.parse(raw) : [];
+    log.push({
+      type: 'visit',
+      path: path || 'home',
+      time: new Date().toISOString()
+    });
+    if (log.length > 500) log.splice(0, log.length - 500);
+    localStorage.setItem('tvn_analytics', JSON.stringify(log));
+  } catch (_) {}
+}
+
 export function initRouter() {
   function route() {
     const hash = location.hash.replace('#/', '') || '';
@@ -30,6 +44,8 @@ export function initRouter() {
     if (!app) return;
     app.innerHTML = '';
     window.scrollTo(0, 0);
+
+    logPageVisit(hash);
 
     // entry/:id — title set inside renderEntry()
     if (hash.startsWith('entry/')) {
