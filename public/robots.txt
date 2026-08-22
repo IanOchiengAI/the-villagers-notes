@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://the-villagers-notes.vercel.app/sitemap.xml

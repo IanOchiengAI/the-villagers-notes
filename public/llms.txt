@@ -1,16 +1,20 @@
-# Vik — Writer & Journalist
+# The Villager's Notes — Vic Munala
 
-Vik is a Nairobi-based writer and journalist covering culture, identity, and the everyday Kenyan experience.
+Vic Munala is a Kenyan novelist and playwright based in Nairobi, Kenya.
 
-## Services
-- Article writing (essays, reportage, cultural criticism)
-- Brand storytelling and content strategy
-- Ghost-writing and editorial consultation
+## Notable Works & Projects
+- **Under the Mango Tree** (Novel) — A novel exploring family, history, and community in Western Kenya. Physical copies available for order directly via M-Pesa.
+- **Beneath the Surface** (Stage Play) — A dynamic two-hander examining marriage, vulnerability, and unresolved secrets over an evening dinner.
+- **The Villager's Notes** — An ongoing digital collection of essays, reflections, fiction, and cultural commentary.
 
-## Book
-- Physical book available for order via M-Pesa STK push
+## Website & Reading
+- URL: https://the-villagers-notes.vercel.app/
+- Entries & Essays: https://the-villagers-notes.vercel.app/#/entries
+- Projects & Plays: https://the-villagers-notes.vercel.app/#/projects
+- Order Novel: https://the-villagers-notes.vercel.app/#/book
 
-## Contact
+## Author Contact
+- Author: Vic Munala
+- Email: vikmunala@gmail.com
+- WhatsApp: +254 710 276 333
 - Location: Nairobi, Kenya
-- Email: hello@vik.co.ke
-- WhatsApp: +254 700 000 000
