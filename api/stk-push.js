@@ -5,9 +5,27 @@ const DEFAULT_INTASEND_KEY = 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { phone, amount, name, address, narrative } = req.body || {};
+  const { phone, amount, name, narrative } = req.body || {};
   if (!phone || !amount) return res.status(400).json({ error: 'Missing phone or amount' });
 
+  // Validate amount bounds
+  const numAmount = Math.round(Number(amount));
+  if (isNaN(numAmount) || numAmount < 10 || numAmount > 500000) {
+    return res.status(400).json({ error: 'Invalid amount. Minimum is KES 10, maximum KES 500,000.' });
+  }
+
+  // Validate Kenyan phone format
+  const cleanPhone = String(phone).replace(/\D/g, '');
+  let formattedPhone = null;
+  if (cleanPhone.startsWith('254') && cleanPhone.length === 12) formattedPhone = cleanPhone;
+  else if ((cleanPhone.startsWith('07') || cleanPhone.startsWith('01')) && cleanPhone.length === 10) formattedPhone = '254' + cleanPhone.slice(1);
+  else if (cleanPhone.length === 9 && (cleanPhone.startsWith('7') || cleanPhone.startsWith('1'))) formattedPhone = '254' + cleanPhone;
+
+  if (!formattedPhone) {
+    return res.status(400).json({ error: 'Invalid Kenyan phone number format. Use 07XXXXXXXX or 254XXXXXXXXX.' });
+  }
+
+  const cleanNarrative = String(narrative || `Order - ${name || 'Customer'}`).slice(0, 100).replace(/[^\w\s\-.,]/g, '');
   const publicKey = process.env.INTASEND_PUBLISHABLE_KEY || process.env.INTASEND_PUBLIC_KEY || DEFAULT_INTASEND_KEY;
 
   try {
@@ -20,9 +38,9 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         public_key: publicKey,
         currency: 'KES',
-        phone_number: phone,
-        amount: Math.round(Number(amount)),
-        narrative: narrative || `Order - ${name || 'Customer'}`,
+        phone_number: formattedPhone,
+        amount: numAmount,
+        narrative: cleanNarrative,
       }),
     });
 

@@ -56,10 +56,22 @@ export function renderEntry(app, id) {
   // Preview paragraphs for paywalled state: first 2 paragraphs
   const previewParagraphs = bodyParagraphs.slice(0, 2);
 
-  // Markdown / Rich text formatting helper
+  // HTML sanitization & escaping helper
+  function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Markdown / Rich text formatting helper with XSS protection
   function formatInline(text) {
     if (!text) return '';
-    return text
+    const safe = escapeHTML(text);
+    return safe
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
       .replace(/__(.+?)__/g, '<u>$1</u>');
@@ -262,10 +274,10 @@ export function renderEntry(app, id) {
         ${list.map(c => `
           <div style="border-top:1px solid var(--rule);padding-top:1rem;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;">
-              <span class="label" style="font-weight:600;">${c.author}</span>
-              <span class="label" style="font-size:0.65rem;color:var(--muted-foreground);">${c.date}</span>
+              <span class="label" style="font-weight:600;">${escapeHTML(c.author)}</span>
+              <span class="label" style="font-size:0.65rem;color:var(--muted-foreground);">${escapeHTML(c.date)}</span>
             </div>
-            <p style="margin-top:0.5rem;font-family:var(--font-body);font-size:1.05rem;line-height:1.5;">${c.text}</p>
+            <p style="margin-top:0.5rem;font-family:var(--font-body);font-size:1.05rem;line-height:1.5;">${escapeHTML(c.text)}</p>
           </div>
         `).join('')}
       </div>
