@@ -54,9 +54,11 @@ export function getBookData() {
 // ── People & Customer Tracking Helpers ───────────────────────────────────────
 export function getOrders() {
   try {
+    const cleared = localStorage.getItem('tvn_cleared_mock_data') === 'true';
     const raw = localStorage.getItem(ORDERS_KEY);
-    return raw ? JSON.parse(raw) : DEFAULT_ORDERS;
-  } catch { return DEFAULT_ORDERS; }
+    if (raw) return JSON.parse(raw);
+    return cleared ? [] : DEFAULT_ORDERS;
+  } catch { return []; }
 }
 
 export function saveOrders(orders) {
@@ -87,9 +89,11 @@ export function updateOrderStatus(id, newStatus) {
 
 export function getSubscribers() {
   try {
+    const cleared = localStorage.getItem('tvn_cleared_mock_data') === 'true';
     const raw = localStorage.getItem(SUBSCRIBERS_KEY);
-    return raw ? JSON.parse(raw) : DEFAULT_SUBSCRIBERS;
-  } catch { return DEFAULT_SUBSCRIBERS; }
+    if (raw) return JSON.parse(raw);
+    return cleared ? [] : DEFAULT_SUBSCRIBERS;
+  } catch { return []; }
 }
 
 export function saveSubscribers(subs) {
@@ -109,13 +113,22 @@ export function addSubscriber(email) {
 
 export function getTips() {
   try {
+    const cleared = localStorage.getItem('tvn_cleared_mock_data') === 'true';
     const raw = localStorage.getItem(TIPS_KEY);
-    return raw ? JSON.parse(raw) : DEFAULT_TIPS;
-  } catch { return DEFAULT_TIPS; }
+    if (raw) return JSON.parse(raw);
+    return cleared ? [] : DEFAULT_TIPS;
+  } catch { return []; }
 }
 
 export function saveTips(tips) {
   localStorage.setItem(TIPS_KEY, JSON.stringify(tips));
+}
+
+export function clearDemoData() {
+  localStorage.setItem('tvn_cleared_mock_data', 'true');
+  saveOrders([]);
+  saveSubscribers([]);
+  saveTips([]);
 }
 
 export function addTip(tip) {
@@ -268,11 +281,15 @@ function renderPeopleSection(orders, subs, tips) {
 
   return `
     <div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;flex-wrap:wrap;gap:12px;">
         <div>
           <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Audience &amp; Direct Sales</p>
           <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Readers &amp; Customers</h2>
         </div>
+        <button id="clear-demo-data-btn" style="padding:7px 16px;border:1px solid hsl(0 60% 85%);border-radius:999px;background:none;font-size:0.75rem;font-weight:600;color:hsl(0 60% 55%);cursor:pointer;transition:all 0.15s ease;"
+          onmouseover="this.style.background='hsl(0 60% 95%)'" onmouseout="this.style.background='none'">
+          Clear Demo Stats
+        </button>
       </div>
 
       <!-- Stat Cards -->
@@ -346,7 +363,7 @@ function renderPeopleSection(orders, subs, tips) {
         </div>
 
         <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
-          ${subs.map(s => `
+          ${subs.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">No subscribers yet.</p>` : subs.map(s => `
             <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.9rem;">
               <span style="font-weight:500;">${s.email}</span>
               <span style="color:var(--text-muted);font-size:0.78rem;">${s.date}</span>
@@ -359,7 +376,7 @@ function renderPeopleSection(orders, subs, tips) {
       <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;box-sizing:border-box;">
         <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:18px;">Soda Tips &amp; Support (${tips.length})</h3>
         <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
-          ${tips.map(t => `
+          ${tips.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">No tips yet.</p>` : tips.map(t => `
             <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.9rem;">
               <span>🥤 <strong>KES ${Number(t.amount).toLocaleString()}</strong> &middot; <span style="color:var(--text-muted)">${t.phone}</span></span>
               <span style="color:var(--text-muted);font-size:0.78rem;">${t.date}</span>
@@ -393,6 +410,14 @@ function wirePeopleEvents(app, render) {
     const emails = subs.map(s => s.email).join(', ');
     navigator.clipboard.writeText(emails);
     alert('Subscriber emails copied to clipboard!');
+  });
+
+  // Clear demo data button
+  app.querySelector('#clear-demo-data-btn')?.addEventListener('click', () => {
+    if (confirm('Clear all placeholder/demo orders, subscribers, and tips to start fresh?')) {
+      clearDemoData();
+      render();
+    }
   });
 }
 
@@ -556,9 +581,23 @@ function insertAtCursor(textarea, text) {
   textarea.focus();
 }
 
+function wrapSelection(textarea, before, after) {
+  if (!textarea) return;
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const val = textarea.value;
+  const selected = val.substring(start, end) || 'text';
+  textarea.value = val.substring(0, start) + before + selected + after + val.substring(end);
+  textarea.selectionStart = start + before.length;
+  textarea.selectionEnd = start + before.length + selected.length;
+  textarea.focus();
+}
+
+const CATEGORIES = ['Fiction', 'Random Thoughts', 'Shorts', 'Essay', 'Article', 'Reflections'];
+
 function entryFormHTML(e, isNew, idx = '') {
   let bodyList = Array.isArray(e.body) ? e.body : [];
-  if (e.id && Number(e.price) > 0 && bodyList.length === 0) {
+  if (e.id && Number(e.price) > 0) {
     try {
       const privateBody = localStorage.getItem(`tvn_paid_${e.id}`);
       if (privateBody) bodyList = JSON.parse(privateBody);
@@ -568,20 +607,24 @@ function entryFormHTML(e, isNew, idx = '') {
   const prefix = isNew ? 'new' : `edit-${idx}`;
   const authorVal = e.author || 'Vic Munala';
   const priceVal = e.price !== undefined ? e.price : 0;
+  const todayFormatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const displayDate = isNew ? todayFormatted : (e.date || todayFormatted);
 
   return `
     <div style="display:flex;flex-direction:column;gap:18px;">
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;">
         <div>
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Category</label>
-          <select id="${prefix}-category" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);">
-            ${['Essay','Teaser','Review','Article'].map(c => `<option ${e.category===c?'selected':''}>${c}</option>`).join('')}
+          <select id="${prefix}-category" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);cursor:pointer;">
+            ${CATEGORIES.map(c => `<option ${e.category===c?'selected':''}>${c}</option>`).join('')}
           </select>
         </div>
         <div>
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Date (Calendar)</label>
-          <input type="date" id="${prefix}-date" value="${toDateInputValue(e.date)}"
-            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);box-sizing:border-box;cursor:pointer;" />
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Publish Date</label>
+          <div style="padding:10px 14px;background:var(--bg-subtle);border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;color:var(--text);font-weight:500;">
+            ${isNew ? `Today (${todayFormatted})` : displayDate}
+          </div>
+          <input type="hidden" id="${prefix}-date" value="${displayDate}" />
         </div>
         <div>
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Author</label>
@@ -605,11 +648,23 @@ function entryFormHTML(e, isNew, idx = '') {
           style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
       </div>
       <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0;">Body (separate paragraphs with a blank line)</label>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <button type="button" data-format-hr="${prefix}" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.75rem;font-weight:600;color:var(--text);cursor:pointer;">
-              — HR (Divider)
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+            <button type="button" data-format-bold="${prefix}" title="Bold" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;font-weight:700;color:var(--text);cursor:pointer;">
+              B
+            </button>
+            <button type="button" data-format-italic="${prefix}" title="Italic" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;font-style:italic;font-family:serif;color:var(--text);cursor:pointer;">
+              I
+            </button>
+            <button type="button" data-format-underline="${prefix}" title="Underline" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;text-decoration:underline;color:var(--text);cursor:pointer;">
+              U
+            </button>
+            <button type="button" data-format-quote="${prefix}" title="Quote" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;color:var(--text);cursor:pointer;">
+              “ ” Quote
+            </button>
+            <button type="button" data-format-hr="${prefix}" title="Divider" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;color:var(--text);cursor:pointer;">
+              — Divider
             </button>
           </div>
         </div>
@@ -635,7 +690,39 @@ function entryFormHTML(e, isNew, idx = '') {
 function wireEntriesEvents(app, data, render) {
   const entries = data.entries ?? [...DEFAULT_ENTRIES];
 
-  // Wire HR formatting buttons
+  // Wire text formatting buttons
+  app.querySelectorAll('[data-format-bold]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.formatBold;
+      const ta = app.querySelector(`#${p}-body`);
+      wrapSelection(ta, '**', '**');
+    });
+  });
+
+  app.querySelectorAll('[data-format-italic]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.formatItalic;
+      const ta = app.querySelector(`#${p}-body`);
+      wrapSelection(ta, '*', '*');
+    });
+  });
+
+  app.querySelectorAll('[data-format-underline]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.formatUnderline;
+      const ta = app.querySelector(`#${p}-body`);
+      wrapSelection(ta, '<u>', '</u>');
+    });
+  });
+
+  app.querySelectorAll('[data-format-quote]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.formatQuote;
+      const ta = app.querySelector(`#${p}-body`);
+      wrapSelection(ta, '> ', '');
+    });
+  });
+
   app.querySelectorAll('[data-format-hr]').forEach(btn => {
     btn.addEventListener('click', () => {
       const p = btn.dataset.formatHr;
@@ -654,10 +741,11 @@ function wireEntriesEvents(app, data, render) {
     if (!e.title) return;
     const newId = String(Date.now());
     
-    // If paid entry, save full body in private store
+    // If paid entry, save full body in private store & first 2 paragraphs as free preview
     if (e.price > 0) {
       localStorage.setItem(`tvn_paid_${newId}`, JSON.stringify(e.body));
-      entries.unshift({ ...e, id: newId, body: [] });
+      const previewParagraphs = e.body.slice(0, 2);
+      entries.unshift({ ...e, id: newId, body: previewParagraphs });
     } else {
       localStorage.removeItem(`tvn_paid_${newId}`);
       entries.unshift({ ...e, id: newId });
@@ -690,10 +778,11 @@ function wireEntriesEvents(app, data, render) {
       const updated = readEntryForm(app, `edit-${i}`);
       const entryId = entries[i].id;
       
-      // If paid entry, save full body in private store
+      // If paid entry, save full body in private store & first 2 paragraphs as free preview
       if (updated.price > 0) {
         localStorage.setItem(`tvn_paid_${entryId}`, JSON.stringify(updated.body));
-        entries[i] = { ...entries[i], ...updated, body: [] };
+        const previewParagraphs = updated.body.slice(0, 2);
+        entries[i] = { ...entries[i], ...updated, body: previewParagraphs };
       } else {
         localStorage.removeItem(`tvn_paid_${entryId}`);
         entries[i] = { ...entries[i], ...updated };

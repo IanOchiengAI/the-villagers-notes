@@ -40,16 +40,42 @@ export function renderEntry(app, id) {
   // Paywall handling: check if paid entry
   const isPaid = Number(entry.price) > 0;
   const isUnlocked = !isPaid || !!localStorage.getItem(`tvn_unlocked_${entry.id}`) || !!sessionStorage.getItem(`tvn_unlocked_${entry.id}`);
-  let bodyParagraphs = Array.isArray(entry.body) ? entry.body : [];
+  let bodyParagraphs = Array.isArray(entry.body) ? [...entry.body] : [];
 
   // Check if full body is in private store
-  if (isPaid && isUnlocked && bodyParagraphs.length === 0) {
-    try {
-      const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
-      if (privateBody) {
-        bodyParagraphs = JSON.parse(privateBody);
+  try {
+    const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
+    if (privateBody) {
+      const fullList = JSON.parse(privateBody);
+      if (Array.isArray(fullList) && fullList.length > 0) {
+        bodyParagraphs = fullList;
       }
-    } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Preview paragraphs for paywalled state: first 2 paragraphs
+  const previewParagraphs = bodyParagraphs.slice(0, 2);
+
+  // Markdown / Rich text formatting helper
+  function formatInline(text) {
+    if (!text) return '';
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
+      .replace(/__(.+?)__/g, '<u>$1</u>');
+  }
+
+  function formatParagraph(p) {
+    if (!p) return '';
+    const trimmed = p.trim();
+    if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+      return `<hr class="divider" style="margin:2.5rem 0;" />`;
+    }
+    if (trimmed.startsWith('>')) {
+      const quoteText = trimmed.replace(/^>\s*/, '');
+      return `<blockquote style="border-left:2px solid var(--accent);padding-left:1.25rem;margin:1.75rem 0;font-style:italic;color:var(--foreground);">${formatInline(quoteText)}</blockquote>`;
+    }
+    return `<p>${formatInline(p)}</p>`;
   }
 
   // Reading time — average 200 wpm
@@ -119,7 +145,8 @@ export function renderEntry(app, id) {
         <!-- Body / Paywall -->
         <div class="prose-note" id="entry-body" style="margin-top:2.5rem;max-width:62ch;border-top:1px solid var(--rule);padding-top:2rem;font-size:1.25rem;line-height:1.75;">
           ${isPaid && !isUnlocked ? `
-            <div style="background:var(--card);border:1px solid var(--rule);padding:2rem;margin:1.5rem 0;">
+            ${previewParagraphs.map(formatParagraph).join('')}
+            <div style="background:var(--card);border:1px solid var(--rule);padding:2rem;margin:2rem 0;">
               <div class="label" style="margin-bottom:0.75rem;">Rest of this one is paid</div>
               <h2 style="font-size:clamp(1.5rem, 4vw, 2rem);font-family:var(--font-hand);font-weight:400;margin-bottom:1rem;">
                 Read the whole thing — KES ${Number(entry.price).toLocaleString()}
@@ -141,12 +168,7 @@ export function renderEntry(app, id) {
                 <div id="paywall-status" style="font-size:0.85rem;"></div>
               </div>
             </div>
-          ` : bodyParagraphs.map(p => {
-              if (p.startsWith('*') && p.endsWith('*')) {
-                return `<p><em>${p.slice(1, -1)}</em></p>`;
-              }
-              return `<p>${p}</p>`;
-            }).join('')}
+          ` : bodyParagraphs.map(formatParagraph).join('')}
         </div>
 
         <!-- Social interactions: Likes & Share -->
