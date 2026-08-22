@@ -153,6 +153,14 @@ export function clearAnalytics() {
 }
 
 
+export function getAdminPass() {
+  return localStorage.getItem('tvn_custom_admin_pass') || ADMIN_PASS;
+}
+
+export function setAdminPass(newPass) {
+  localStorage.setItem('tvn_custom_admin_pass', newPass);
+}
+
 // ── Admin page ───────────────────────────────────────────────────────────────
 export function renderAdmin(app) {
   if (!checkAuth()) { renderLogin(app); return; }
@@ -196,7 +204,7 @@ function renderLogin(app) {
   document.getElementById('login-form').addEventListener('submit', e => {
     e.preventDefault();
     const val = document.getElementById('pass-input').value;
-    if (val === ADMIN_PASS) {
+    if (val === getAdminPass()) {
       sessionStorage.setItem('tvn_auth', 'ok');
       renderDashboard(app);
     } else {
@@ -229,6 +237,7 @@ function renderDashboard(app) {
               { id: 'entries',   short: 'Entries',   full: `Entries (${entries.length})` },
               { id: 'book',      short: 'Book',      full: 'Book' },
               { id: 'analytics', short: 'Stats',     full: 'Analytics' },
+              { id: 'settings',  short: 'Settings',  full: 'Settings' },
               { id: 'logout',    short: 'Log out',   full: 'Log out' },
             ].map(tab => `
               <button data-tab="${tab.id}"
@@ -249,6 +258,7 @@ function renderDashboard(app) {
           ${section === 'entries'   ? renderEntriesSection(entries) : ''}
           ${section === 'book'      ? renderBookSection(data.book) : ''}
           ${section === 'analytics' ? renderAnalyticsSection() : ''}
+          ${section === 'settings'  ? renderSettingsSection() : ''}
         </div>
       </div>`;
 
@@ -269,6 +279,7 @@ function renderDashboard(app) {
     if (section === 'entries') wireEntriesEvents(app, data, render);
     if (section === 'book') wireBookEvents(app, data, render);
     if (section === 'analytics') wireAnalyticsEvents(app, render);
+    if (section === 'settings') wireSettingsEvents(app, render);
   }
 
   render();
@@ -877,5 +888,77 @@ function wireBookEvents(app, data, render) {
     saveData({ ...data, book: { price, description, excerpt } });
     const msg = app.querySelector('#book-saved');
     if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2000); }
+  });
+}
+
+// ── Settings Section ─────────────────────────────────────────────────────────
+function renderSettingsSection() {
+  return `
+    <div>
+      <div style="margin-bottom:28px;">
+        <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Security &amp; Account</p>
+        <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Admin Settings</h2>
+      </div>
+
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:540px;box-sizing:border-box;">
+        <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:8px;">Change Password</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:20px;line-height:1.5;">
+          Set a new private password for entering the Author Admin dashboard.
+        </p>
+
+        <form id="change-pass-form" style="display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Current Password</label>
+            <input type="password" id="curr-pass" placeholder="Enter current password" required
+              style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">New Password</label>
+            <input type="password" id="new-pass" placeholder="Enter new password" required minlength="4"
+              style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Confirm New Password</label>
+            <input type="password" id="confirm-pass" placeholder="Confirm new password" required minlength="4"
+              style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
+          </div>
+
+          <button type="submit" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;align-self:flex-start;margin-top:6px;">
+            Update Password
+          </button>
+          <div id="pass-change-msg" style="font-size:0.85rem;display:none;margin-top:8px;"></div>
+        </form>
+      </div>
+    </div>`;
+}
+
+function wireSettingsEvents(app, render) {
+  app.querySelector('#change-pass-form')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const curr = app.querySelector('#curr-pass')?.value || '';
+    const next = app.querySelector('#new-pass')?.value || '';
+    const conf = app.querySelector('#confirm-pass')?.value || '';
+    const msg = app.querySelector('#pass-change-msg');
+    if (!msg) return;
+
+    if (curr !== getAdminPass()) {
+      msg.style.display = 'block';
+      msg.style.color = 'hsl(0 60% 50%)';
+      msg.textContent = '❌ Current password is incorrect.';
+      return;
+    }
+
+    if (next !== conf) {
+      msg.style.display = 'block';
+      msg.style.color = 'hsl(0 60% 50%)';
+      msg.textContent = '❌ New passwords do not match.';
+      return;
+    }
+
+    setAdminPass(next);
+    msg.style.display = 'block';
+    msg.style.color = 'hsl(143 60% 40%)';
+    msg.textContent = '✅ Password updated successfully! Your new password is now active.';
+    app.querySelector('#change-pass-form').reset();
   });
 }
