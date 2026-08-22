@@ -48,6 +48,12 @@ export function initRouter() {
 
     logPageVisit(rawHash);
 
+    // Hide public site nav on admin page so admin bar sticks directly at top: 0
+    const siteNav = document.getElementById('site-nav');
+    if (siteNav) {
+      siteNav.style.display = rawHash === 'admin' ? 'none' : '';
+    }
+
     // Support both #/entries/:slug and #/entry/:id
     if (rawHash.startsWith('entry/') || (rawHash.startsWith('entries/') && rawHash.replace('entries/', '').length > 0)) {
       const slugOrId = rawHash.replace(/^(entry|entries)\//, '');

@@ -227,11 +227,16 @@ function renderDashboard(app) {
 
     app.innerHTML = `
       <div style="min-height:100vh;background:var(--bg-subtle);">
-        <!-- Admin top bar -->
-        <div style="background:var(--white);border-bottom:1px solid var(--border);
-                    padding:0 14px;display:flex;align-items:center;
-                    justify-content:space-between;height:56px;position:sticky;top:64px;z-index:50;gap:8px;">
-          <div style="display:flex;gap:4px;overflow-x:auto;flex-shrink:1;min-width:0;">
+        <!-- Admin top bar (Sticky top: 0 with solid opaque background) -->
+        <div style="background:var(--background);border-bottom:1px solid var(--border);
+                    padding:0 16px;display:flex;align-items:center;
+                    justify-content:space-between;height:56px;position:sticky;top:0;z-index:999;gap:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+          <div style="display:flex;align-items:center;gap:10px;overflow-x:auto;flex-shrink:1;min-width:0;">
+            <a href="#/" class="label" style="text-decoration:none;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;padding:4px 10px;border:1px solid var(--border);border-radius:999px;transition:all 0.15s ease;"
+               onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'"
+               onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border)'">
+              ← View Site
+            </a>
             ${[
               { id: 'people',    short: 'People',    full: `People (${orders.length + subs.length})` },
               { id: 'entries',   short: 'Entries',   full: `Entries (${entries.length})` },
@@ -621,9 +626,11 @@ function entryFormHTML(e, isNew, idx = '') {
   const todayFormatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const displayDate = isNew ? todayFormatted : (e.date || todayFormatted);
 
+  const previewCountVal = e.previewCount !== undefined ? e.previewCount : 2;
+
   return `
     <div style="display:flex;flex-direction:column;gap:18px;">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:16px;">
         <div>
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Category</label>
           <select id="${prefix}-category" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);cursor:pointer;">
@@ -645,6 +652,11 @@ function entryFormHTML(e, isNew, idx = '') {
         <div>
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Price (KES) — 0 = Free</label>
           <input id="${prefix}-price" type="number" min="0" value="${priceVal}" placeholder="0"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Free Preview (Paragraphs)</label>
+          <input id="${prefix}-preview-count" type="number" min="1" max="10" value="${previewCountVal}" placeholder="2" title="How many paragraphs readers see before the paywall"
             style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
         </div>
       </div>
@@ -751,12 +763,13 @@ function wireEntriesEvents(app, data, render) {
     const e = readEntryForm(app, 'new');
     if (!e.title) return;
     const newId = String(Date.now());
+    const count = Number(e.previewCount) > 0 ? Number(e.previewCount) : 2;
     
-    // If paid entry, save full body in private store & first 2 paragraphs as free preview
+    // If paid entry, save full body in private store & specified paragraphs as free preview
     if (e.price > 0) {
       localStorage.setItem(`tvn_paid_${newId}`, JSON.stringify(e.body));
-      const previewParagraphs = e.body.slice(0, 2);
-      entries.unshift({ ...e, id: newId, body: previewParagraphs });
+      const previewParagraphs = e.body.slice(0, count);
+      entries.unshift({ ...e, id: newId, previewCount: count, body: previewParagraphs });
     } else {
       localStorage.removeItem(`tvn_paid_${newId}`);
       entries.unshift({ ...e, id: newId });
@@ -788,12 +801,13 @@ function wireEntriesEvents(app, data, render) {
     app.querySelector(`[data-save="${i}"]`)?.addEventListener('click', () => {
       const updated = readEntryForm(app, `edit-${i}`);
       const entryId = entries[i].id;
+      const count = Number(updated.previewCount) > 0 ? Number(updated.previewCount) : 2;
       
-      // If paid entry, save full body in private store & first 2 paragraphs as free preview
+      // If paid entry, save full body in private store & specified paragraphs as free preview
       if (updated.price > 0) {
         localStorage.setItem(`tvn_paid_${entryId}`, JSON.stringify(updated.body));
-        const previewParagraphs = updated.body.slice(0, 2);
-        entries[i] = { ...entries[i], ...updated, body: previewParagraphs };
+        const previewParagraphs = updated.body.slice(0, count);
+        entries[i] = { ...entries[i], ...updated, previewCount: count, body: previewParagraphs };
       } else {
         localStorage.removeItem(`tvn_paid_${entryId}`);
         entries[i] = { ...entries[i], ...updated };
@@ -811,8 +825,8 @@ function wireEntriesEvents(app, data, render) {
 }
 
 function readEntryForm(app, prefix) {
-  const cat     = app.querySelector(`#${prefix}-category`)?.value ?? 'Essay';
-  const rawDate = app.querySelector(`#${prefix}-date`)?.value?.trim() ?? '';
+  const cat          = app.querySelector(`#${prefix}-category`)?.value ?? 'Essay';
+  const rawDate      = app.querySelector(`#${prefix}-date`)?.value?.trim() ?? '';
   let date = '';
   if (rawDate) {
     if (rawDate.includes('-')) {
@@ -823,14 +837,15 @@ function readEntryForm(app, prefix) {
       date = rawDate;
     }
   }
-  const author  = app.querySelector(`#${prefix}-author`)?.value?.trim() || 'Vic Munala';
-  const price   = Number(app.querySelector(`#${prefix}-price`)?.value) || 0;
-  const title   = app.querySelector(`#${prefix}-title`)?.value?.trim() ?? '';
-  const excerpt = app.querySelector(`#${prefix}-excerpt`)?.value?.trim() ?? '';
-  const bodyRaw = app.querySelector(`#${prefix}-body`)?.value?.trim() ?? '';
-  const body    = bodyRaw.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  const meta    = `${cat} · ${date} · ${author}`;
-  return { meta, category: cat, date, author, price, title, excerpt, body };
+  const author       = app.querySelector(`#${prefix}-author`)?.value?.trim() || 'Vic Munala';
+  const price        = Number(app.querySelector(`#${prefix}-price`)?.value) || 0;
+  const previewCount = Math.max(1, parseInt(app.querySelector(`#${prefix}-preview-count`)?.value || '2', 10));
+  const title        = app.querySelector(`#${prefix}-title`)?.value?.trim() ?? '';
+  const excerpt      = app.querySelector(`#${prefix}-excerpt`)?.value?.trim() ?? '';
+  const bodyRaw      = app.querySelector(`#${prefix}-body`)?.value?.trim() ?? '';
+  const body         = bodyRaw.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const meta         = `${cat} · ${date} · ${author}`;
+  return { meta, category: cat, date, author, price, previewCount, title, excerpt, body };
 }
 
 function toDateInputValue(dateStr) {

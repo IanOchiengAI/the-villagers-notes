@@ -53,8 +53,9 @@ export function renderEntry(app, id) {
     }
   } catch (_) {}
 
-  // Preview paragraphs for paywalled state: first 2 paragraphs
-  const previewParagraphs = bodyParagraphs.slice(0, 2);
+  // Preview paragraphs for paywalled state: author-specified previewCount (e.g. 1, 2, 3...) or default 2
+  const previewCount = Number(entry.previewCount) > 0 ? Number(entry.previewCount) : 2;
+  const previewParagraphs = bodyParagraphs.slice(0, previewCount);
 
   // HTML sanitization & escaping helper
   function escapeHTML(str) {
