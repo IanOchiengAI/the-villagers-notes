@@ -163,7 +163,7 @@ function renderLogin(app) {
           Private Author Admin
         </p>
         <form id="login-form">
-          <input type="password" id="pass-input" placeholder="Enter password (village2026)"
+          <input type="password" id="pass-input" placeholder="Password" autocomplete="current-password"
             style="width:100%;padding:12px 16px;border:1.5px solid var(--border);
                    border-radius:8px;font-size:1rem;font-family:var(--font-sans);
                    background:var(--white);color:var(--text);outline:none;margin-bottom:16px;
