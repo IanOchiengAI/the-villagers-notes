@@ -227,22 +227,6 @@ p { max-width: 65ch; }
   margin: var(--space-10) 0;
 }
 
-/* Reading progress bar — sits below sticky nav, delicate 1px hairline, fades on completion */
-.reading-progress {
-  position: fixed;
-  top: var(--nav-height, 62px);
-  left: 0;
-  height: 1px;
-  width: 0;
-  background: oklch(0.52 0.13 40 / 0.15);
-  z-index: 9999;
-  pointer-events: none;
-  transition: width 0.12s linear, opacity 0.6s ease;
-}
-.reading-progress.is-done {
-  opacity: 0;
-}
-
 /* ============================================
    NAV (Lovable Editorial Header)
    ============================================ */
@@ -267,6 +251,10 @@ p { max-width: 65ch; }
   line-height: 1;
   color: var(--foreground);
   text-decoration: none;
+  transition: color var(--t-fast);
+}
+.nav__logo:hover {
+  color: var(--accent);
 }
 .nav__links {
   display: flex;
@@ -1175,8 +1163,8 @@ p { max-width: 65ch; }
     gap: 1rem;
     padding: 0.5rem 0;
   }
-  .nav__logo img {
-    height: 42px !important;
+  .nav__logo {
+    font-size: 1.35rem;
   }
   .nav__links {
     display: flex;

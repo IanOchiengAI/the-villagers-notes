@@ -67,19 +67,7 @@
 }
 .newsletter__confirm.shown { display: block; }
 
-/* ============================================
-   READING PROGRESS BAR
-   ============================================ */
-.reading-progress {
-  position: fixed;
-  top: 64px; /* below nav */
-  left: 0;
-  width: 0%;
-  height: 2px;
-  background: var(--accent);
-  z-index: 99;
-  transition: width 0.1s linear;
-}
+
 
 /* ============================================
    ENTRY DETAIL — reading time & share

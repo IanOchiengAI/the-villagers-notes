@@ -30,7 +30,6 @@ export function footerHTML() {
               </svg>
             </a>
             <a href="mailto:vikmunala@gmail.com" class="footer__email-link label" style="text-decoration:none;transition:color 0.15s ease;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted-foreground)'">EMAIL</a>
-            <a href="#/admin" class="footer__admin-link label" style="font-size:0.65rem;color:var(--border);text-transform:lowercase;text-decoration:none;margin-left:0.25rem;transition:color 0.15s ease;" onmouseover="this.style.color='var(--text-muted)'" onmouseout="this.style.color='var(--border)'" title="Admin Desk">·admin</a>
           </div>
         </div>
       </div>

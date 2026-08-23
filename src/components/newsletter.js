@@ -13,14 +13,6 @@ export function renderNewsletter(container, { variant = 'entry' } = {}) {
                  onfocus="this.style.borderBottomColor='var(--foreground)'"
                  onblur="this.style.borderBottomColor='var(--rule)'" />
         </div>
-        <div>
-          <label class="label" for="nl-note-${variant}" style="display:block;margin-bottom:0.6rem;font-size:0.6875rem;letter-spacing:0.16em;">CITY, OR ANYTHING (OPTIONAL)</label>
-          <input class="form-input-underlined" type="text" id="nl-note-${variant}"
-                 placeholder="Nairobi"
-                 style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding:0.4rem 0 0.6rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);border-radius:0;"
-                 onfocus="this.style.borderBottomColor='var(--foreground)'"
-                 onblur="this.style.borderBottomColor='var(--rule)'" />
-        </div>
         <button class="label" type="submit"
                 style="align-self:flex-start;border:1px solid var(--foreground);background:transparent;padding:0.65rem 1.4rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;margin-top:0.5rem;font-size:0.6875rem;letter-spacing:0.16em;text-transform:uppercase;border-radius:0;"
                 onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"

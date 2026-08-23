@@ -110,25 +110,7 @@ export function renderEntry(app, id) {
   const storedLikeDelta = isLiked ? 1 : 0;
   let currentLikes = baseLikes + storedLikeDelta;
 
-  // Reading progress bar — remove any stale bar first, then create fresh
-  document.querySelectorAll('.reading-progress').forEach(el => el.remove());
-  const progressBar = document.createElement('div');
-  progressBar.className = 'reading-progress';
-  progressBar.id = 'reading-progress';
-  progressBar.setAttribute('role', 'progressbar');
-  progressBar.setAttribute('aria-valuemin', '0');
-  progressBar.setAttribute('aria-valuemax', '100');
-  progressBar.setAttribute('aria-valuenow', '0');
-  progressBar.setAttribute('aria-label', 'Reading progress');
-  document.body.appendChild(progressBar);
-
-  // Tell CSS exactly where the nav bottom is
-  const nav = document.getElementById('site-nav');
-  if (nav) {
-    document.documentElement.style.setProperty('--nav-height', nav.offsetHeight + 'px');
-  }
-
-  // Set page title & OG dynamically
+  // Set page title dynamically
   document.title = `${entry.title} — The Villager's Notes`;
 
   app.innerHTML = `
@@ -218,27 +200,28 @@ export function renderEntry(app, id) {
         </nav>
 
         <!-- Comments Section -->
-        <section style="margin-top:3rem;padding-top:2rem;border-top:1px solid var(--rule);max-width:62ch;" id="comments-section">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;">
-            <h2 style="font-family:var(--font-hand);font-size:2rem;margin:0;font-weight:400;">Comments</h2>
-            <button id="toggle-comment-btn" class="label" style="background:transparent;border:1px solid var(--rule);padding:0.4rem 0.85rem;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.borderColor='var(--foreground)'" onmouseout="this.style.borderColor='var(--rule)'">
-              Leave a comment
-            </button>
+        <section style="margin-top:3.5rem;padding-top:2.5rem;border-top:1px solid var(--rule);max-width:62ch;" id="comments-section">
+          <div style="margin-bottom:1.75rem;">
+            <h2 style="font-family:var(--font-hand);font-size:2.25rem;margin:0;font-weight:400;">Leave a note</h2>
+            <p style="color:var(--muted-foreground);font-size:0.95rem;margin-top:0.25rem;font-family:var(--font-body);">Share a reflection, question, or reaction to this piece.</p>
           </div>
 
-          <div id="comment-form-container" style="display:none;margin-bottom:2rem;padding:1.5rem 0;border-top:1px solid var(--rule);">
+          <div id="comment-form-container" style="margin-bottom:2.5rem;">
             <form id="new-comment-form">
-              <div style="margin-bottom:1.5rem;">
-                <label class="label" for="comment-author" style="display:block;margin-bottom:0.5rem;">Your Name</label>
-                <input type="text" id="comment-author" required placeholder="e.g. Aoko" style="width:100%;border:none;border-bottom:1px solid var(--foreground);background:transparent;padding-bottom:0.5rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);" />
+              <div style="margin-bottom:1.25rem;">
+                <label class="label" for="comment-author" style="display:block;margin-bottom:0.4rem;">Your Name</label>
+                <input type="text" id="comment-author" required placeholder="e.g. Aoko" style="width:100%;border:none;border-bottom:1px solid var(--foreground);background:transparent;padding-bottom:0.4rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);" />
               </div>
-              <div style="margin-bottom:1.5rem;">
-                <label class="label" for="comment-text" style="display:block;margin-bottom:0.5rem;">Your Thoughts</label>
-                <textarea id="comment-text" required rows="3" placeholder="Leave a reflection or note…" style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding-bottom:0.5rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);resize:vertical;"></textarea>
+              <div style="margin-bottom:0.75rem;">
+                <label class="label" for="comment-text" style="display:block;margin-bottom:0.4rem;">Your Thoughts</label>
+                <textarea id="comment-text" required rows="3" maxlength="500" placeholder="Write your comment here…" style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding-bottom:0.4rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);resize:vertical;" onfocus="this.style.borderBottomColor='var(--foreground)'" onblur="this.style.borderBottomColor='var(--rule)'"></textarea>
               </div>
-              <button type="submit" class="label" style="background:var(--foreground);color:var(--background);border:none;padding:0.6rem 1.25rem;cursor:pointer;letter-spacing:0.16em;">
-                Submit Note
-              </button>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;">
+                <span id="comment-char-counter" class="label" style="font-size:0.65rem;color:var(--muted-foreground);"><span id="comment-chars-left">500</span> characters remaining</span>
+                <button type="submit" class="label" style="background:var(--foreground);color:var(--background);border:none;padding:0.6rem 1.25rem;cursor:pointer;letter-spacing:0.16em;transition:opacity 0.15s ease;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                  Submit Note
+                </button>
+              </div>
             </form>
           </div>
 
@@ -286,14 +269,13 @@ export function renderEntry(app, id) {
   }
   renderCommentsList();
 
-  // Toggle comment form
-  const toggleCommentBtn = document.getElementById('toggle-comment-btn');
-  const commentFormWrap = document.getElementById('comment-form-container');
-  if (toggleCommentBtn && commentFormWrap) {
-    toggleCommentBtn.addEventListener('click', () => {
-      const isHidden = commentFormWrap.style.display === 'none';
-      commentFormWrap.style.display = isHidden ? 'block' : 'none';
-      toggleCommentBtn.textContent = isHidden ? 'Cancel' : 'Leave a comment';
+  // Handle character count on comment textarea
+  const commentTextarea = document.getElementById('comment-text');
+  const charsLeftEl = document.getElementById('comment-chars-left');
+  if (commentTextarea && charsLeftEl) {
+    commentTextarea.addEventListener('input', () => {
+      const remaining = 500 - commentTextarea.value.length;
+      charsLeftEl.textContent = String(Math.max(0, remaining));
     });
   }
 
@@ -319,8 +301,7 @@ export function renderEntry(app, id) {
 
       authorInput.value = '';
       textInput.value = '';
-      commentFormWrap.style.display = 'none';
-      if (toggleCommentBtn) toggleCommentBtn.textContent = 'Leave a comment';
+      if (charsLeftEl) charsLeftEl.textContent = '500';
     });
   }
 
@@ -346,7 +327,7 @@ export function renderEntry(app, id) {
     });
   }
 
-  // Share button handling
+  // Share button — native OS share sheet on mobile, clipboard fallback on desktop
   const shareBtn = document.getElementById('share-btn');
   const shareFeedback = document.getElementById('share-feedback');
   if (shareBtn) {
@@ -362,7 +343,7 @@ export function renderEntry(app, id) {
           return;
         } catch (_) {}
       }
-      // Fallback: clipboard
+      // Fallback: copy link to clipboard
       try {
         await navigator.clipboard.writeText(window.location.href);
         if (shareFeedback) {
@@ -372,49 +353,6 @@ export function renderEntry(app, id) {
       } catch (_) {}
     });
   }
-
-  // Reading progress and completion tracker — rAF throttled
-  let completedLogged = false;
-  let rafId = null;
-
-  function updateProgress() {
-    rafId = null; // reset so next scroll queues a new frame
-    const body = document.getElementById('entry-body');
-    const bar  = document.getElementById('reading-progress');
-    if (!body) return;
-    const bodyTop  = body.getBoundingClientRect().top + window.scrollY;
-    const bodyEnd  = bodyTop + body.offsetHeight;
-    const scrolled = window.scrollY + window.innerHeight;
-    const pct      = Math.min(100, Math.max(0, ((scrolled - bodyTop) / (bodyEnd - bodyTop)) * 100));
-
-    if (bar) {
-      bar.style.width = pct + '%';
-      bar.setAttribute('aria-valuenow', Math.round(pct));
-    }
-
-    if (pct >= 95 && !completedLogged) {
-      completedLogged = true;
-      logAnalyticsEvent('read_complete', { entryId: entry.id, title: entry.title });
-      // Fade bar out after a short delay — it's done its job
-      setTimeout(() => {
-        if (bar) bar.classList.add('is-done');
-      }, 800);
-    }
-  }
-
-  function onScroll() {
-    if (rafId) return; // already queued for this frame
-    rafId = requestAnimationFrame(updateProgress);
-  }
-
-  window.addEventListener('scroll', onScroll, { passive: true });
-  const cleanup = () => {
-    window.removeEventListener('scroll', onScroll);
-    if (rafId) cancelAnimationFrame(rafId);
-    progressBar.remove();
-    window.removeEventListener('hashchange', cleanup);
-  };
-  window.addEventListener('hashchange', cleanup);
 
   // Paywall unlock button handler
   const unlockBtn = document.getElementById('paywall-unlock-btn');

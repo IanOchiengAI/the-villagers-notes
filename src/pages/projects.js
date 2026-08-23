@@ -1,7 +1,7 @@
 import { renderSodaTip } from '../components/soda-tip.js';
 import { renderContact } from '../components/contact.js';
 import { footerHTML } from '../components/footer.js';
-import { addOrder } from './admin.js';
+import { addOrder, getBookData } from './admin.js';
 
 const PROJECTS = [
   {
@@ -15,18 +15,13 @@ const PROJECTS = [
     synopsisFull: `One minute, Esibanda is running as fast as he can because the teacher on duty will work a number on his buttocks because of lateness. The next minute, he is running away, and hiding from his landlord because the rent is due, the rent is always due, and he doesn't have the money.\n\nAfter the simplicity of life in the village with his two friends, Omulindi and Dennis, navigating school, play and mischief, he finds himself on the streets of Nairobi, with its complexities, where he stumbles on a dream, a dream he did not know he had because where he came from dreams like that were not within reach.\n\nDespite the title, no one in the story eats a mango. Neither does a mango fall on anyone's head. Disappointing as that may be, the narrative does well to compensate for that by bringing you into the full range of the human experience, dancing around themes of losing yourself and trying to find your way home. It takes you on a journey about childhood friendship, becoming a man and fatherhood, or lack thereof.`,
     images: ['/images/utmt-1.jpg', '/images/utmt-2.jpg'],
     type: 'novel',
-    cta: {
-      label: 'ORDER YOUR COPY →',
-      href: '#/book',
-      isExternal: false,
-    },
   },
   {
     id: '02',
     num: '02',
     category: 'PLAY',
-    year: 'JULY 2026',
-    metaDetails: ['STAGED JULY 2026', '77 MINUTES'],
+    year: '',
+    metaDetails: ['77 MINUTES', 'STAGE PLAY', 'TWO-HANDER'],
     title: 'Beneath the Surface',
     synopsis: 'A married couple\'s evening unfolds over dinner. The wife demands presence; the husband asks for endurance. With each word uttered, neither realises that the other is afraid of losing the marriage by speaking the truth. You are a fly on the wall listening in on their conversation.',
     images: ['/images/play-scene-2.png', '/images/play-scene-1.png'],
@@ -36,6 +31,9 @@ const PROJECTS = [
 ];
 
 export function renderProjects(app) {
+  const savedBook = getBookData();
+  const bookPrice = savedBook?.price ?? 1500;
+
   app.innerHTML = `
     <section class="projects-hero">
       <div class="container">
@@ -67,15 +65,15 @@ export function renderProjects(app) {
             <p class="project-synopsis-text">${p.synopsis}</p>
 
             ${p.type === 'novel' ? `
-              <div class="project-cta-row" style="display:flex;align-items:center;gap:1.5rem;margin-top:1.5rem;flex-wrap:wrap;">
+              <div class="project-cta-row" style="display:flex;align-items:center;gap:1.25rem;margin-top:1.5rem;flex-wrap:wrap;">
                 ${p.synopsisFull ? `
                   <button class="synopsis-toggle label" data-target="synopsis-full-${p.id}" aria-expanded="false" style="color:var(--accent);cursor:pointer;background:none;border:none;padding:0;letter-spacing:0.16em;transition:opacity 0.15s ease;">
                     READ MORE →
                   </button>
                 ` : ''}
-                <a href="#/book" class="label" style="border:1px solid var(--accent);color:var(--accent);padding:0.55rem 1.25rem;text-decoration:none;letter-spacing:0.16em;transition:all 0.15s ease;" onmouseover="this.style.background='var(--accent)';this.style.color='var(--accent-foreground)'" onmouseout="this.style.background='transparent';this.style.color='var(--accent)'">
-                  GET A COPY →
-                </a>
+                <button class="btn--sharp" id="toggle-book-inline-btn" aria-expanded="false">
+                  GET A COPY — KES ${bookPrice.toLocaleString()} →
+                </button>
               </div>
 
               ${p.synopsisFull ? `
@@ -83,7 +81,59 @@ export function renderProjects(app) {
                   ${p.synopsisFull.split('\n\n').map(para => `<p style="margin-top:1.15rem;font-family:var(--font-body);font-size:1.0625rem;line-height:1.7;color:var(--foreground);">${para}</p>`).join('')}
                 </div>
               ` : ''}
+
+              <!-- Inline Book Order Accordion -->
+              <div class="play-pay-box" id="book-inline-box" style="display:none;margin-top:1.75rem;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;">
+                  <h3 style="font-family:var(--font-hand);font-size:1.65rem;margin:0;font-weight:400;">Order Under the Mango Tree</h3>
+                  <span class="label" style="color:var(--accent);font-size:0.8rem;font-weight:600;">KES ${bookPrice.toLocaleString()}</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label-underlined" for="inline-buyer-name">Full Name</label>
+                  <input type="text" id="inline-buyer-name" class="form-input-underlined" placeholder="Jane Mwangi" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label-underlined" for="inline-buyer-phone">M-Pesa Number</label>
+                  <input type="tel" id="inline-buyer-phone" class="form-input-underlined" placeholder="07XX XXX XXX" maxlength="12" />
+                  <p class="form-hint-inline">You will receive an STK push prompt on this phone.</p>
+                </div>
+                <div class="form-group">
+                  <label class="form-label-underlined" for="inline-delivery-address">Delivery Address</label>
+                  <input type="text" id="inline-delivery-address" class="form-input-underlined" placeholder="e.g. Westlands, Nairobi" />
+                </div>
+                <div class="form-group book-signed-row" style="margin-top:0.75rem;">
+                  <input type="checkbox" id="inline-signed-copy" checked style="width:16px;height:16px;accent-color:var(--foreground);flex-shrink:0;margin-top:2px;" />
+                  <label for="inline-signed-copy" style="font-size:0.85rem;color:var(--foreground);line-height:1.4;cursor:pointer;">
+                    <strong>Request a signed copy</strong>
+                    <span style="display:block;color:var(--muted-foreground);font-size:0.78rem;">Signed by Vic Munala — free, no extra charge</span>
+                  </label>
+                </div>
+                <button class="btn--sharp" id="pay-book-inline-btn" style="margin-top:var(--space-3);">
+                  PAY KES ${bookPrice.toLocaleString()} VIA M-PESA
+                </button>
+                <div class="stk-status" id="book-inline-stk-status"></div>
+              </div>
             ` : `
+              <!-- Play Stats Bar -->
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:1rem;margin:1.5rem 0;padding:1rem 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);">
+                <div>
+                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">DURATION</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">77 MINS</div>
+                </div>
+                <div>
+                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STAGED</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">NAIROBI</div>
+                </div>
+                <div>
+                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STRUCTURE</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">TWO-HANDER</div>
+                </div>
+                <div>
+                  <div class="label" style="font-size:0.6rem;color:var(--accent);">DIGITAL STREAM</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;color:var(--accent);">KES 1,000</div>
+                </div>
+              </div>
+
               <div class="project-cta-row">
                 <button class="btn--sharp-terracotta" id="toggle-trailer-btn" aria-expanded="false">
                   WATCH THE TRAILER →
@@ -143,6 +193,30 @@ export function renderProjects(app) {
     });
   });
 
+  // Wire Inline Book Order Toggle
+  const bookOrderBtn = app.querySelector('#toggle-book-inline-btn');
+  const bookInlineBox = app.querySelector('#book-inline-box');
+  if (bookOrderBtn && bookInlineBox) {
+    bookOrderBtn.addEventListener('click', () => {
+      const isHidden = bookInlineBox.style.display === 'none';
+      bookInlineBox.style.display = isHidden ? 'block' : 'none';
+      bookOrderBtn.setAttribute('aria-expanded', String(isHidden));
+      if (isHidden) {
+        bookOrderBtn.textContent = 'CLOSE ORDER FORM ↑';
+        bookOrderBtn.className = 'btn--sharp-close';
+      } else {
+        bookOrderBtn.textContent = `GET A COPY — KES ${bookPrice.toLocaleString()} →`;
+        bookOrderBtn.className = 'btn--sharp';
+      }
+    });
+  }
+
+  // Wire Inline Book Payment Action
+  const payBookBtn = app.querySelector('#pay-book-inline-btn');
+  if (payBookBtn) {
+    payBookBtn.addEventListener('click', () => handleBookInlineStkPush(bookPrice));
+  }
+
   // Wire Play Trailer Toggle
   const trailerBtn = app.querySelector('#toggle-trailer-btn');
   const trailerBox = app.querySelector('#trailer-box');
@@ -193,6 +267,95 @@ export function renderProjects(app) {
   document.title = "Projects — The Villager's Notes";
 }
 
+async function handleBookInlineStkPush(price) {
+  const nameInput    = document.getElementById('inline-buyer-name');
+  const phoneInput   = document.getElementById('inline-buyer-phone');
+  const addressInput = document.getElementById('inline-delivery-address');
+  const signedInput  = document.getElementById('inline-signed-copy');
+  const status       = document.getElementById('book-inline-stk-status');
+  const btn          = document.getElementById('pay-book-inline-btn');
+
+  if (!nameInput || !phoneInput || !addressInput || !status || !btn) return;
+
+  const name    = nameInput.value.trim();
+  const phone   = phoneInput.value.trim().replace(/\s/g, '');
+  const address = addressInput.value.trim();
+  const signed  = signedInput?.checked ?? true;
+
+  if (!name || !phone || !address) {
+    setProjectStatus(status, 'error', 'Please fill in your name, phone number, and delivery address.');
+    return;
+  }
+  const cleaned = cleanPhone(phone);
+  if (!cleaned) {
+    setProjectStatus(status, 'error', 'Enter a valid Kenyan phone number (e.g. 0712345678).');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending prompt…';
+  setProjectStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
+
+  // Track order in admin
+  addOrder({ name, phone: cleaned, address, amount: price, signed });
+
+  try {
+    const res = await fetch('/api/stk-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: cleaned,
+        name,
+        address,
+        amount: price,
+        narrative: `Book: Under the Mango Tree - ${name}`,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
+
+    const invoiceId = data.invoice_id || data.CheckoutRequestID;
+    pollBookInlineStkStatus(invoiceId, price, status, btn);
+  } catch (err) {
+    setProjectStatus(status, 'error', `${err.message || 'Could not initiate STK push'}. Please try again.`);
+    btn.disabled = false;
+    btn.textContent = `PAY KES ${price.toLocaleString()} VIA M-PESA`;
+  }
+}
+
+async function pollBookInlineStkStatus(invoiceId, price, statusEl, btn) {
+  let attempts = 0;
+  const max = 15;
+  const interval = setInterval(async () => {
+    attempts++;
+    try {
+      const res = await fetch('/api/stk-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_id: invoiceId, CheckoutRequestID: invoiceId }),
+      });
+      const data = await res.json();
+      if (data.ResultCode === '0' || data.state === 'COMPLETE' || data.state === 'SUCCESSFUL') {
+        clearInterval(interval);
+        setProjectStatus(statusEl, 'success', '✅ Payment received! Your copy will be dispatched shortly. Thank you!');
+        btn.textContent = 'Order Confirmed ✓';
+      } else if (data.ResultCode === '1' || data.state === 'FAILED' || data.state === 'CANCELLED') {
+        clearInterval(interval);
+        setProjectStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Declined'}. Please try again.`);
+        btn.disabled = false;
+        btn.textContent = `PAY KES ${price.toLocaleString()} VIA M-PESA`;
+      }
+    } catch (_) {}
+
+    if (attempts >= max) {
+      clearInterval(interval);
+      setProjectStatus(statusEl, 'error', 'Payment confirmation in progress. If you entered your PIN, your order is recorded and confirmed.');
+      btn.disabled = false;
+      btn.textContent = `PAY KES ${price.toLocaleString()} VIA M-PESA`;
+    }
+  }, 3000);
+}
+
 async function handlePlayStkPush() {
   const phoneInput = document.getElementById('play-mpesa-phone');
   const emailInput = document.getElementById('play-email');
@@ -205,22 +368,22 @@ async function handlePlayStkPush() {
   const email = emailInput.value.trim();
 
   if (!phone || !email) {
-    setPlayStatus(status, 'error', 'Please fill in both your phone number and email.');
+    setProjectStatus(status, 'error', 'Please fill in both your phone number and email.');
     return;
   }
   if (!email.includes('@') || !email.includes('.')) {
-    setPlayStatus(status, 'error', 'Please enter a valid email address.');
+    setProjectStatus(status, 'error', 'Please enter a valid email address.');
     return;
   }
   const cleaned = cleanPhone(phone);
   if (!cleaned) {
-    setPlayStatus(status, 'error', 'Enter a valid Kenyan phone number (e.g. 0712345678).');
+    setProjectStatus(status, 'error', 'Enter a valid Kenyan phone number (e.g. 0712345678).');
     return;
   }
 
   btn.disabled = true;
   btn.textContent = 'Sending prompt…';
-  setPlayStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
+  setProjectStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
 
   // Track order in admin
   addOrder({
@@ -241,7 +404,7 @@ async function handlePlayStkPush() {
     if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
     pollPlayStkStatus(data.CheckoutRequestID, status, btn);
   } catch (err) {
-    setPlayStatus(status, 'error', `${err.message}. Try again or WhatsApp Vic directly.`);
+    setProjectStatus(status, 'error', `${err.message || 'Could not initiate payment'}. Please try again.`);
     btn.disabled = false;
     btn.textContent = 'PAY KES 1,000';
   }
@@ -261,18 +424,18 @@ async function pollPlayStkStatus(checkoutRequestID, statusEl, btn) {
       const data = await res.json();
       if (data.ResultCode === '0') {
         clearInterval(interval);
-        setPlayStatus(statusEl, 'success', '✅ Payment received! The private viewing link has been sent to your email. Thank you!');
+        setProjectStatus(statusEl, 'success', '✅ Payment received! The private viewing link has been sent to your email. Thank you!');
         btn.textContent = 'Link Sent ✓';
       } else if (data.ResultCode && data.ResultCode !== '1032') {
         clearInterval(interval);
-        setPlayStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Unknown error'}. Please try again.`);
+        setProjectStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Unknown error'}. Please try again.`);
         btn.disabled = false;
         btn.textContent = 'PAY KES 1,000';
       }
     } catch (_) {}
     if (attempts >= max) {
       clearInterval(interval);
-      setPlayStatus(statusEl, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages or contact Vic directly.');
+      setProjectStatus(statusEl, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages or contact Vic directly.');
       btn.disabled = false;
       btn.textContent = 'PAY KES 1,000';
     }
@@ -286,8 +449,9 @@ function cleanPhone(raw) {
   return null;
 }
 
-function setPlayStatus(el, type, msg) {
+function setProjectStatus(el, type, msg) {
   if (!el) return;
   el.className = `stk-status ${type}`;
   el.textContent = msg;
 }
+
