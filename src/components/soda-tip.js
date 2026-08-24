@@ -8,7 +8,7 @@ export function renderSodaTip(container) {
 
   function render() {
     container.innerHTML = `
-      <section class="soda-section" style="margin-top:5rem;border-top:1px solid var(--foreground);padding-top:3rem;">
+      <section class="soda-section" style="margin-top:5rem;padding-top:3rem;">
         <h2 style="font-size:clamp(1.75rem, 4.5vw, 2.5rem);font-family:var(--font-hand);font-weight:400;margin:0 0 1.5rem;">
           Enjoying the work here, buy me soda madiaba.
         </h2>
