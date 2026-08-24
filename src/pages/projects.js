@@ -22,7 +22,7 @@ const PROJECTS = [
     num: '02',
     category: 'PLAY',
     year: '',
-    metaDetails: ['STAGE PLAY'],
+    metaDetails: ['77 MINUTES', 'NAIROBI', 'TWO-HANDER', 'KES 1,000'],
     title: 'Beneath the Surface',
     synopsis: 'A married couple\'s evening unfolds over dinner. The wife demands presence; the husband asks for endurance. With each word uttered, neither realises that the other is afraid of losing the marriage by speaking the truth. You are a fly on the wall listening in on their conversation.',
     images: ['/images/play-scene-2.png', '/images/play-scene-1.png'],
@@ -117,27 +117,8 @@ export function renderProjects(app) {
                 </button>
                 <div class="stk-status" id="book-inline-stk-status"></div>
               </div>
-            ` : `
-              <!-- Play Editorial Details Bar -->
-              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:1rem;margin:1.5rem 0;padding:1rem 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);">
-                <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">DURATION</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">77 MINS</div>
-                </div>
-                <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STAGED</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">NAIROBI</div>
-                </div>
-                <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STRUCTURE</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">TWO-HANDER</div>
-                </div>
-                <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--accent);">DIGITAL STREAM</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;color:var(--accent);">KES 1,000</div>
-                </div>
-              </div>
 
+            ` : `
               <div class="project-cta-row">
                 <button class="btn--sharp" id="toggle-trailer-btn" aria-expanded="false">
                   WATCH THE TRAILER →
