@@ -2,7 +2,7 @@ import { renderSodaTip } from '../components/soda-tip.js';
 import { renderContact } from '../components/contact.js';
 import { footerHTML } from '../components/footer.js';
 import { addOrder, getBookData } from './admin.js';
-import { incrementCounter, getCounters } from '../lib/supabase.js';
+import { incrementCounter } from '../lib/supabase.js';
 
 const PROJECTS = [
   {
@@ -31,19 +31,12 @@ const PROJECTS = [
   },
 ];
 
-export async function renderProjects(app) {
+export function renderProjects(app) {
   const savedBook = getBookData();
   const bookPrice = savedBook?.price ?? 1500;
 
   // Fire page-view counter (once per browser session)
   incrementCounter('play_views');
-
-  // Fetch current stats from Supabase
-  const stats = await getCounters(['play_views', 'trailer_clicks', 'play_watch_clicks']);
-  const playViews     = stats.play_views ?? 0;
-  const trailerClicks = stats.trailer_clicks ?? 0;
-  const watchClicks   = stats.play_watch_clicks ?? 0;
-  const fmt = n => Number(n).toLocaleString('en-KE');
 
   app.innerHTML = `
     <section class="projects-hero">
@@ -125,23 +118,23 @@ export async function renderProjects(app) {
                 <div class="stk-status" id="book-inline-stk-status"></div>
               </div>
             ` : `
-              <!-- Play Stats Bar — live from Supabase -->
+              <!-- Play Editorial Details Bar -->
               <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:1rem;margin:1.5rem 0;padding:1rem 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);">
-                <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">PAGE VIEWS</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">${fmt(playViews)}</div>
-                </div>
-                <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">TRAILER PLAYS</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">${fmt(trailerClicks)}</div>
-                </div>
                 <div>
                   <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">DURATION</div>
                   <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">77 MINS</div>
                 </div>
                 <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STREAMS SOLD</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">${fmt(watchClicks)}</div>
+                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STAGED</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">NAIROBI</div>
+                </div>
+                <div>
+                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STRUCTURE</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">TWO-HANDER</div>
+                </div>
+                <div>
+                  <div class="label" style="font-size:0.6rem;color:var(--accent);">DIGITAL STREAM</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;color:var(--accent);">KES 1,000</div>
                 </div>
               </div>
 

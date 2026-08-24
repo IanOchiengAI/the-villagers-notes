@@ -1,4 +1,5 @@
 import { ENTRIES as DEFAULT_ENTRIES } from '../data/entries.js';
+import { getCounters } from '../lib/supabase.js';
 
 const ADMIN_PASS = 'village2026';
 const STORAGE_KEY = 'tvn_admin_data';
@@ -486,6 +487,34 @@ function renderAnalyticsSection() {
         </div>
       </div>
 
+      <!-- Project Engagement Counters (Supabase / Live) -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin:0;">Project &amp; Creative Engagement</h3>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin:4px 0 0;">Live tracking counters for Beneath the Surface &amp; Under the Mango Tree</p>
+          </div>
+          <span style="font-size:0.7rem;font-family:monospace;background:var(--bg-subtle);padding:4px 8px;border-radius:4px;color:var(--text-muted);">SUPABASE LIVE</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;">
+          <div style="padding:16px;background:var(--bg-subtle);border-radius:8px;">
+            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Play Page Views</div>
+            <div id="stat-play-views" style="font-family:var(--font-hand);font-size:1.8rem;font-weight:700;color:var(--text);line-height:1;">0</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Unique visitor sessions</div>
+          </div>
+          <div style="padding:16px;background:var(--bg-subtle);border-radius:8px;">
+            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Trailer Plays</div>
+            <div id="stat-trailer-plays" style="font-family:var(--font-hand);font-size:1.8rem;font-weight:700;color:var(--accent);line-height:1;">0</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Clicks to watch trailer</div>
+          </div>
+          <div style="padding:16px;background:var(--bg-subtle);border-radius:8px;">
+            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Stream Intent</div>
+            <div id="stat-stream-clicks" style="font-family:var(--font-hand);font-size:1.8rem;font-weight:700;color:hsl(143 60% 40%);line-height:1;">0</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Clicks on stream checkout</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Page Views Breakdown -->
       <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
         <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:18px;">Page Popularity</h3>
@@ -529,6 +558,16 @@ function wireAnalyticsEvents(app, render) {
       render();
     }
   });
+
+  // Fetch Supabase live engagement counters
+  getCounters(['play_views', 'trailer_clicks', 'play_watch_clicks']).then(stats => {
+    const playViewsEl = app.querySelector('#stat-play-views');
+    const trailerPlaysEl = app.querySelector('#stat-trailer-plays');
+    const streamClicksEl = app.querySelector('#stat-stream-clicks');
+    if (playViewsEl && stats.play_views !== undefined) playViewsEl.textContent = Number(stats.play_views).toLocaleString();
+    if (trailerPlaysEl && stats.trailer_clicks !== undefined) trailerPlaysEl.textContent = Number(stats.trailer_clicks).toLocaleString();
+    if (streamClicksEl && stats.play_watch_clicks !== undefined) streamClicksEl.textContent = Number(stats.play_watch_clicks).toLocaleString();
+  }).catch(() => {});
 }
 
 // ── Entries section ──────────────────────────────────────────────────────────
