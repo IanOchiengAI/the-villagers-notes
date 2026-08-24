@@ -157,7 +157,7 @@ export function renderProjects(app) {
       `).join('')}
 
       <!-- Buy me soda madiaba -->
-      <div id="soda-container" style="border-top:1px solid var(--rule);"></div>
+      <div id="soda-container"></div>
 
       <!-- Write to me -->
       <div id="contact-container"></div>
