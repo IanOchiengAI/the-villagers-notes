@@ -491,7 +491,6 @@ p { max-width: 65ch; }
    ============================================ */
 .projects-hero {
   padding: var(--space-12) 0 var(--space-4);
-  border-bottom: 1px solid var(--border);
 }
 .projects-hero h1 {
   font-family: var(--font-hand);

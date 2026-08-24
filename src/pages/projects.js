@@ -2,6 +2,7 @@ import { renderSodaTip } from '../components/soda-tip.js';
 import { renderContact } from '../components/contact.js';
 import { footerHTML } from '../components/footer.js';
 import { addOrder, getBookData } from './admin.js';
+import { incrementCounter, getCounters } from '../lib/supabase.js';
 
 const PROJECTS = [
   {
@@ -30,13 +31,23 @@ const PROJECTS = [
   },
 ];
 
-export function renderProjects(app) {
+export async function renderProjects(app) {
   const savedBook = getBookData();
   const bookPrice = savedBook?.price ?? 1500;
 
+  // Fire page-view counter (once per browser session)
+  incrementCounter('play_views');
+
+  // Fetch current stats from Supabase
+  const stats = await getCounters(['play_views', 'trailer_clicks', 'play_watch_clicks']);
+  const playViews     = stats.play_views ?? 0;
+  const trailerClicks = stats.trailer_clicks ?? 0;
+  const watchClicks   = stats.play_watch_clicks ?? 0;
+  const fmt = n => Number(n).toLocaleString('en-KE');
+
   app.innerHTML = `
     <section class="projects-hero">
-      <div class="container">
+      <div class="container" style="border-bottom:1px solid var(--rule);padding-bottom:1.5rem;">
         <h1>Projects</h1>
       </div>
     </section>
@@ -114,28 +125,28 @@ export function renderProjects(app) {
                 <div class="stk-status" id="book-inline-stk-status"></div>
               </div>
             ` : `
-              <!-- Play Stats Bar -->
+              <!-- Play Stats Bar — live from Supabase -->
               <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:1rem;margin:1.5rem 0;padding:1rem 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);">
+                <div>
+                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">PAGE VIEWS</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">${fmt(playViews)}</div>
+                </div>
+                <div>
+                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">TRAILER PLAYS</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">${fmt(trailerClicks)}</div>
+                </div>
                 <div>
                   <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">DURATION</div>
                   <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">77 MINS</div>
                 </div>
                 <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STAGED</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">NAIROBI</div>
-                </div>
-                <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STRUCTURE</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">TWO-HANDER</div>
-                </div>
-                <div>
-                  <div class="label" style="font-size:0.6rem;color:var(--accent);">DIGITAL STREAM</div>
-                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;color:var(--accent);">KES 1,000</div>
+                  <div class="label" style="font-size:0.6rem;color:var(--muted-foreground);">STREAMS SOLD</div>
+                  <div style="font-family:var(--font-mono);font-size:0.875rem;font-weight:500;margin-top:0.2rem;">${fmt(watchClicks)}</div>
                 </div>
               </div>
 
               <div class="project-cta-row">
-                <button class="btn--sharp-terracotta" id="toggle-trailer-btn" aria-expanded="false">
+                <button class="btn--sharp" id="toggle-trailer-btn" aria-expanded="false">
                   WATCH THE TRAILER →
                 </button>
                 <button class="btn--sharp" id="toggle-play-pay-btn" aria-expanded="false">
@@ -222,6 +233,7 @@ export function renderProjects(app) {
   const trailerBox = app.querySelector('#trailer-box');
   if (trailerBtn && trailerBox) {
     trailerBtn.addEventListener('click', () => {
+      incrementCounter('trailer_clicks', false);
       const isHidden = trailerBox.style.display === 'none';
       trailerBox.style.display = isHidden ? 'block' : 'none';
       trailerBtn.setAttribute('aria-expanded', String(isHidden));
@@ -234,6 +246,7 @@ export function renderProjects(app) {
   const playPayBox = app.querySelector('#play-pay-box');
   if (playPayBtn && playPayBox) {
     playPayBtn.addEventListener('click', () => {
+      incrementCounter('play_watch_clicks', false);
       const isHidden = playPayBox.style.display === 'none';
       playPayBox.style.display = isHidden ? 'block' : 'none';
       playPayBtn.setAttribute('aria-expanded', String(isHidden));

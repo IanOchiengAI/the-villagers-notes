@@ -7,7 +7,7 @@ export function renderHome(app) {
   app.innerHTML = `
     <!-- HERO: centered squeezed quote -->
     <section class="hero-section" style="min-height:52vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4.5rem 0;text-align:center;">
-      <div class="container" style="border-bottom:1px solid var(--rule);padding-bottom:3.5rem;">
+      <div class="container" style="padding-bottom:3.5rem;">
         <h1 style="margin:0 auto;font-size:clamp(2.25rem, 7.5vw, 4.5rem);line-height:1.15;font-family:var(--font-hand);font-weight:400;">
           You can<br>
           remove the<br>

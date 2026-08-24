@@ -39,7 +39,7 @@ function logPageVisit(path) {
 }
 
 export function initRouter() {
-  function route() {
+  async function route() {
     const rawHash = location.hash.replace(/^#\/?/, '').replace(/\/$/, '') || '';
     const app = document.getElementById('app');
     if (!app) return;
@@ -57,13 +57,13 @@ export function initRouter() {
     // Support both #/entries/:slug and #/entry/:id
     if (rawHash.startsWith('entry/') || (rawHash.startsWith('entries/') && rawHash.replace('entries/', '').length > 0)) {
       const slugOrId = rawHash.replace(/^(entry|entries)\//, '');
-      renderEntry(app, slugOrId);
+      await renderEntry(app, slugOrId);
       return;
     }
 
     const page = routes[rawHash] ?? routes[''];
     setMeta(page.title, page.desc);
-    page.render(app);
+    await page.render(app);
   }
   window.addEventListener('hashchange', route);
   route();
