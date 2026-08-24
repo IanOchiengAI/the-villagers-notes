@@ -22,7 +22,7 @@ const PROJECTS = [
     num: '02',
     category: 'PLAY',
     year: '',
-    metaDetails: ['77 MINUTES', 'STAGE PLAY', 'TWO-HANDER'],
+    metaDetails: ['STAGE PLAY'],
     title: 'Beneath the Surface',
     synopsis: 'A married couple\'s evening unfolds over dinner. The wife demands presence; the husband asks for endurance. With each word uttered, neither realises that the other is afraid of losing the marriage by speaking the truth. You are a fly on the wall listening in on their conversation.',
     images: ['/images/play-scene-2.png', '/images/play-scene-1.png'],
