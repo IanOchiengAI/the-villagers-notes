@@ -1333,9 +1333,40 @@ p { max-width: 65ch; }
   .soda-box__custom-input,
   .soda-box__phone-input,
   .newsletter__input,
+  .comment-author-input,
+  .comment-textarea,
   #contact-email,
   #contact-msg {
     font-size: 16px !important;
   }
+}
+
+/* ============================================
+   COMMENTS SECTION
+   ============================================ */
+.comment-author-input::placeholder,
+.comment-textarea::placeholder {
+  font-family: var(--font-body), Georgia, serif;
+  color: var(--muted-foreground);
+  opacity: 0.75;
+  font-style: normal;
+}
+
+.comment-author-input:focus {
+  border-bottom-color: var(--foreground) !important;
+}
+
+.comment-textarea:focus {
+  border-color: var(--foreground) !important;
+}
+
+.comment-submit-btn {
+  letter-spacing: 0.16em;
+  line-height: 1;
+}
+
+.comment-submit-btn:hover {
+  background: var(--foreground) !important;
+  color: var(--background) !important;
 }
 

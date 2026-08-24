@@ -101,9 +101,22 @@ export function renderEntry(app, id) {
 
   // Author formatting & meta
   const metaParts = [];
-  if (entry.category) metaParts.push(entry.category.toUpperCase());
-  if (entry.date) metaParts.push(entry.date.toUpperCase());
-  const metaText = metaParts.length > 0 ? metaParts.join(' · ') : (entry.meta?.toUpperCase() || 'ESSAY');
+  if (entry.category) {
+    metaParts.push(entry.category.toUpperCase());
+  } else if (entry.meta) {
+    metaParts.push(entry.meta.split('·')[0].trim().toUpperCase());
+  } else {
+    metaParts.push('ESSAY');
+  }
+
+  if (entry.date) {
+    metaParts.push(entry.date.toUpperCase());
+  }
+
+  metaParts.push(`${readMins} MIN READ`);
+  metaParts.push(`BY ${(entry.author || 'Vic Munala').toUpperCase()}`);
+
+  const metaText = metaParts.join(' · ');
 
   // Likes tracking
   const likedKey = `tvn_liked_${entry.id}`;
@@ -120,12 +133,14 @@ export function renderEntry(app, id) {
       <div class="container">
 
         <!-- Back link -->
-        <a href="#/entries" class="label" style="text-decoration:none;transition:color 0.15s ease;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted-foreground)'">
-          ← ENTRIES
-        </a>
+        <div>
+          <a href="#/entries" class="label" style="text-decoration:none;display:inline-block;transition:color 0.15s ease;letter-spacing:0.18em;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted-foreground)'">
+            ← ENTRIES
+          </a>
+        </div>
 
         <!-- Meta -->
-        <div class="label" style="margin-top:2.5rem;letter-spacing:0.16em;">
+        <div class="label" style="margin-top:2.25rem;letter-spacing:0.18em;color:var(--muted-foreground);line-height:1.6;">
           ${metaText}
         </div>
 
@@ -224,25 +239,24 @@ export function renderEntry(app, id) {
 
         <!-- Comments Section -->
         <section style="margin-top:3.5rem;padding-top:2.5rem;border-top:1px solid var(--rule);max-width:62ch;" id="comments-section">
-          <div style="margin-bottom:1.75rem;">
-            <h2 style="font-family:var(--font-hand);font-size:2.25rem;margin:0;font-weight:400;">Leave a note</h2>
-            <p style="color:var(--muted-foreground);font-size:0.95rem;margin-top:0.25rem;font-family:var(--font-body);">Share a reflection, question, or reaction to this piece.</p>
+          <div style="margin-bottom:2rem;">
+            <h2 style="font-family:var(--font-hand);font-size:2.5rem;margin:0;font-weight:400;color:var(--foreground);line-height:1.2;">Comments</h2>
           </div>
 
           <div id="comment-form-container" style="margin-bottom:2.5rem;">
             <form id="new-comment-form">
+              <div style="margin-bottom:1.75rem;">
+                <input type="text" id="comment-author" required placeholder="Your name" class="comment-author-input" style="width:100%;border:none;border-bottom:1.5px solid #8e4823;background:transparent;padding:0.4rem 0 0.5rem;font-family:var(--font-body);outline:none;font-size:1.125rem;color:var(--foreground);" />
+              </div>
               <div style="margin-bottom:1.25rem;">
-                <label class="label" for="comment-author" style="display:block;margin-bottom:0.4rem;">Your Name</label>
-                <input type="text" id="comment-author" required placeholder="e.g. Aoko" style="width:100%;border:none;border-bottom:1px solid var(--foreground);background:transparent;padding-bottom:0.4rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);" />
+                <textarea id="comment-text" required rows="5" maxlength="500" placeholder="Say something" class="comment-textarea" style="width:100%;border:1px solid #c8bcaf;background:transparent;padding:1rem 1.15rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);resize:vertical;display:block;min-height:140px;box-sizing:border-box;transition:border-color 0.15s ease;" onfocus="this.style.borderColor='var(--foreground)'" onblur="this.style.borderColor='#c8bcaf'"></textarea>
+                <div style="display:flex;justify-content:flex-end;margin-top:0.4rem;">
+                  <span id="comment-char-counter" class="label" style="font-size:0.65rem;color:var(--muted-foreground);"><span id="comment-chars-left">500</span> characters remaining</span>
+                </div>
               </div>
-              <div style="margin-bottom:0.75rem;">
-                <label class="label" for="comment-text" style="display:block;margin-bottom:0.4rem;">Your Thoughts</label>
-                <textarea id="comment-text" required rows="3" maxlength="500" placeholder="Write your comment here…" style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding-bottom:0.4rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);resize:vertical;" onfocus="this.style.borderBottomColor='var(--foreground)'" onblur="this.style.borderBottomColor='var(--rule)'"></textarea>
-              </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;">
-                <span id="comment-char-counter" class="label" style="font-size:0.65rem;color:var(--muted-foreground);"><span id="comment-chars-left">500</span> characters remaining</span>
-                <button type="submit" class="label" style="background:var(--foreground);color:var(--background);border:none;padding:0.6rem 1.25rem;cursor:pointer;letter-spacing:0.16em;transition:opacity 0.15s ease;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
-                  Submit Note
+              <div>
+                <button type="submit" class="comment-submit-btn" style="background:transparent;color:var(--foreground);border:1px solid var(--foreground);padding:0.7rem 1.4rem;font-family:var(--font-mono);font-size:0.6875rem;letter-spacing:0.18em;text-transform:uppercase;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='var(--foreground)';this.style.color='var(--background)';" onmouseout="this.style.background='transparent';this.style.color='var(--foreground)';">
+                  LEAVE A COMMENT
                 </button>
               </div>
             </form>
