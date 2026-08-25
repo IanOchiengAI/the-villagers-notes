@@ -31,3 +31,4 @@
 |------|---------------|
 | 2026-08-24 | Redesigned comments section to match reference image with custom font, underline name field, box textarea, live character counter, and outline button |
 | 2026-08-24 | Formatted single entry header with ← ENTRIES back link and uppercase metadata (Category · Date · Read Time · Author) |
+| 2026-08-25 | Changed paid article free preview from paragraphs to 100 words in admin CMS and reader view |
