@@ -626,6 +626,29 @@ function renderEntriesSection(entries) {
     </div>`;
 }
 
+function getPreviewParagraphsByWords(bodyParagraphs, maxWords = 100) {
+  if (!Array.isArray(bodyParagraphs) || bodyParagraphs.length === 0) return [];
+  const result = [];
+  let currentWords = 0;
+  for (const para of bodyParagraphs) {
+    if (currentWords >= maxWords) break;
+    const wordsInPara = para.trim().split(/\s+/).filter(Boolean);
+    if (currentWords + wordsInPara.length <= maxWords) {
+      result.push(para);
+      currentWords += wordsInPara.length;
+    } else {
+      const remaining = maxWords - currentWords;
+      if (remaining > 0) {
+        const sliced = wordsInPara.slice(0, remaining).join(' ') + '...';
+        result.push(sliced);
+        currentWords += remaining;
+      }
+      break;
+    }
+  }
+  return result.length > 0 ? result : [bodyParagraphs[0]];
+}
+
 function insertAtCursor(textarea, text) {
   if (!textarea) return;
   const start = textarea.selectionStart || 0;
@@ -665,7 +688,7 @@ function entryFormHTML(e, isNew, idx = '') {
   const todayFormatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const displayDate = isNew ? todayFormatted : (e.date || todayFormatted);
 
-  const previewCountVal = e.previewCount !== undefined ? e.previewCount : 2;
+  const previewWordsVal = e.previewWords !== undefined ? e.previewWords : (e.previewCount !== undefined && e.previewCount > 10 ? e.previewCount : 100);
 
   return `
     <div style="display:flex;flex-direction:column;gap:18px;">
@@ -694,8 +717,8 @@ function entryFormHTML(e, isNew, idx = '') {
             style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
         </div>
         <div>
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Free Preview (Paragraphs)</label>
-          <input id="${prefix}-preview-count" type="number" min="1" max="10" value="${previewCountVal}" placeholder="2" title="How many paragraphs readers see before the paywall"
+          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Free Preview (Words)</label>
+          <input id="${prefix}-preview-count" type="number" min="10" step="10" value="${previewWordsVal}" placeholder="100" title="How many words readers see before the paywall"
             style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
         </div>
       </div>
@@ -802,13 +825,13 @@ function wireEntriesEvents(app, data, render) {
     const e = readEntryForm(app, 'new');
     if (!e.title) return;
     const newId = String(Date.now());
-    const count = Number(e.previewCount) > 0 ? Number(e.previewCount) : 2;
+    const words = Number(e.previewWords) > 0 ? Number(e.previewWords) : 100;
     
-    // If paid entry, save full body in private store & specified paragraphs as free preview
+    // If paid entry, save full body in private store & specified words (default 100) as free preview
     if (e.price > 0) {
       localStorage.setItem(`tvn_paid_${newId}`, JSON.stringify(e.body));
-      const previewParagraphs = e.body.slice(0, count);
-      entries.unshift({ ...e, id: newId, previewCount: count, body: previewParagraphs });
+      const previewParagraphs = getPreviewParagraphsByWords(e.body, words);
+      entries.unshift({ ...e, id: newId, previewWords: words, body: previewParagraphs });
     } else {
       localStorage.removeItem(`tvn_paid_${newId}`);
       entries.unshift({ ...e, id: newId });
@@ -840,13 +863,13 @@ function wireEntriesEvents(app, data, render) {
     app.querySelector(`[data-save="${i}"]`)?.addEventListener('click', () => {
       const updated = readEntryForm(app, `edit-${i}`);
       const entryId = entries[i].id;
-      const count = Number(updated.previewCount) > 0 ? Number(updated.previewCount) : 2;
+      const words = Number(updated.previewWords) > 0 ? Number(updated.previewWords) : 100;
       
-      // If paid entry, save full body in private store & specified paragraphs as free preview
+      // If paid entry, save full body in private store & specified words (default 100) as free preview
       if (updated.price > 0) {
         localStorage.setItem(`tvn_paid_${entryId}`, JSON.stringify(updated.body));
-        const previewParagraphs = updated.body.slice(0, count);
-        entries[i] = { ...entries[i], ...updated, previewCount: count, body: previewParagraphs };
+        const previewParagraphs = getPreviewParagraphsByWords(updated.body, words);
+        entries[i] = { ...entries[i], ...updated, previewWords: words, body: previewParagraphs };
       } else {
         localStorage.removeItem(`tvn_paid_${entryId}`);
         entries[i] = { ...entries[i], ...updated };
@@ -878,13 +901,13 @@ function readEntryForm(app, prefix) {
   }
   const author       = app.querySelector(`#${prefix}-author`)?.value?.trim() || 'Vic Munala';
   const price        = Number(app.querySelector(`#${prefix}-price`)?.value) || 0;
-  const previewCount = Math.max(1, parseInt(app.querySelector(`#${prefix}-preview-count`)?.value || '2', 10));
+  const previewWords = Math.max(10, parseInt(app.querySelector(`#${prefix}-preview-count`)?.value || '100', 10));
   const title        = app.querySelector(`#${prefix}-title`)?.value?.trim() ?? '';
   const excerpt      = app.querySelector(`#${prefix}-excerpt`)?.value?.trim() ?? '';
   const bodyRaw      = app.querySelector(`#${prefix}-body`)?.value?.trim() ?? '';
   const body         = bodyRaw.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const meta         = `${cat} · ${date} · ${author}`;
-  return { meta, category: cat, date, author, price, previewCount, title, excerpt, body };
+  return { meta, category: cat, date, author, price, previewWords, title, excerpt, body };
 }
 
 function toDateInputValue(dateStr) {

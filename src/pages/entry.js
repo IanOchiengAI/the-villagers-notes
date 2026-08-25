@@ -53,9 +53,34 @@ export function renderEntry(app, id) {
     }
   } catch (_) {}
 
-  // Preview paragraphs for paywalled state: author-specified previewCount (e.g. 1, 2, 3...) or default 2
-  const previewCount = Number(entry.previewCount) > 0 ? Number(entry.previewCount) : 2;
-  const previewParagraphs = bodyParagraphs.slice(0, previewCount);
+  // Preview paragraphs for paywalled state: 100 words (or author-specified previewWords / legacy previewCount)
+  function getPreviewContent(paragraphs, entryObj) {
+    if (!Array.isArray(paragraphs) || paragraphs.length === 0) return [];
+    // If explicit small previewCount (< 10), treat as legacy paragraph count
+    if (entryObj.previewCount && Number(entryObj.previewCount) <= 10 && !entryObj.previewWords) {
+      return paragraphs.slice(0, Number(entryObj.previewCount));
+    }
+    const maxWords = Number(entryObj.previewWords) > 0 ? Number(entryObj.previewWords) : 100;
+    const result = [];
+    let currentWords = 0;
+    for (const para of paragraphs) {
+      if (currentWords >= maxWords) break;
+      const wordsInPara = para.trim().split(/\s+/).filter(Boolean);
+      if (currentWords + wordsInPara.length <= maxWords) {
+        result.push(para);
+        currentWords += wordsInPara.length;
+      } else {
+        const remaining = maxWords - currentWords;
+        if (remaining > 0) {
+          result.push(wordsInPara.slice(0, remaining).join(' ') + '...');
+          currentWords += remaining;
+        }
+        break;
+      }
+    }
+    return result.length > 0 ? result : [paragraphs[0]];
+  }
+  const previewParagraphs = getPreviewContent(bodyParagraphs, entry);
 
   // HTML sanitization & escaping helper
   function escapeHTML(str) {
