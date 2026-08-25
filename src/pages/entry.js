@@ -39,19 +39,28 @@ export function renderEntry(app, id) {
 
   // Paywall handling: check if paid entry
   const isPaid = Number(entry.price) > 0;
-  const isUnlocked = !isPaid || !!localStorage.getItem(`tvn_unlocked_${entry.id}`) || !!sessionStorage.getItem(`tvn_unlocked_${entry.id}`);
+  let isUnlocked = !isPaid;
+  if (isPaid) {
+    try {
+      isUnlocked = !!localStorage.getItem(`tvn_unlocked_${entry.id}`) || !!sessionStorage.getItem(`tvn_unlocked_${entry.id}`);
+    } catch (_) {
+      isUnlocked = false;
+    }
+  }
   let bodyParagraphs = Array.isArray(entry.body) ? [...entry.body] : [];
 
   // Check if full body is in private store
-  try {
-    const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
-    if (privateBody) {
-      const fullList = JSON.parse(privateBody);
-      if (Array.isArray(fullList) && fullList.length > 0) {
-        bodyParagraphs = fullList;
+  if (isPaid) {
+    try {
+      const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
+      if (privateBody) {
+        const fullList = JSON.parse(privateBody);
+        if (Array.isArray(fullList) && fullList.length > 0) {
+          bodyParagraphs = fullList;
+        }
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
 
   // Preview paragraphs for paywalled state: 100 words (or author-specified previewWords / legacy previewCount)
   function getPreviewContent(paragraphs, entryObj) {
@@ -101,7 +110,7 @@ export function renderEntry(app, id) {
       .replace(/&lt;br\s*\/?&gt;/gi, '<br />')
       .replace(/\n/g, '<br />')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
+      .replace(/\*([^\*]+)\*/g, '<em>$1</em>')
       .replace(/__(.+?)__/g, '<u>$1</u>');
   }
 
