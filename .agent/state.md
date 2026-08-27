@@ -31,11 +31,14 @@
 
 ## Open Items
 
-- [ ] Add `SUPABASE_SERVICE_ROLE_KEY` to Vercel environment variables (get from Supabase → Settings → API → service_role)
-- [ ] Run RLS SQL in Supabase to prevent anon key from selecting `full_body` directly
-- [ ] Test end-to-end paid article flow on a different browser after deployment
-- [ ] Get GA4 Measurement ID (`G-XXXXXXXXXX`) from owner to insert into `index.html`
-- [ ] Get Formspree Form ID (7 chars) from owner for newsletter alerts (`FORMSPREE_FORM_ID`)
+### Phase 2 (next session)
+- [ ] **Newsletter emails** — set up Formspree (free), add `FORMSPREE_FORM_ID` to Vercel env vars
+- [ ] **M-Pesa end-to-end test** — test full payment → unlock flow once Vic has a paid article ready
+- [ ] **Supabase RLS** — run SQL to prevent anon key from selecting `full_body` directly (belt-and-suspenders security)
+- [ ] **Subscribers in Supabase** — newsletter subscribers currently stored in localStorage only; add `subscribers` table to Supabase
+- [ ] **Orders in Supabase** — book orders currently stored in localStorage only; add `orders` table to Supabase
+- [ ] **Admin auth** — replace hardcoded password with Supabase Auth (magic link or email/password)
+- [ ] **Connect custom domain `thevillagersnotes.com` in Vercel** — DNS already added, just needs Vercel domain verification to complete
 
 ---
 
@@ -49,3 +52,4 @@
 | 2026-08-27 | Migrated entries CMS from localStorage to Supabase with automated seed script, updated home/entries/entry/admin pages, and committed/pushed to GitHub |
 | 2026-08-27 | Implemented secure cross-browser paywall: full_body column in Supabase, /api/get-content serverless endpoint, sessionStorage content cache, invoice re-verification on refresh |
 | 2026-08-27 | Post-launch fixes: corrected sitemap slugs, updated admin password to Villager@2026!, verified og:image asset, added CSP security header to vercel.json |
+| 2026-08-27 | Phase 1 complete: switched domain to thevillagersnotes.com site-wide, added GA4 (G-8YH7V59JKQ), connected domain in Vercel, verified Google Search Console ownership, submitted sitemap |

@@ -725,7 +725,11 @@ function entryFormHTML(e, isNew, idx = '') {
         <div>
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Price (KES) — 0 = Free</label>
           <input id="${prefix}-price" type="number" min="0" value="${priceVal}" placeholder="0"
-            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;"
+            oninput="const w=this.closest('div').querySelector('.price-warn');if(w)w.style.display=Number(this.value)>0?'block':'none';" />
+          <div class="price-warn" style="display:${priceVal > 0 ? 'block' : 'none'};margin-top:6px;padding:7px 10px;background:#FFF3CD;border:1px solid #FFC107;border-radius:6px;font-size:0.75rem;color:#7A5000;font-weight:500;">
+            ⚠️ Any price above 0 locks this article behind an M-Pesa paywall. Set to 0 to make it free.
+          </div>
         </div>
         <div>
           <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Free Preview (Words)</label>
