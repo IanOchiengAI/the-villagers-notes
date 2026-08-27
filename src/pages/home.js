@@ -1,8 +1,9 @@
 import { getEntries } from './admin.js';
 import { footerHTML } from '../components/footer.js';
 
-export function renderHome(app) {
-  const LATEST = getEntries().slice(0, 4);
+export async function renderHome(app) {
+  const entries = await getEntries();
+  const LATEST = entries.slice(0, 4);
 
   app.innerHTML = `
     <!-- HERO: centered squeezed quote -->

@@ -1,5 +1,5 @@
 import { ENTRIES as DEFAULT_ENTRIES } from '../data/entries.js';
-import { getCounters } from '../lib/supabase.js';
+import { getCounters, getEntriesFromDB, upsertEntryToDB, deleteEntryFromDB } from '../lib/supabase.js';
 
 const ADMIN_PASS = 'village2026';
 const STORAGE_KEY = 'tvn_admin_data';
@@ -36,7 +36,11 @@ export function loadData() {
 export function saveData(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
-export function getEntries() {
+export async function getEntries() {
+  // Try Supabase first (cloud DB, visible to all visitors)
+  const dbEntries = await getEntriesFromDB();
+  if (dbEntries !== null) return dbEntries;
+  // Supabase unavailable — fall back to localStorage, then hardcoded defaults
   const d = loadData();
   if (d?.entries && d.entries.length > 0 && d.entries[0].id !== '1') {
     return d.entries;
@@ -163,9 +167,9 @@ export function setAdminPass(newPass) {
 }
 
 // ── Admin page ───────────────────────────────────────────────────────────────
-export function renderAdmin(app) {
+export async function renderAdmin(app) {
   if (!checkAuth()) { renderLogin(app); return; }
-  renderDashboard(app);
+  await renderDashboard(app);
 }
 
 function checkAuth() {
@@ -215,13 +219,13 @@ function renderLogin(app) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function renderDashboard(app) {
+async function renderDashboard(app) {
   document.title = "Admin — The Villager's Notes";
   let section = 'people'; // default to people/orders
 
-  function render() {
+  async function render() {
     const data = loadData() || { entries: [...DEFAULT_ENTRIES], projects: null, book: null };
-    const entries = data.entries ?? [...DEFAULT_ENTRIES];
+    const entries = await getEntries();
     const orders = getOrders();
     const subs = getSubscribers();
     const tips = getTips();
@@ -282,13 +286,13 @@ function renderDashboard(app) {
     });
 
     if (section === 'people') wirePeopleEvents(app, render);
-    if (section === 'entries') wireEntriesEvents(app, data, render);
+    if (section === 'entries') wireEntriesEvents(app, entries, render);
     if (section === 'book') wireBookEvents(app, data, render);
     if (section === 'analytics') wireAnalyticsEvents(app, render);
     if (section === 'settings') wireSettingsEvents(app, render);
   }
 
-  render();
+  await render();
 }
 
 // ── People & Customers Section ───────────────────────────────────────────────
@@ -574,15 +578,21 @@ function wireAnalyticsEvents(app, render) {
 function renderEntriesSection(entries) {
   return `
     <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;flex-wrap:wrap;gap:12px;">
         <div>
           <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Published Works</p>
           <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Entries (${entries.length})</h2>
         </div>
-        <button id="new-entry-btn" style="padding:10px 22px;background:var(--accent);
-          color:var(--text);border:none;border-radius:999px;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-          + New Entry
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="export-entries-btn" style="padding:10px 18px;background:var(--bg-subtle);
+            color:var(--text);border:1.5px solid var(--border);border-radius:999px;font-size:0.82rem;font-weight:600;cursor:pointer;">
+            ↓ Export entries.js
+          </button>
+          <button id="new-entry-btn" style="padding:10px 22px;background:var(--accent);
+            color:var(--text);border:none;border-radius:999px;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+            + New Entry
+          </button>
+        </div>
       </div>
 
       <!-- New entry form (hidden by default) -->
@@ -772,8 +782,7 @@ function entryFormHTML(e, isNew, idx = '') {
     </div>`;
 }
 
-function wireEntriesEvents(app, data, render) {
-  const entries = data.entries ?? [...DEFAULT_ENTRIES];
+function wireEntriesEvents(app, entries, render) {
 
   // Wire text formatting buttons
   app.querySelectorAll('[data-format-bold]').forEach(btn => {
@@ -821,24 +830,74 @@ function wireEntriesEvents(app, data, render) {
     if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
   });
 
-  app.querySelector('[data-save="new"]')?.addEventListener('click', () => {
+  // Export entries.js — generates a deployable file with paid fullBody embedded
+  app.querySelector('#export-entries-btn')?.addEventListener('click', () => {
+    // Build the export list: for paid entries, include fullBody from localStorage
+    const exportList = entries.map(e => {
+      const isPaid = Number(e.price) > 0;
+      if (isPaid) {
+        let fullBody = [];
+        try {
+          const raw = localStorage.getItem(`tvn_paid_${e.id}`);
+          if (raw) fullBody = JSON.parse(raw);
+        } catch (_) {}
+        if (!Array.isArray(fullBody) || fullBody.length === 0) fullBody = Array.isArray(e.body) ? e.body : [];
+        const previewWords = Number(e.previewWords) > 0 ? Number(e.previewWords) : 100;
+        const previewBody = getPreviewParagraphsByWords(fullBody, previewWords);
+        return { ...e, body: previewBody, fullBody };
+      }
+      // Free article — no fullBody field needed
+      const out = { ...e };
+      delete out.fullBody;
+      return out;
+    });
+
+    const serialise = (v) => {
+      if (typeof v === 'string') return JSON.stringify(v);
+      if (typeof v === 'number') return String(v);
+      if (typeof v === 'boolean') return String(v);
+      if (v === null || v === undefined) return 'null';
+      if (Array.isArray(v)) return '[\n' + v.map(i => '      ' + serialise(i)).join(',\n') + '\n    ]';
+      if (typeof v === 'object') {
+        const pairs = Object.entries(v)
+          .filter(([, val]) => val !== undefined)
+          .map(([k, val]) => `    ${k}: ${serialise(val)}`);
+        return '{\n' + pairs.join(',\n') + '\n  }';
+      }
+      return String(v);
+    };
+
+    const lines = exportList.map(e => '  ' + serialise(e));
+    const fileContent = `// Shared entry data — auto-exported from admin panel on ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}\n// Paid entries include a fullBody field (preview in body, full content in fullBody)\nexport const ENTRIES = [\n${lines.join(',\n')},\n];\n`;
+
+    const blob = new Blob([fileContent], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'entries.js';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+
+  app.querySelector('[data-save="new"]')?.addEventListener('click', async () => {
     const e = readEntryForm(app, 'new');
     if (!e.title) return;
     const newId = String(Date.now());
     const words = Number(e.previewWords) > 0 ? Number(e.previewWords) : 100;
-    
-    // If paid entry, save full body in private store & specified words (default 100) as free preview
+
+    let bodyToStore = e.body;
     if (e.price > 0) {
+      // Paid entry: keep full body in local private store; save only preview to Supabase
       localStorage.setItem(`tvn_paid_${newId}`, JSON.stringify(e.body));
-      const previewParagraphs = getPreviewParagraphsByWords(e.body, words);
-      entries.unshift({ ...e, id: newId, previewWords: words, body: previewParagraphs });
+      bodyToStore = getPreviewParagraphsByWords(e.body, words);
     } else {
       localStorage.removeItem(`tvn_paid_${newId}`);
-      entries.unshift({ ...e, id: newId });
     }
-    
-    saveData({ ...data, entries });
-    render();
+
+    const newEntry = { ...e, id: newId, slug: newId, previewWords: words, body: bodyToStore };
+    await upsertEntryToDB(newEntry);
+    await render();
   });
 
   app.querySelector('[data-cancel="new"]')?.addEventListener('click', () => {
@@ -852,31 +911,30 @@ function wireEntriesEvents(app, data, render) {
       if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
     });
 
-    app.querySelector(`[data-delete="${i}"]`)?.addEventListener('click', () => {
+    app.querySelector(`[data-delete="${i}"]`)?.addEventListener('click', async () => {
       if (!confirm(`Delete "${entries[i].title}"?`)) return;
       localStorage.removeItem(`tvn_paid_${entries[i].id}`);
-      entries.splice(i, 1);
-      saveData({ ...data, entries });
-      render();
+      await deleteEntryFromDB(entries[i].id);
+      await render();
     });
 
-    app.querySelector(`[data-save="${i}"]`)?.addEventListener('click', () => {
+    app.querySelector(`[data-save="${i}"]`)?.addEventListener('click', async () => {
       const updated = readEntryForm(app, `edit-${i}`);
       const entryId = entries[i].id;
       const words = Number(updated.previewWords) > 0 ? Number(updated.previewWords) : 100;
-      
-      // If paid entry, save full body in private store & specified words (default 100) as free preview
+
+      let bodyToStore = updated.body;
       if (updated.price > 0) {
+        // Paid entry: keep full body in local private store; save only preview to Supabase
         localStorage.setItem(`tvn_paid_${entryId}`, JSON.stringify(updated.body));
-        const previewParagraphs = getPreviewParagraphsByWords(updated.body, words);
-        entries[i] = { ...entries[i], ...updated, previewWords: words, body: previewParagraphs };
+        bodyToStore = getPreviewParagraphsByWords(updated.body, words);
       } else {
         localStorage.removeItem(`tvn_paid_${entryId}`);
-        entries[i] = { ...entries[i], ...updated };
       }
-      
-      saveData({ ...data, entries });
-      render();
+
+      const updatedEntry = { ...entries[i], ...updated, previewWords: words, body: bodyToStore };
+      await upsertEntryToDB(updatedEntry);
+      await render();
     });
 
     app.querySelector(`[data-cancel="${i}"]`)?.addEventListener('click', () => {

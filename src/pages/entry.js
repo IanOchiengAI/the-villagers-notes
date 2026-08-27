@@ -21,8 +21,8 @@ function logAnalyticsEvent(type, payload = {}) {
   } catch (_) {}
 }
 
-export function renderEntry(app, id) {
-  const ENTRIES = getEntries();
+export async function renderEntry(app, id) {
+  const ENTRIES = await getEntries();
   const idx   = ENTRIES.findIndex(e => e.id === id || e.slug === id);
   const entry = ENTRIES[idx];
   const prev  = ENTRIES[idx - 1] ?? null;
@@ -49,17 +49,23 @@ export function renderEntry(app, id) {
   }
   let bodyParagraphs = Array.isArray(entry.body) ? [...entry.body] : [];
 
-  // Check if full body is in private store
+  // Check if full body is available (cross-browser or admin localStorage)
   if (isPaid) {
-    try {
-      const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
-      if (privateBody) {
-        const fullList = JSON.parse(privateBody);
-        if (Array.isArray(fullList) && fullList.length > 0) {
-          bodyParagraphs = fullList;
+    // 1. Check embedded fullBody field — set when admin exports entries.js (works on ALL browsers)
+    if (Array.isArray(entry.fullBody) && entry.fullBody.length > 0) {
+      bodyParagraphs = [...entry.fullBody];
+    } else {
+      // 2. Fall back to admin's localStorage (only works on the admin's own browser)
+      try {
+        const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
+        if (privateBody) {
+          const fullList = JSON.parse(privateBody);
+          if (Array.isArray(fullList) && fullList.length > 0) {
+            bodyParagraphs = fullList;
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
   }
 
   // Preview paragraphs for paywalled state: 100 words (or author-specified previewWords / legacy previewCount)

@@ -7,8 +7,8 @@ export function toTitleCase(str) {
   return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export function renderEntries(app) {
-  const ENTRIES = getEntries();
+export async function renderEntries(app) {
+  const ENTRIES = await getEntries();
 
   app.innerHTML = `
     <div style="padding:4rem 0;">

@@ -46,3 +46,118 @@ export async function getCounters(names) {
     return Object.fromEntries(names.map(n => [n, 0]));
   }
 }
+
+// ── Entries CRUD ──────────────────────────────────────────────────────────────
+
+/**
+ * Convert a Supabase DB row (snake_case) to the JS entry object (camelCase)
+ * that the rest of the app expects.
+ */
+function rowToEntry(row) {
+  return {
+    id: row.id,
+    slug: row.slug || row.id,
+    title: row.title || '',
+    excerpt: row.excerpt || '',
+    category: row.category || 'Essay',
+    date: row.entry_date || '',
+    author: row.author || 'Vic Munala',
+    price: Number(row.price) || 0,
+    previewWords: Number(row.preview_words) || 100,
+    likes: Number(row.likes) || 0,
+    body: Array.isArray(row.body) ? row.body : [],
+    meta: `${row.category || 'Essay'} · ${row.entry_date || ''}`,
+    sort_order: Number(row.sort_order) || 0,
+  };
+}
+
+/**
+ * Convert a JS entry object (camelCase) to a Supabase DB row (snake_case).
+ * @param {object} entry - JS entry object
+ * @param {number} sortOrder - Ordering value (higher = shown first)
+ */
+function entryToRow(entry, sortOrder) {
+  return {
+    id: entry.id,
+    slug: entry.slug || entry.id,
+    title: entry.title || '',
+    excerpt: entry.excerpt || '',
+    category: entry.category || 'Essay',
+    entry_date: entry.date || '',
+    author: entry.author || 'Vic Munala',
+    price: Number(entry.price) || 0,
+    preview_words: Number(entry.previewWords) || 100,
+    likes: Number(entry.likes) || 0,
+    body: Array.isArray(entry.body) ? entry.body : [],
+    sort_order: sortOrder,
+  };
+}
+
+/**
+ * Fetch all entries from Supabase, ordered newest-first (sort_order DESC).
+ * Returns null if Supabase is unavailable (caller should fall back to defaults).
+ * @returns {Promise<object[]|null>}
+ */
+export async function getEntriesFromDB() {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('entries')
+      .select('*')
+      .order('sort_order', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error || !data) return null;
+    return data.map(rowToEntry);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save (insert or update) a single entry to Supabase.
+ * If the entry already has a sort_order, it is preserved.
+ * New entries get sort_order = current epoch seconds (so they sort newest-first).
+ * @param {object} entry - JS entry object
+ * @returns {Promise<boolean>} true on success, false on failure
+ */
+export async function upsertEntryToDB(entry) {
+  if (!supabase) return false;
+  try {
+    const sortOrder = entry.sort_order ?? Math.floor(Date.now() / 1000);
+    const row = entryToRow(entry, sortOrder);
+    const { error } = await supabase
+      .from('entries')
+      .upsert(row, { onConflict: 'id' });
+    if (error) {
+      console.warn('upsertEntryToDB error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('upsertEntryToDB exception:', e);
+    return false;
+  }
+}
+
+/**
+ * Delete a single entry from Supabase by its id.
+ * @param {string} id - Entry id
+ * @returns {Promise<boolean>} true on success, false on failure
+ */
+export async function deleteEntryFromDB(id) {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase
+      .from('entries')
+      .delete()
+      .eq('id', id);
+    if (error) {
+      console.warn('deleteEntryFromDB error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('deleteEntryFromDB exception:', e);
+    return false;
+  }
+}
