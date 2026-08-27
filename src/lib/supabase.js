@@ -52,6 +52,8 @@ export async function getCounters(names) {
 /**
  * Convert a Supabase DB row (snake_case) to the JS entry object (camelCase)
  * that the rest of the app expects.
+ * NOTE: full_body is intentionally NOT mapped here — it is served only by
+ * the /api/get-content server-side endpoint after payment verification.
  */
 function rowToEntry(row) {
   return {
@@ -73,6 +75,7 @@ function rowToEntry(row) {
 
 /**
  * Convert a JS entry object (camelCase) to a Supabase DB row (snake_case).
+ * Used for saving the public metadata + preview body. Full body is saved separately.
  * @param {object} entry - JS entry object
  * @param {number} sortOrder - Ordering value (higher = shown first)
  */
@@ -95,6 +98,9 @@ function entryToRow(entry, sortOrder) {
 
 /**
  * Fetch all entries from Supabase, ordered newest-first (sort_order DESC).
+ * SECURITY: full_body is intentionally excluded from this query.
+ * It is only returned by the server-side /api/get-content endpoint after
+ * verified M-Pesa payment. This prevents bypassing the paywall via devtools.
  * Returns null if Supabase is unavailable (caller should fall back to defaults).
  * @returns {Promise<object[]|null>}
  */
@@ -103,13 +109,40 @@ export async function getEntriesFromDB() {
   try {
     const { data, error } = await supabase
       .from('entries')
-      .select('*')
+      // Explicit column list — full_body deliberately excluded
+      .select('id,slug,title,excerpt,category,entry_date,author,price,preview_words,likes,body,sort_order,created_at')
       .order('sort_order', { ascending: false })
       .order('created_at', { ascending: false });
     if (error || !data) return null;
     return data.map(rowToEntry);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Save (upsert) the full_body of a paid entry to Supabase separately.
+ * Called by the admin panel when saving a paid entry.
+ * @param {string} entryId - The entry's id
+ * @param {string[]} fullBody - Array of paragraph strings (the complete, unpreviewed body)
+ * @returns {Promise<boolean>} true on success, false on failure
+ */
+export async function upsertEntryFullBodyToDB(entryId, fullBody) {
+  if (!supabase || !entryId) return false;
+  if (!Array.isArray(fullBody) || fullBody.length === 0) return false;
+  try {
+    const { error } = await supabase
+      .from('entries')
+      .update({ full_body: fullBody })
+      .eq('id', entryId);
+    if (error) {
+      console.warn('upsertEntryFullBodyToDB error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('upsertEntryFullBodyToDB exception:', e);
+    return false;
   }
 }
 

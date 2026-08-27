@@ -1,5 +1,6 @@
 import { ENTRIES as DEFAULT_ENTRIES } from '../data/entries.js';
-import { getCounters, getEntriesFromDB, upsertEntryToDB, deleteEntryFromDB } from '../lib/supabase.js';
+import { getCounters, getEntriesFromDB, upsertEntryToDB, upsertEntryFullBodyToDB, deleteEntryFromDB } from '../lib/supabase.js';
+
 
 const ADMIN_PASS = 'village2026';
 const STORAGE_KEY = 'tvn_admin_data';
@@ -887,18 +888,22 @@ function wireEntriesEvents(app, entries, render) {
     const words = Number(e.previewWords) > 0 ? Number(e.previewWords) : 100;
 
     let bodyToStore = e.body;
+    const fullBodyParagraphs = e.body; // always preserve the full body
     if (e.price > 0) {
-      // Paid entry: keep full body in local private store; save only preview to Supabase
-      localStorage.setItem(`tvn_paid_${newId}`, JSON.stringify(e.body));
+      // Paid entry: save only preview to Supabase body column
       bodyToStore = getPreviewParagraphsByWords(e.body, words);
-    } else {
-      localStorage.removeItem(`tvn_paid_${newId}`);
     }
 
     const newEntry = { ...e, id: newId, slug: newId, previewWords: words, body: bodyToStore };
-    await upsertEntryToDB(newEntry);
+    // Save the entry metadata + preview body
+    const saved = await upsertEntryToDB(newEntry);
+    if (saved && e.price > 0) {
+      // Save full body separately to full_body column — only accessible via server-side /api/get-content
+      await upsertEntryFullBodyToDB(newId, fullBodyParagraphs);
+    }
     await render();
   });
+
 
   app.querySelector('[data-cancel="new"]')?.addEventListener('click', () => {
     const form = app.querySelector('#new-entry-form');
@@ -924,18 +929,21 @@ function wireEntriesEvents(app, entries, render) {
       const words = Number(updated.previewWords) > 0 ? Number(updated.previewWords) : 100;
 
       let bodyToStore = updated.body;
+      const fullBodyParagraphs = updated.body; // preserve full body before trimming
       if (updated.price > 0) {
-        // Paid entry: keep full body in local private store; save only preview to Supabase
-        localStorage.setItem(`tvn_paid_${entryId}`, JSON.stringify(updated.body));
+        // Paid entry: save only preview to body column, full body to full_body column
         bodyToStore = getPreviewParagraphsByWords(updated.body, words);
-      } else {
-        localStorage.removeItem(`tvn_paid_${entryId}`);
       }
 
       const updatedEntry = { ...entries[i], ...updated, previewWords: words, body: bodyToStore };
-      await upsertEntryToDB(updatedEntry);
+      const saved = await upsertEntryToDB(updatedEntry);
+      if (saved && updated.price > 0) {
+        // Save full body to full_body column — server-side only, never exposed to browser
+        await upsertEntryFullBodyToDB(entryId, fullBodyParagraphs);
+      }
       await render();
     });
+
 
     app.querySelector(`[data-cancel="${i}"]`)?.addEventListener('click', () => {
       const form = app.querySelector(`#edit-form-${i}`);

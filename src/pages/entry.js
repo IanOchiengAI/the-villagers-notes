@@ -40,32 +40,54 @@ export async function renderEntry(app, id) {
   // Paywall handling: check if paid entry
   const isPaid = Number(entry.price) > 0;
   let isUnlocked = !isPaid;
+  let unlockedBody = null; // full body — only set after payment verification
+
   if (isPaid) {
     try {
-      isUnlocked = !!localStorage.getItem(`tvn_unlocked_${entry.id}`) || !!sessionStorage.getItem(`tvn_unlocked_${entry.id}`);
-    } catch (_) {
-      isUnlocked = false;
-    }
-  }
-  let bodyParagraphs = Array.isArray(entry.body) ? [...entry.body] : [];
+      // Check if this browser/session has already paid and cached the content
+      const cachedBody = sessionStorage.getItem(`tvn_content_${entry.id}`);
+      if (cachedBody) {
+        const parsed = JSON.parse(cachedBody);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          isUnlocked = true;
+          unlockedBody = parsed;
+        }
+      }
+    } catch (_) {}
 
-  // Check if full body is available (cross-browser or admin localStorage)
-  if (isPaid) {
-    // 1. Check embedded fullBody field — set when admin exports entries.js (works on ALL browsers)
-    if (Array.isArray(entry.fullBody) && entry.fullBody.length > 0) {
-      bodyParagraphs = [...entry.fullBody];
-    } else {
-      // 2. Fall back to admin's localStorage (only works on the admin's own browser)
+    // If no sessionStorage cache, check if there's a stored invoice_id to re-verify
+    // This handles page refreshes in the same browser without requiring re-payment
+    if (!isUnlocked) {
       try {
-        const privateBody = localStorage.getItem(`tvn_paid_${entry.id}`);
-        if (privateBody) {
-          const fullList = JSON.parse(privateBody);
-          if (Array.isArray(fullList) && fullList.length > 0) {
-            bodyParagraphs = fullList;
-          }
+        const storedInvoiceId = localStorage.getItem(`tvn_invoice_${entry.id}`);
+        if (storedInvoiceId) {
+          // Re-verify server-side — this runs async, will re-render if successful
+          (async () => {
+            try {
+              const contentRes = await fetch('/api/get-content', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entry_id: entry.id, invoice_id: storedInvoiceId }),
+              });
+              const contentData = await contentRes.json();
+              if (contentRes.ok && contentData.ok && Array.isArray(contentData.body)) {
+                sessionStorage.setItem(`tvn_content_${entry.id}`, JSON.stringify(contentData.body));
+                // Re-render with full content
+                renderEntry(app, id);
+              } else {
+                // Invoice no longer verifiable — clear stored invoice
+                localStorage.removeItem(`tvn_invoice_${entry.id}`);
+              }
+            } catch (_) {}
+          })();
         }
       } catch (_) {}
     }
+  }
+
+  let bodyParagraphs = Array.isArray(entry.body) ? [...entry.body] : [];
+  if (isUnlocked && unlockedBody) {
+    bodyParagraphs = unlockedBody;
   }
 
   // Preview paragraphs for paywalled state: 100 words (or author-specified previewWords / legacy previewCount)
@@ -479,6 +501,7 @@ export async function renderEntry(app, id) {
       statusEl.textContent = '📲 Prompt sent — enter your M-Pesa PIN on your phone.';
 
       try {
+        // Step 1: Initiate STK push
         const res = await fetch('/api/stk-push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -492,6 +515,8 @@ export async function renderEntry(app, id) {
         if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
 
         const invoiceId = data.invoice_id || data.CheckoutRequestID;
+
+        // Step 2: Poll stk-status until confirmed
         let tries = 0;
         const interval = setInterval(async () => {
           tries++;
@@ -504,16 +529,46 @@ export async function renderEntry(app, id) {
 
             if (check.ResultCode === '0' || check.state === 'COMPLETE' || check.state === 'SUCCESSFUL') {
               clearInterval(interval);
-              localStorage.setItem(`tvn_unlocked_${entry.id}`, 'true');
-              statusEl.style.color = 'hsl(143 60% 40%)';
-              statusEl.textContent = '✅ Unlocked! Loading story…';
-              setTimeout(() => renderEntry(app, id), 1000);
+              statusEl.style.color = 'var(--text-muted)';
+              statusEl.textContent = '✅ Payment confirmed — fetching your article…';
+
+              // Step 3: Call /api/get-content — server verifies payment & returns full body
+              try {
+                const contentRes = await fetch('/api/get-content', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ entry_id: entry.id, invoice_id: invoiceId }),
+                });
+                const contentData = await contentRes.json();
+
+                if (!contentRes.ok || !contentData.ok || !Array.isArray(contentData.body)) {
+                  throw new Error(contentData.error || 'Could not fetch article content.');
+                }
+
+                // Cache in sessionStorage (tab-scoped, not persistent)
+                try {
+                  sessionStorage.setItem(`tvn_content_${entry.id}`, JSON.stringify(contentData.body));
+                  // Store invoice_id in localStorage so same browser can re-verify after refresh
+                  localStorage.setItem(`tvn_invoice_${entry.id}`, invoiceId);
+                } catch (_) {}
+
+                statusEl.style.color = 'hsl(143 60% 40%)';
+                statusEl.textContent = '✅ Unlocked! Loading story…';
+                setTimeout(() => renderEntry(app, id), 800);
+
+              } catch (fetchErr) {
+                statusEl.style.color = 'hsl(0 60% 50%)';
+                statusEl.textContent = `❌ ${fetchErr.message}`;
+                unlockBtn.disabled = false;
+                unlockBtn.textContent = `Pay KES ${Number(entry.price).toLocaleString()}`;
+              }
+
             } else if (check.ResultCode === '1' || check.state === 'FAILED' || check.state === 'CANCELLED') {
               clearInterval(interval);
               statusEl.style.color = 'hsl(0 60% 50%)';
               statusEl.textContent = `❌ Payment failed: ${check.ResultDesc || 'Declined'}.`;
               unlockBtn.disabled = false;
-              unlockBtn.textContent = `UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →`;
+              unlockBtn.textContent = `Pay KES ${Number(entry.price).toLocaleString()}`;
             }
           } catch (_) {}
 
@@ -522,7 +577,7 @@ export async function renderEntry(app, id) {
             statusEl.style.color = 'var(--text-muted)';
             statusEl.textContent = 'Payment confirmation in progress. If you entered your PIN, please refresh.';
             unlockBtn.disabled = false;
-            unlockBtn.textContent = `UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →`;
+            unlockBtn.textContent = `Pay KES ${Number(entry.price).toLocaleString()}`;
           }
         }, 3000);
 
@@ -530,10 +585,12 @@ export async function renderEntry(app, id) {
         statusEl.style.color = 'hsl(0 60% 50%)';
         statusEl.textContent = `❌ ${err.message || 'Could not initiate payment'}`;
         unlockBtn.disabled = false;
-        unlockBtn.textContent = `UNLOCK FOR KES ${Number(entry.price).toLocaleString()} →`;
+        unlockBtn.textContent = `Pay KES ${Number(entry.price).toLocaleString()}`;
       }
     });
   }
+
+
 
   // Footer
   app.insertAdjacentHTML('beforeend', footerHTML());
