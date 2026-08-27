@@ -194,3 +194,67 @@ export async function deleteEntryFromDB(id) {
     return false;
   }
 }
+
+// ── Comments CRUD ────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all public comments for an entry from Supabase.
+ * @param {string} entryId
+ * @returns {Promise<object[]>}
+ */
+export async function getCommentsFromDB(entryId) {
+  if (!supabase || !entryId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('comments')
+      .select('id, entry_id, author, comment, created_at')
+      .eq('entry_id', entryId)
+      .order('created_at', { ascending: false });
+    if (error || !data) return [];
+    return data.map(c => ({
+      id: c.id,
+      author: c.author,
+      text: c.comment,
+      date: new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    }));
+  } catch (e) {
+    console.warn('getCommentsFromDB exception:', e);
+    return [];
+  }
+}
+
+/**
+ * Post a new public comment to Supabase.
+ * @param {string} entryId
+ * @param {string} author
+ * @param {string} commentText
+ * @returns {Promise<object|null>} The created comment or null
+ */
+export async function addCommentToDB(entryId, author, commentText) {
+  if (!supabase || !entryId || !author || !commentText) return null;
+  try {
+    const { data, error } = await supabase
+      .from('comments')
+      .insert([{
+        entry_id: entryId,
+        author: author.trim().slice(0, 100),
+        comment: commentText.trim().slice(0, 500),
+      }])
+      .select('id, entry_id, author, comment, created_at')
+      .single();
+    if (error || !data) {
+      console.warn('addCommentToDB error:', error?.message);
+      return null;
+    }
+    return {
+      id: data.id,
+      author: data.author,
+      text: data.comment,
+      date: new Date(data.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    };
+  } catch (e) {
+    console.warn('addCommentToDB exception:', e);
+    return null;
+  }
+}
+

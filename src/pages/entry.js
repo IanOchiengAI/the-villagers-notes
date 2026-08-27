@@ -1,4 +1,5 @@
 import { getEntries } from './admin.js';
+import { getCommentsFromDB, addCommentToDB } from '../lib/supabase.js';
 import { renderNewsletter } from '../components/newsletter.js';
 import { footerHTML } from '../components/footer.js';
 
@@ -299,9 +300,118 @@ export async function renderEntry(app, id) {
           </div>
         </nav>
 
+        <!-- Comments Section (Live Cloud Sync via Supabase) -->
+        <section style="margin-top:3.5rem;padding-top:2.5rem;border-top:1px solid var(--rule);max-width:62ch;" id="comments-section">
+          <div style="margin-bottom:2rem;">
+            <h2 style="font-family:var(--font-hand);font-size:2.5rem;margin:0;font-weight:400;color:var(--foreground);line-height:1.2;">Comments</h2>
+          </div>
+
+          <div id="comment-form-container" style="margin-bottom:2.5rem;">
+            <form id="new-comment-form">
+              <div style="margin-bottom:1.75rem;">
+                <input type="text" id="comment-author" required placeholder="Your name" class="comment-author-input" style="width:100%;border:none;border-bottom:1.5px solid #8e4823;background:transparent;padding:0.4rem 0 0.5rem;font-family:var(--font-body);outline:none;font-size:1.125rem;color:var(--foreground);" />
+              </div>
+              <div style="margin-bottom:1.25rem;">
+                <textarea id="comment-text" required rows="5" maxlength="500" placeholder="Say something" class="comment-textarea" style="width:100%;border:1px solid #c8bcaf;background:transparent;padding:1rem 1.15rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);resize:vertical;display:block;min-height:140px;box-sizing:border-box;transition:border-color 0.15s ease;" onfocus="this.style.borderColor='var(--foreground)'" onblur="this.style.borderColor='#c8bcaf'"></textarea>
+                <div style="display:flex;justify-content:flex-end;margin-top:0.4rem;">
+                  <span id="comment-char-counter" class="label" style="font-size:0.65rem;color:var(--muted-foreground);"><span id="comment-chars-left">500</span> characters remaining</span>
+                </div>
+              </div>
+              <div>
+                <button type="submit" id="comment-submit-btn" class="comment-submit-btn" style="background:transparent;color:var(--foreground);border:1px solid var(--foreground);padding:0.7rem 1.4rem;font-family:var(--font-mono);font-size:0.6875rem;letter-spacing:0.18em;text-transform:uppercase;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='var(--foreground)';this.style.color='var(--background)';" onmouseout="this.style.background='transparent';this.style.color='var(--foreground)';">
+                  LEAVE A COMMENT
+                </button>
+              </div>
+              <div id="comment-status" style="margin-top:0.75rem;font-size:0.85rem;display:none;"></div>
+            </form>
+          </div>
+
+          <div id="comments-container">
+            <p style="color:var(--muted-foreground);font-size:0.9rem;font-style:italic;">Loading thoughts…</p>
+          </div>
+        </section>
+
       </div>
     </article>
   `;
+
+  // ── Comments handling (Supabase Cloud) ─────────────────────────────────────
+  async function loadAndRenderComments() {
+    const target = document.getElementById('comments-container');
+    if (!target) return;
+    try {
+      const list = await getCommentsFromDB(entry.id);
+      if (list.length === 0) {
+        target.innerHTML = `<p style="color:var(--muted-foreground);font-size:0.9rem;font-style:italic;">No comments yet. Be the first to share your thoughts.</p>`;
+        return;
+      }
+      target.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:1.25rem;">
+          ${list.map(c => `
+            <div style="border-top:1px solid var(--rule);padding-top:1rem;">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                <span class="label" style="font-weight:600;color:var(--foreground);">${escapeHTML(c.author)}</span>
+                <span class="label" style="font-size:0.65rem;color:var(--muted-foreground);">${escapeHTML(c.date)}</span>
+              </div>
+              <p style="margin-top:0.5rem;font-family:var(--font-body);font-size:1.05rem;line-height:1.5;color:var(--foreground);">${escapeHTML(c.text)}</p>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } catch (_) {
+      target.innerHTML = `<p style="color:var(--muted-foreground);font-size:0.9rem;">Could not load comments at this time.</p>`;
+    }
+  }
+  loadAndRenderComments();
+
+  const commentTextarea = document.getElementById('comment-text');
+  const charsLeftEl = document.getElementById('comment-chars-left');
+  if (commentTextarea && charsLeftEl) {
+    commentTextarea.addEventListener('input', () => {
+      const remaining = 500 - commentTextarea.value.length;
+      charsLeftEl.textContent = String(Math.max(0, remaining));
+    });
+  }
+
+  const newCommentForm = document.getElementById('new-comment-form');
+  if (newCommentForm) {
+    newCommentForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const authorInput = document.getElementById('comment-author');
+      const textInput = document.getElementById('comment-text');
+      const submitBtn = document.getElementById('comment-submit-btn');
+      const statusEl = document.getElementById('comment-status');
+
+      const authorVal = authorInput?.value.trim();
+      const textVal = textInput?.value.trim();
+      if (!authorVal || !textVal) return;
+
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'POSTING…'; }
+      if (statusEl) { statusEl.style.display = 'none'; }
+
+      const added = await addCommentToDB(entry.id, authorVal, textVal);
+      if (added) {
+        authorInput.value = '';
+        textInput.value = '';
+        if (charsLeftEl) charsLeftEl.textContent = '500';
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.style.color = 'hsl(143 60% 40%)';
+          statusEl.textContent = '✓ Comment posted!';
+          setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+        }
+        await loadAndRenderComments();
+      } else {
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.style.color = 'hsl(0 60% 50%)';
+          statusEl.textContent = 'Could not post comment. Please try again.';
+        }
+      }
+
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'LEAVE A COMMENT'; }
+    });
+  }
 
   // Like button handling
   const likeBtn = document.getElementById('like-btn');
