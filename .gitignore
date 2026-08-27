@@ -22,3 +22,11 @@ Thumbs.db
 *.ntvs*
 *.njsproj
 *.sln
+
+# Client Documents & Proposals
+*proposal*
+*Brief*
+*brief*
+*.pdf
+scripts/build_proposal.py
+

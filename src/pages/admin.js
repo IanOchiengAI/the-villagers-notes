@@ -2,7 +2,6 @@ import { ENTRIES as DEFAULT_ENTRIES } from '../data/entries.js';
 import { getCounters, getEntriesFromDB, upsertEntryToDB, upsertEntryFullBodyToDB, deleteEntryFromDB } from '../lib/supabase.js';
 
 
-const ADMIN_PASS = 'Villager@2026!';
 const STORAGE_KEY = 'tvn_admin_data';
 const ORDERS_KEY = 'tvn_orders_data';
 const SUBSCRIBERS_KEY = 'tvn_subscribers_data';
@@ -160,7 +159,7 @@ export function clearAnalytics() {
 
 
 export function getAdminPass() {
-  return localStorage.getItem('tvn_custom_admin_pass') || ADMIN_PASS;
+  return localStorage.getItem('tvn_custom_admin_pass') || '';
 }
 
 export function setAdminPass(newPass) {
@@ -207,14 +206,37 @@ function renderLogin(app) {
       </div>
     </div>`;
 
-  document.getElementById('login-form').addEventListener('submit', e => {
+  document.getElementById('login-form').addEventListener('submit', async e => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const errEl = document.getElementById('login-err');
     const val = document.getElementById('pass-input').value;
-    if (val === getAdminPass()) {
-      sessionStorage.setItem('tvn_auth', 'ok');
-      renderDashboard(app);
-    } else {
-      document.getElementById('login-err').style.display = 'block';
+    if (errEl) errEl.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+
+    try {
+      const res = await fetch('/api/admin-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: val })
+      });
+      const data = await res.json();
+      if (res.ok && data?.ok) {
+        sessionStorage.setItem('tvn_auth', 'ok');
+        renderDashboard(app);
+      } else {
+        if (errEl) {
+          errEl.textContent = data?.error || 'Wrong password.';
+          errEl.style.display = 'block';
+        }
+      }
+    } catch (_) {
+      if (errEl) {
+        errEl.textContent = 'Verification error. Please try again.';
+        errEl.style.display = 'block';
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Enter Dashboard'; }
     }
   });
 }
