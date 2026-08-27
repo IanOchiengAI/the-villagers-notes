@@ -2,7 +2,7 @@ import { ENTRIES as DEFAULT_ENTRIES } from '../data/entries.js';
 import { getCounters, getEntriesFromDB, upsertEntryToDB, upsertEntryFullBodyToDB, deleteEntryFromDB } from '../lib/supabase.js';
 
 
-const ADMIN_PASS = 'village2026';
+const ADMIN_PASS = 'Villager@2026!';
 const STORAGE_KEY = 'tvn_admin_data';
 const ORDERS_KEY = 'tvn_orders_data';
 const SUBSCRIBERS_KEY = 'tvn_subscribers_data';

@@ -34,6 +34,8 @@
 - [ ] Add `SUPABASE_SERVICE_ROLE_KEY` to Vercel environment variables (get from Supabase → Settings → API → service_role)
 - [ ] Run RLS SQL in Supabase to prevent anon key from selecting `full_body` directly
 - [ ] Test end-to-end paid article flow on a different browser after deployment
+- [ ] Get GA4 Measurement ID (`G-XXXXXXXXXX`) from owner to insert into `index.html`
+- [ ] Get Formspree Form ID (7 chars) from owner for newsletter alerts (`FORMSPREE_FORM_ID`)
 
 ---
 
@@ -46,3 +48,4 @@
 | 2026-08-25 | Changed paid article free preview from paragraphs to 100 words in admin CMS and reader view |
 | 2026-08-27 | Migrated entries CMS from localStorage to Supabase with automated seed script, updated home/entries/entry/admin pages, and committed/pushed to GitHub |
 | 2026-08-27 | Implemented secure cross-browser paywall: full_body column in Supabase, /api/get-content serverless endpoint, sessionStorage content cache, invoice re-verification on refresh |
+| 2026-08-27 | Post-launch fixes: corrected sitemap slugs, updated admin password to Villager@2026!, verified og:image asset, added CSP security header to vercel.json |
