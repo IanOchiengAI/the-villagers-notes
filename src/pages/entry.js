@@ -326,9 +326,7 @@ export async function renderEntry(app, id) {
             </form>
           </div>
 
-          <div id="comments-container">
-            <p style="color:var(--muted-foreground);font-size:0.9rem;font-style:italic;">Loading thoughts…</p>
-          </div>
+          <div id="comments-container"></div>
         </section>
 
       </div>
@@ -342,7 +340,7 @@ export async function renderEntry(app, id) {
     try {
       const list = await getCommentsFromDB(entry.id);
       if (list.length === 0) {
-        target.innerHTML = `<p style="color:var(--muted-foreground);font-size:0.9rem;font-style:italic;">No comments yet. Be the first to share your thoughts.</p>`;
+        target.innerHTML = '';
         return;
       }
       target.innerHTML = `
