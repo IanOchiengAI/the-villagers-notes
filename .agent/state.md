@@ -53,4 +53,5 @@
 | 2026-08-27 | Implemented secure cross-browser paywall: full_body column in Supabase, /api/get-content serverless endpoint, sessionStorage content cache, invoice re-verification on refresh |
 | 2026-08-27 | Post-launch fixes: corrected sitemap slugs, updated admin password to Villager@2026!, verified og:image asset, added CSP security header to vercel.json |
 | 2026-08-27 | Fixed free article paywall bug (Musings reset to price 0), added paywall warning banner to admin price field |
-| 2026-08-27 | Untracked confidential proposal files from git and added to .gitignore; removed mock client-side comments form; moved admin password authentication to secure /api/admin-auth serverless endpoint |
+| 2026-08-27 | Untracked confidential proposal files from git and added to .gitignore; moved admin password authentication to secure /api/admin-auth serverless endpoint |
+| 2026-08-27 | Created comments table in Supabase and built live cloud-synced comments system on all entry pages |
