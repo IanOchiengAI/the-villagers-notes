@@ -41,7 +41,18 @@ export default async function handler(req, res) {
     }
 
     const rawCode = data.ResultCode === undefined || data.ResultCode === null ? '' : String(data.ResultCode);
-    const ResultCode = rawCode === '0' ? '0' : (rawCode ? '1' : 'PENDING');
+    let ResultCode;
+    if (rawCode === '0') {
+      // Confirmed success
+      ResultCode = '0';
+    } else if (!rawCode || /process/i.test(data.ResultDesc || '')) {
+      // Safaricom uses codes like 4999 ("still under processing") while the customer
+      // hasn't answered the PIN prompt yet — that's pending, not a failure.
+      ResultCode = 'PENDING';
+    } else {
+      // A real terminal code: cancelled (1032), timeout (1037), wrong PIN (2001), etc.
+      ResultCode = '1';
+    }
 
     return res.status(200).json({
       ResultCode,
