@@ -42,7 +42,13 @@ export default async function handler(req, res) {
       body: JSON.stringify({ public_key: publicKey, invoice_id }),
     });
 
-    const statusData = await statusRes.json();
+    let statusData;
+    try {
+      statusData = await statusRes.json();
+    } catch {
+      console.error('[get-content] IntaSend returned non-JSON status:', statusRes.status);
+      return res.status(402).json({ error: 'Payment not confirmed', state: 'UNKNOWN', detail: 'Could not verify invoice with payment provider' });
+    }
     const invoice = statusData.invoice || statusData;
     const state = invoice.state;
 
