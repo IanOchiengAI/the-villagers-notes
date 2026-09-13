@@ -131,37 +131,6 @@ export function renderSodaTip(container) {
           }, 3000);
 
         } catch (err) {
-          // Inline SDK fallback
-          if (typeof window !== 'undefined' && window.IntaSend) {
-            try {
-              const is = new window.IntaSend({
-                public_key: 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3',
-                live: true,
-              });
-              is.run({
-                amount: selected,
-                currency: 'KES',
-                phone_number: phone,
-                email: 'vikmunala@gmail.com',
-                api_ref: `SODA_${Date.now()}`,
-                comment: 'Soda Tip - Buy me soda madiaba',
-              })
-              .on('IN-PROGRESS', () => {
-                setStatus(statusEl, 'pending', '📲 M-Pesa prompt sent. Enter your PIN on your phone.');
-              })
-              .on('COMPLETE', () => {
-                setStatus(statusEl, 'success', '✅ Thank you for the soda! ❤️');
-                payBtn.textContent = 'SENT ✓';
-              })
-              .on('FAILED', () => {
-                setStatus(statusEl, 'error', '❌ Payment cancelled or declined.');
-                payBtn.disabled = false;
-                payBtn.textContent = 'SEND THE SODA';
-              });
-              return;
-            } catch (_) {}
-          }
-
           setStatus(statusEl, 'error', `❌ ${err.message || 'Could not initiate payment'}`);
           payBtn.disabled = false;
           payBtn.textContent = 'SEND THE SODA';

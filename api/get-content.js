@@ -3,7 +3,8 @@
 //
 // Flow:
 //   1. Frontend sends { entry_id, invoice_id } after M-Pesa payment detected
-//   2. This endpoint re-verifies the payment status with IntaSend server-side
+//      (invoice_id here is Safaricom's CheckoutRequestID from /api/stk-push)
+//   2. This endpoint re-verifies the payment status with Safaricom Daraja server-side
 //   3. If payment is COMPLETE: fetch full_body from Supabase and return it
 //
 // Security:
@@ -11,7 +12,7 @@
 //   - The Supabase service role key is never exposed to the client
 //   - Invoice IDs are bound to a single completed payment
 
-const DEFAULT_INTASEND_KEY = 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3';
+import { baseUrl, getAccessToken, shortcodeAndPassword } from './_mpesa.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -25,39 +26,46 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing or invalid invoice_id' });
   }
 
-  const publicKey = process.env.INTASEND_PUBLISHABLE_KEY || process.env.INTASEND_PUBLIC_KEY || DEFAULT_INTASEND_KEY;
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   // Use service role key for server-side access (not exposed to browser)
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
   try {
-    // Step 1: Verify payment status with IntaSend server-side
-    const statusRes = await fetch('https://payment.intasend.com/api/v1/payment/mpesa-stk-push-status/', {
+    // Step 1: Verify payment status with Safaricom Daraja server-side
+    const token = await getAccessToken();
+    const { shortcode, timestamp, password } = shortcodeAndPassword();
+
+    const statusRes = await fetch(`${baseUrl()}/mpesa/stkpushquery/v1/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ public_key: publicKey, invoice_id }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        BusinessShortCode: shortcode,
+        Password: password,
+        Timestamp: timestamp,
+        CheckoutRequestID: invoice_id,
+      }),
     });
 
     let statusData;
     try {
       statusData = await statusRes.json();
     } catch {
-      console.error('[get-content] IntaSend returned non-JSON status:', statusRes.status);
+      console.error('[get-content] M-Pesa returned non-JSON status:', statusRes.status);
       return res.status(402).json({ error: 'Payment not confirmed', state: 'UNKNOWN', detail: 'Could not verify invoice with payment provider' });
     }
-    const invoice = statusData.invoice || statusData;
-    const state = invoice.state;
+
+    const resultCode = statusData.ResultCode === undefined || statusData.ResultCode === null ? null : String(statusData.ResultCode);
 
     // Only unlock on confirmed complete payment
-    if (state !== 'COMPLETE' && state !== 'SUCCESSFUL') {
+    if (!statusRes.ok || resultCode !== '0') {
       return res.status(402).json({
         error: 'Payment not confirmed',
-        state: state || 'UNKNOWN',
-        detail: invoice.failed_reason || 'Payment status is not COMPLETE',
+        state: resultCode || 'UNKNOWN',
+        detail: statusData.ResultDesc || statusData.errorMessage || 'Payment status is not COMPLETE',
       });
     }
 

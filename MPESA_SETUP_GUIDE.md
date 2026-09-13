@@ -1,39 +1,51 @@
 # Safaricom Daraja M-Pesa STK Push Guide — Vic Munala
 
-This guide explains how the M-Pesa STK Push works for **Under the Mango Tree** book orders and **Buy Vic a Soda** tips on *The Villager's Notes*.
+This explains how M-Pesa STK Push works on *The Villager's Notes* for **Under the Mango Tree** book orders, paid-article unlocks, and **Buy Vic a Soda** tips. As of 2026-09-13, payments go straight through Safaricom's own Daraja API to Vic's Till Number — no third-party payment aggregator (previously IntaSend) sits in between, so there's no extra transaction cut and money lands in his Till instantly.
 
 ---
 
 ## 1. How It Works on the Website
-1. **Customer perspective**: When a customer clicks **"Pay KES 1,500 via M-Pesa"** or **"Send KES 100"**, an instant popup appears on their Safaricom phone asking for their M-Pesa PIN.
-2. **Author perspective**: The money lands directly in your Till Number or Paybill instantly, and you receive the normal Safaricom M-Pesa SMS notification.
-3. **Security**: All API transactions run through a private Vercel serverless function (`/api/stk-push.js`). Your keys are never exposed in the browser.
+
+1. **Customer perspective**: clicking "Pay KES X via M-Pesa" triggers an instant popup on their Safaricom phone asking for their M-Pesa PIN.
+2. **Vic's perspective**: the money lands directly in his Till Number instantly, with the usual Safaricom M-Pesa SMS notification.
+3. **Security**: all API calls run through private Vercel serverless functions (`/api/stk-push.js`, `/api/stk-status.js`, `/api/get-content.js`, `/api/mpesa-callback.js`). Vic's Daraja keys are never exposed in the browser.
 
 ---
 
-## 2. If You Already Have a Till Number or Paybill
+## 2. Required Vercel Environment Variables (Production)
 
-You only need to generate 4 API credentials from Safaricom:
+| Variable | What it is | Where it comes from |
+|---|---|---|
+| `MPESA_CONSUMER_KEY` | Daraja app API key | developer.safaricom.co.ke → your app → Keys |
+| `MPESA_CONSUMER_SECRET` | Daraja app API secret | Same page as above |
+| `MPESA_SHORTCODE` | Vic's Till Number | Vic (from `*334#` or his Till confirmation SMS) |
+| `MPESA_PASSKEY` | Lipa Na M-Pesa Online passkey | Issued by Safaricom once the Till is approved for STK Push ("Go-Live") |
+| `MPESA_ACCOUNT_TYPE` | `till` (default) or `paybill` | Set only if Vic's shortcode is a Paybill, not a Till |
+| `MPESA_ENV` | `production` (default) or `sandbox` | Use `sandbox` only for testing against Safaricom's test environment |
+| `MPESA_CALLBACK_URL` | Optional override | Defaults to `https://thevillagersnotes.com/api/mpesa-callback` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Already set | Needed by `get-content.js` and `admin-entries.js` (unrelated to M-Pesa, but also required) |
 
-1. **Consumer Key**
-2. **Consumer Secret**
-3. **Shortcode** (Your Till or Paybill number)
-4. **Passkey**
-
-### How to get them in 5 minutes:
-1. Log in to [developer.safaricom.co.ke](https://developer.safaricom.co.ke).
-2. Create an App named **The Villagers Notes**.
-3. Under **Keys**, copy your **Consumer Key** and **Consumer Secret**.
-4. Go to **APIs → M-PESA Express (STK Push)** to obtain your **Passkey**.
-5. Send these 4 items to Kasuku Studio via WhatsApp/Signal. We plug them into Vercel, and automated payments go live immediately.
+None of these should ever be committed to the repo — set them in Vercel's dashboard (Project → Settings → Environment Variables → Production).
 
 ---
 
-## 3. If You Don't Have a Till Number or Daraja Account Yet
+## 3. Getting the Credentials (Kasuku Studio does this part)
 
-**No worries at all — your website still takes orders immediately!**
+1. Log in to [developer.safaricom.co.ke](https://developer.safaricom.co.ke) (Kasuku Studio's own developer account — this doesn't need to be Vic's).
+2. Create an app named **The Villagers Notes**. This gives you the **Consumer Key** and **Consumer Secret**.
+3. Under **APIs → M-PESA Express (STK Push)**, request/submit Vic's Till Number for **Go-Live** approval. Safaricom issues the **Passkey** once that Till is approved for STK Push API access — this step needs Vic's Till Number and may need his confirmation, since it's authorizing API access to his own money-receiving number.
+4. Once you have all 4 values (Consumer Key, Consumer Secret, Shortcode = Till Number, Passkey), add them to Vercel's production environment variables and redeploy.
 
-- **Direct WhatsApp Ordering**: The book page features a direct **"Order via WhatsApp"** button linked to your number (`+254 710 276 333`). Customers can place orders directly with you via chat and pay to your personal number.
-- **Getting a Till Number**: Whenever you are ready to automate:
-  - You can apply for a Safaricom **Buy Goods Till** online or via `*334#`.
-  - Kasuku Studio will guide you through connecting it to Daraja at zero extra cost.
+---
+
+## 4. Testing Before Going Live
+
+Safaricom provides a sandbox environment with test credentials and a test shortcode (`174379`) for verifying the integration end-to-end without moving real money. Set `MPESA_ENV=sandbox` plus Safaricom's published sandbox Consumer Key/Secret/Passkey temporarily to test the full flow (push → phone prompt simulator → status query → content unlock), then switch back to production values before going live for real customers.
+
+---
+
+## 5. If Vic Doesn't Have a Till Number Yet
+
+**The website still takes orders immediately without one:**
+- **Direct WhatsApp Ordering**: the book page has an "Order via WhatsApp" button linked to his number (`+254 710 276 333`) so customers can order and pay him directly via chat.
+- **Getting a Till Number**: apply for a Safaricom **Buy Goods Till** via `*334#` (usually same-day, no business registration needed for an individual/sole-trader till). Kasuku Studio then handles the Daraja app + Go-Live request at zero extra cost to connect it.

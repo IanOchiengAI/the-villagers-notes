@@ -1,44 +1,51 @@
-// Vercel serverless function — Query M-Pesa STK Status via IntaSend
+// Vercel serverless function — Query M-Pesa STK Push status via Safaricom Daraja.
 
-const DEFAULT_INTASEND_KEY = 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3';
+import { baseUrl, getAccessToken, shortcodeAndPassword } from './_mpesa.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { invoice_id, CheckoutRequestID } = req.body || {};
-  const id = invoice_id || CheckoutRequestID;
-  if (!id) return res.status(400).json({ error: 'Missing invoice_id or CheckoutRequestID' });
-
-  const publicKey = process.env.INTASEND_PUBLISHABLE_KEY || process.env.INTASEND_PUBLIC_KEY || DEFAULT_INTASEND_KEY;
+  const checkoutId = CheckoutRequestID || invoice_id;
+  if (!checkoutId) return res.status(400).json({ error: 'Missing invoice_id or CheckoutRequestID' });
 
   try {
-    const response = await fetch('https://payment.intasend.com/api/v1/payment/mpesa-stk-push-status/', {
+    const token = await getAccessToken();
+    const { shortcode, timestamp, password } = shortcodeAndPassword();
+
+    const response = await fetch(`${baseUrl()}/mpesa/stkpushquery/v1/query`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        public_key: publicKey,
-        invoice_id: id,
+        BusinessShortCode: shortcode,
+        Password: password,
+        Timestamp: timestamp,
+        CheckoutRequestID: checkoutId,
       }),
     });
 
-    const data = await response.json();
-    const invoice = data.invoice || data;
-    const state = invoice.state; // 'COMPLETE', 'FAILED', 'PENDING', 'PROCESSING'
+    const data = await response.json().catch(() => ({}));
 
-    let ResultCode = '1032'; // pending / default
-    if (state === 'COMPLETE' || state === 'SUCCESSFUL') {
-      ResultCode = '0';
-    } else if (state === 'FAILED' || state === 'RETRY' || state === 'CANCELLED') {
-      ResultCode = '1';
+    // While the customer hasn't answered the prompt yet, Safaricom returns a non-2xx
+    // "the transaction is being processed" error — that's not a failure, just "not yet."
+    if (!response.ok) {
+      const stillProcessing = /process|pending/i.test(data.errorMessage || '');
+      return res.status(200).json({
+        ResultCode: stillProcessing ? 'PENDING' : '1',
+        ResultDesc: data.errorMessage || 'Unable to verify payment status',
+        raw: data,
+      });
     }
+
+    const rawCode = data.ResultCode === undefined || data.ResultCode === null ? '' : String(data.ResultCode);
+    const ResultCode = rawCode === '0' ? '0' : (rawCode ? '1' : 'PENDING');
 
     return res.status(200).json({
       ResultCode,
-      ResultDesc: invoice.failed_reason || state,
-      state: state,
+      ResultDesc: data.ResultDesc || 'Unknown',
       raw: data,
     });
   } catch (err) {
@@ -46,5 +53,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 }
-
-
