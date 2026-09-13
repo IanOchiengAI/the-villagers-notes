@@ -223,6 +223,7 @@ function renderLogin(app) {
       const data = await res.json();
       if (res.ok && data?.ok) {
         sessionStorage.setItem('tvn_auth', 'ok');
+        sessionStorage.setItem('tvn_auth_token', data.token || '');
         renderDashboard(app);
       } else {
         if (errEl) {
@@ -300,6 +301,7 @@ async function renderDashboard(app) {
       btn.addEventListener('click', () => {
         if (btn.dataset.tab === 'logout') {
           sessionStorage.removeItem('tvn_auth');
+          sessionStorage.removeItem('tvn_auth_token');
           window.location.hash = '#/';
           return;
         }

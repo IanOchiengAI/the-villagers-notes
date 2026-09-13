@@ -121,6 +121,37 @@ export async function getEntriesFromDB() {
 }
 
 /**
+ * Admin writes to `entries` no longer go through the browser's anon-key client —
+ * anon has no insert/update/delete grant on this table since the 2026-09-13 RLS
+ * lockdown (it previously allowed ANYONE to read full_body or edit/delete any
+ * article with no password check at the database level). All writes now go
+ * through /api/admin-entries, which verifies the signed admin token issued by
+ * /api/admin-auth and writes with the service role key server-side.
+ */
+function getAdminToken() {
+  try { return sessionStorage.getItem('tvn_auth_token') || ''; } catch { return ''; }
+}
+
+async function callAdminEntries(payload) {
+  try {
+    const res = await fetch('/api/admin-entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: getAdminToken(), ...payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      console.warn('admin-entries error:', data.error || res.statusText);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('admin-entries exception:', e);
+    return false;
+  }
+}
+
+/**
  * Save (upsert) the full_body of a paid entry to Supabase separately.
  * Called by the admin panel when saving a paid entry.
  * @param {string} entryId - The entry's id
@@ -128,22 +159,8 @@ export async function getEntriesFromDB() {
  * @returns {Promise<boolean>} true on success, false on failure
  */
 export async function upsertEntryFullBodyToDB(entryId, fullBody) {
-  if (!supabase || !entryId) return false;
-  if (!Array.isArray(fullBody) || fullBody.length === 0) return false;
-  try {
-    const { error } = await supabase
-      .from('entries')
-      .update({ full_body: fullBody })
-      .eq('id', entryId);
-    if (error) {
-      console.warn('upsertEntryFullBodyToDB error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.warn('upsertEntryFullBodyToDB exception:', e);
-    return false;
-  }
+  if (!entryId || !Array.isArray(fullBody) || fullBody.length === 0) return false;
+  return callAdminEntries({ action: 'upsert_full_body', entryId, fullBody });
 }
 
 /**
@@ -154,22 +171,9 @@ export async function upsertEntryFullBodyToDB(entryId, fullBody) {
  * @returns {Promise<boolean>} true on success, false on failure
  */
 export async function upsertEntryToDB(entry) {
-  if (!supabase) return false;
-  try {
-    const sortOrder = entry.sort_order ?? Math.floor(Date.now() / 1000);
-    const row = entryToRow(entry, sortOrder);
-    const { error } = await supabase
-      .from('entries')
-      .upsert(row, { onConflict: 'id' });
-    if (error) {
-      console.warn('upsertEntryToDB error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.warn('upsertEntryToDB exception:', e);
-    return false;
-  }
+  const sortOrder = entry.sort_order ?? Math.floor(Date.now() / 1000);
+  const row = entryToRow(entry, sortOrder);
+  return callAdminEntries({ action: 'upsert', entry: row });
 }
 
 /**
@@ -178,21 +182,8 @@ export async function upsertEntryToDB(entry) {
  * @returns {Promise<boolean>} true on success, false on failure
  */
 export async function deleteEntryFromDB(id) {
-  if (!supabase) return false;
-  try {
-    const { error } = await supabase
-      .from('entries')
-      .delete()
-      .eq('id', id);
-    if (error) {
-      console.warn('deleteEntryFromDB error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.warn('deleteEntryFromDB exception:', e);
-    return false;
-  }
+  if (!id) return false;
+  return callAdminEntries({ action: 'delete', entryId: id });
 }
 
 // ── Comments CRUD ────────────────────────────────────────────────────────────

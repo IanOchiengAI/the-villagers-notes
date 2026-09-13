@@ -110,7 +110,9 @@ export async function renderEntry(app, id) {
       } else {
         const remaining = maxWords - currentWords;
         if (remaining > 0) {
-          result.push(wordsInPara.slice(0, remaining).join(' ') + '...');
+          // No trailing "..." — the fade-out overlay on the preview signals
+          // there's more content, rather than a literal truncation mark.
+          result.push(wordsInPara.slice(0, remaining).join(' '));
           currentWords += remaining;
         }
         break;
@@ -220,8 +222,11 @@ export async function renderEntry(app, id) {
         <!-- Body / Paywall -->
         <div class="prose-note" id="entry-body" style="margin-top:2.5rem;max-width:62ch;border-top:1px solid var(--rule);padding-top:2rem;font-size:1.25rem;line-height:1.75;">
           ${isPaid && !isUnlocked ? `
-            ${previewParagraphs.map(formatParagraph).join('')}
-            <div style="background:var(--card);border:1px solid var(--rule);padding:2rem;margin:2rem 0;">
+            <div style="position:relative;">
+              ${previewParagraphs.map(formatParagraph).join('')}
+              <div aria-hidden="true" style="position:absolute;left:0;right:0;bottom:0;height:9rem;background:linear-gradient(to bottom, transparent, var(--background) 78%);pointer-events:none;"></div>
+            </div>
+            <div style="background:var(--card);border:1px solid var(--rule);padding:2rem;margin:1rem 0 2rem;">
               <div class="label" style="margin-bottom:0.75rem;">Rest of this one is paid</div>
               <h2 style="font-size:clamp(1.5rem, 4vw, 2rem);font-family:var(--font-hand);font-weight:400;margin-bottom:1rem;">
                 Read the whole thing — KES ${Number(entry.price).toLocaleString()}
