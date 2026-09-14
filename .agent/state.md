@@ -26,6 +26,8 @@
 | 2026-08-27 | Added `full_body` JSONB column to Supabase `entries` table | Stores paid article full body server-side, separate from preview `body` column |
 | 2026-08-27 | Created `/api/get-content.js` serverless endpoint | Verifies M-Pesa payment with IntaSend server-side before returning full article body — full content never sent to browser without confirmed payment |
 | 2026-08-27 | Paywall uses sessionStorage cache + invoice re-verification | Content cached in sessionStorage for the session; localStorage stores invoice_id for re-verification on refresh; different browsers must pay separately |
+| 2026-09-14 | Isolated Daraja M-Pesa migration to feature branch `feature/daraja-mpesa` | Kept live `main` branch stable while awaiting Vic's Daraja credentials, allowing the footer credit to be deployed immediately to production |
+| 2026-09-14 | Added subtle Kasuku Studio footer credit link | Added `· SITE BY KASUKU STUDIO` linking to https://kasuku-studios.web.app in footer |
 
 ---
 
@@ -55,3 +57,4 @@
 | 2026-08-27 | Fixed free article paywall bug (Musings reset to price 0), added paywall warning banner to admin price field |
 | 2026-08-27 | Untracked confidential proposal files from git and added to .gitignore; moved admin password authentication to secure /api/admin-auth serverless endpoint |
 | 2026-08-27 | Created comments table in Supabase and built live cloud-synced comments system on all entry pages |
+| 2026-09-14 | Added subtle Kasuku Studio footer credit link and deployed to production on main; moved unreleased Daraja M-Pesa migration to feature/daraja-mpesa branch |
