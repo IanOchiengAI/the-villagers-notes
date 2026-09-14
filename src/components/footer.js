@@ -6,6 +6,8 @@ export function footerHTML() {
           <div class="footer__brand" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <img src="/images/logo.svg" alt="Logo" class="footer__logo-img" style="height:18px;width:auto;display:none;" onload="this.style.display='inline-block'" onerror="this.remove()" />
             <span>THE VILLAGER'S NOTES — © ${new Date().getFullYear()}</span>
+            <span style="opacity:0.5;">·</span>
+            <a href="https://kasuku-studios.web.app" target="_blank" rel="noopener noreferrer" style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:var(--text-muted);opacity:0.65;transition:opacity 0.15s ease,color 0.15s ease;" onmouseover="this.style.opacity='1';this.style.color='var(--accent)'" onmouseout="this.style.opacity='0.65';this.style.color='var(--text-muted)'">Site by Kasuku Studio</a>
           </div>
           <div class="footer__socials" style="display:flex;align-items:center;gap:1.25rem;">
             <a href="https://www.instagram.com/thevillagersnotes?igsh=MWthNzR1YW03Nmc3Mg==" target="_blank" rel="noopener noreferrer" aria-label="Instagram" class="footer__social-icon" style="display:inline-flex;align-items:center;color:var(--muted-foreground);transition:color 0.15s ease;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted-foreground)'">
