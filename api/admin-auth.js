@@ -17,7 +17,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Password required' });
   }
 
-  const serverPass = process.env.ADMIN_PASSWORD || 'Villager@2026!';
+  // No hardcoded fallback: this repository is public. ADMIN_PASSWORD must be set
+  // in the Vercel project settings.
+  const serverPass = process.env.ADMIN_PASSWORD;
+  if (!serverPass) {
+    return res.status(500).json({ ok: false, error: 'Admin login is not configured' });
+  }
 
   if (password === serverPass) {
     return res.status(200).json({ ok: true, token: signToken() });
