@@ -1,7 +1,7 @@
 # Project State — The Villagers' Notes (Vic Munala)
 
 > Created: 2026-08-24
-> Project folder: `F:\Work\Brands\Vik\`
+> Project folder: `F:\Work\Websites\Vic\`
 
 ---
 
@@ -36,11 +36,11 @@
 ### Phase 2 (next session)
 - [ ] **Newsletter emails** — set up Formspree (free), add `FORMSPREE_FORM_ID` to Vercel env vars
 - [ ] **M-Pesa end-to-end test** — test full payment → unlock flow once Vic has a paid article ready
-- [ ] **Supabase RLS** — run SQL to prevent anon key from selecting `full_body` directly (belt-and-suspenders security)
+- [ ] **Supabase RLS** — partly done: entries writes and the paywall were locked down in `6499fb4` (2026-09-13). Still to confirm: that the anon key cannot select `full_body` directly
 - [ ] **Subscribers in Supabase** — newsletter subscribers currently stored in localStorage only; add `subscribers` table to Supabase
 - [ ] **Orders in Supabase** — book orders currently stored in localStorage only; add `orders` table to Supabase
-- [ ] **Admin auth** — replace hardcoded password with Supabase Auth (magic link or email/password)
-- [ ] **Connect custom domain `thevillagersnotes.com` in Vercel** — DNS already added, just needs Vercel domain verification to complete
+- [ ] **Admin auth** — the password is now checked server-side by `/api/admin-auth` (`c055cc0`). Still open: move to Supabase Auth. **Security follow-up:** branch `security/remove-admin-password-fallback` is ready. Set a new `ADMIN_PASSWORD` in the Vercel project settings first, redeploy, then merge the branch
+- [x] **Connect custom domain `thevillagersnotes.com` in Vercel** — done; the domain serves the site (HTTP 200, checked 2026-09-19)
 
 ---
 
@@ -53,8 +53,9 @@
 | 2026-08-25 | Changed paid article free preview from paragraphs to 100 words in admin CMS and reader view |
 | 2026-08-27 | Migrated entries CMS from localStorage to Supabase with automated seed script, updated home/entries/entry/admin pages, and committed/pushed to GitHub |
 | 2026-08-27 | Implemented secure cross-browser paywall: full_body column in Supabase, /api/get-content serverless endpoint, sessionStorage content cache, invoice re-verification on refresh |
-| 2026-08-27 | Post-launch fixes: corrected sitemap slugs, updated admin password to Villager@2026!, verified og:image asset, added CSP security header to vercel.json |
+| 2026-08-27 | Post-launch fixes: corrected sitemap slugs, changed the admin password (value removed 2026-09-19; not recorded here), verified og:image asset, added CSP security header to vercel.json |
 | 2026-08-27 | Fixed free article paywall bug (Musings reset to price 0), added paywall warning banner to admin price field |
 | 2026-08-27 | Untracked confidential proposal files from git and added to .gitignore; moved admin password authentication to secure /api/admin-auth serverless endpoint |
 | 2026-08-27 | Created comments table in Supabase and built live cloud-synced comments system on all entry pages |
 | 2026-09-14 | Added subtle Kasuku Studio footer credit link and deployed to production on main; moved unreleased Daraja M-Pesa migration to feature/daraja-mpesa branch |
+| 2026-09-19 | Added `DECISIONS_LOG.md` and a `CLAUDE.md` pointer; removed a credential that had been written into this file; corrected the project path and stale open items; prepared branch `security/remove-admin-password-fallback` (not merged) |
