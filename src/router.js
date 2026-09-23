@@ -38,6 +38,24 @@ function logPageVisit(path) {
   } catch (_) {}
 }
 
+// GA4 is configured with send_page_view: false (index.html) because this is a
+// hash-routed SPA: the browser never does a real navigation after the first
+// load, so the automatic page_view would fire exactly once per visit no
+// matter how many entries someone reads. Send one ourselves on every route
+// change instead, reading document.title after render so entry pages report
+// their own title. Skip the admin route so Vic's own visits aren't counted.
+function sendPageView(rawHash) {
+  if (rawHash === 'admin') return;
+  if (typeof window.gtag !== 'function') return;
+  try {
+    window.gtag('event', 'page_view', {
+      page_title: document.title,
+      page_location: location.href,
+      page_path: '/' + rawHash,
+    });
+  } catch (_) {}
+}
+
 export function initRouter() {
   async function route() {
     const rawHash = location.hash.replace(/^#\/?/, '').replace(/\/$/, '') || '';
@@ -58,12 +76,14 @@ export function initRouter() {
     if (rawHash.startsWith('entry/') || (rawHash.startsWith('entries/') && rawHash.replace('entries/', '').length > 0)) {
       const slugOrId = rawHash.replace(/^(entry|entries)\//, '');
       await renderEntry(app, slugOrId);
+      sendPageView(rawHash);
       return;
     }
 
     const page = routes[rawHash] ?? routes[''];
     setMeta(page.title, page.desc);
     await page.render(app);
+    sendPageView(rawHash);
   }
   window.addEventListener('hashchange', route);
   route();
