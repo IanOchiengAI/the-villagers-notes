@@ -1,5 +1,5 @@
 import { ENTRIES as DEFAULT_ENTRIES } from '../data/entries.js';
-import { getCounters, getEntriesFromDB, upsertEntryToDB, upsertEntryFullBodyToDB, deleteEntryFromDB } from '../lib/supabase.js';
+import { getCounters, getEntriesFromDB, upsertEntryToDB, upsertEntryFullBodyToDB, deleteEntryFromDB, getEntryFullBodyFromDB } from '../lib/supabase.js';
 
 
 const STORAGE_KEY = 'tvn_admin_data';
@@ -176,8 +176,81 @@ function checkAuth() {
   return sessionStorage.getItem('tvn_auth') === 'ok';
 }
 
+// ── Session-expiry recovery ───────────────────────────────────────────────────
+// checkAuth() above never expires client-side, but the signed write token from
+// /api/admin-auth is only valid for 12 hours (see api/_admin-token.js). Without
+// this, the dashboard looks logged in indefinitely while every save/delete
+// silently 401s once the token goes stale — this is what made deletes (and
+// likely posts) appear to "just not work." When a write comes back 401, we
+// stash whatever was in the form, log the admin out, and restore the draft
+// once they log back in.
+const DRAFT_KEY = 'tvn_admin_draft';
+
+function stashDraft(draft) {
+  try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch (_) {}
+}
+
+function popStashedDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(DRAFT_KEY);
+    return JSON.parse(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * A write came back 401: the 12-hour admin token expired. Log out, keep
+ * whatever was in the form (if any) for one restore after the next login,
+ * and send the admin back to the login screen.
+ * @param {HTMLElement} app
+ * @param {object} [draft] - shape: { prefix: 'new' } or { prefix: 'edit', entryId, ...readEntryForm() fields }
+ */
+function handleSessionExpired(app, draft) {
+  sessionStorage.removeItem('tvn_auth');
+  sessionStorage.removeItem('tvn_auth_token');
+  if (draft) stashDraft(draft);
+  renderLogin(app, draft
+    ? 'Your session expired after 12 hours. Please log in again — your unsaved entry has been kept below.'
+    : 'Your session expired after 12 hours. Please log in again.');
+}
+
+function setFormStatus(app, prefix, type, msg) {
+  const el = app.querySelector(`#${prefix}-form-status`);
+  if (!el) return;
+  if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+  const colors = {
+    error: 'hsl(0 60% 45%)',
+    success: 'hsl(143 55% 32%)',
+    info: 'var(--text-muted)',
+  };
+  el.style.display = 'block';
+  el.style.color = colors[type] || colors.info;
+  el.textContent = msg;
+}
+
+/** Fill an entry form (new or edit) from a stashed draft after a restored login. */
+function populateEntryForm(app, prefix, data) {
+  const setVal = (id, val) => {
+    const el = app.querySelector(`#${prefix}-${id}`);
+    if (el) el.value = val ?? '';
+  };
+  setVal('category', data.category);
+  setVal('author', data.author);
+  setVal('price', data.price);
+  setVal('preview-count', data.previewWords);
+  setVal('title', data.title);
+  setVal('excerpt', data.excerpt);
+  setVal('body', Array.isArray(data.body) ? data.body.join('\n\n') : (data.body || ''));
+  // Re-run the price-warning toggle for the restored price
+  app.querySelector(`#${prefix}-price`)?.dispatchEvent(new Event('input'));
+  setFormStatus(app, prefix, 'info', 'Restored from before your session expired — review and save again.');
+}
+
 // ── Login screen ─────────────────────────────────────────────────────────────
-function renderLogin(app) {
+function renderLogin(app, notice) {
   document.title = "Admin — The Villager's Notes";
   app.innerHTML = `
     <div style="min-height:80vh;display:flex;align-items:center;justify-content:center;padding:24px;">
@@ -188,6 +261,11 @@ function renderLogin(app) {
         <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:28px;">
           Private Author Admin
         </p>
+        ${notice ? `
+          <p style="background:#FFF3CD;border:1px solid #FFC107;color:#7A5000;font-size:0.82rem;
+                     padding:10px 12px;border-radius:8px;margin-bottom:16px;line-height:1.4;">
+            ${notice}
+          </p>` : ''}
         <form id="login-form">
           <input type="password" id="pass-input" placeholder="Password" autocomplete="current-password"
             style="width:100%;padding:12px 16px;border:1.5px solid var(--border);
@@ -245,7 +323,10 @@ function renderLogin(app) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 async function renderDashboard(app) {
   document.title = "Admin — The Villager's Notes";
-  let section = 'people'; // default to people/orders
+  // If a save/delete failed with an expired session, the draft was stashed —
+  // land straight on Entries so it can be restored and reviewed.
+  let pendingDraft = popStashedDraft();
+  let section = pendingDraft ? 'entries' : 'people';
 
   async function render() {
     const data = loadData() || { entries: [...DEFAULT_ENTRIES], projects: null, book: null };
@@ -315,6 +396,23 @@ async function renderDashboard(app) {
     if (section === 'book') wireBookEvents(app, data, render);
     if (section === 'analytics') wireAnalyticsEvents(app, render);
     if (section === 'settings') wireSettingsEvents(app, render);
+
+    // Restore a form stashed just before the session expired (once).
+    if (pendingDraft && section === 'entries') {
+      if (pendingDraft.prefix === 'new') {
+        const form = app.querySelector('#new-entry-form');
+        if (form) form.style.display = 'block';
+        populateEntryForm(app, 'new', pendingDraft);
+      } else if (pendingDraft.prefix === 'edit') {
+        const idx = entries.findIndex(en => en.id === pendingDraft.entryId);
+        if (idx !== -1) {
+          const form = app.querySelector(`#edit-form-${idx}`);
+          if (form) form.style.display = 'block';
+          populateEntryForm(app, `edit-${idx}`, pendingDraft);
+        }
+      }
+      pendingDraft = null;
+    }
   }
 
   await render();
@@ -650,6 +748,7 @@ function renderEntriesSection(entries) {
                          color:hsl(0 60% 55%);">Delete</button>
               </div>
             </div>
+            <div id="delete-status-${i}" style="display:none;margin-top:12px;font-size:0.82rem;padding:8px 12px;border-radius:8px;background:var(--bg-subtle);"></div>
             <!-- Inline edit form -->
             <div id="edit-form-${i}" style="display:none;margin-top:24px;padding-top:24px;
                  border-top:1px solid var(--border);">
@@ -808,6 +907,7 @@ function entryFormHTML(e, isNew, idx = '') {
           Cancel
         </button>
       </div>
+      <div id="${prefix}-form-status" style="display:none;font-size:0.82rem;padding:8px 12px;border-radius:8px;background:var(--bg-subtle);"></div>
     </div>`;
 }
 
@@ -910,6 +1010,7 @@ function wireEntriesEvents(app, entries, render) {
 
 
   app.querySelector('[data-save="new"]')?.addEventListener('click', async () => {
+    const btn = app.querySelector('[data-save="new"]');
     const e = readEntryForm(app, 'new');
     if (!e.title) return;
     const newId = String(Date.now());
@@ -923,13 +1024,40 @@ function wireEntriesEvents(app, entries, render) {
     }
 
     const newEntry = { ...e, id: newId, slug: newId, previewWords: words, body: bodyToStore };
+
+    btn.disabled = true;
+    const originalLabel = btn.textContent;
+    btn.textContent = 'Publishing…';
+    setFormStatus(app, 'new', null, null);
+
     // Save the entry metadata + preview body
-    const saved = await upsertEntryToDB(newEntry);
-    if (saved && e.price > 0) {
-      // Save full body separately to full_body column — only accessible via server-side /api/get-content
-      await upsertEntryFullBodyToDB(newId, fullBodyParagraphs);
+    const saveRes = await upsertEntryToDB(newEntry);
+    if (saveRes.status === 401) {
+      handleSessionExpired(app, { prefix: 'new', ...e });
+      return;
     }
-    await render();
+    if (!saveRes.ok) {
+      setFormStatus(app, 'new', 'error', saveRes.error || 'Could not save this entry. Please try again.');
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+      return;
+    }
+    if (e.price > 0) {
+      // Save full body separately to full_body column — only accessible via server-side /api/get-content
+      const bodyRes = await upsertEntryFullBodyToDB(newId, fullBodyParagraphs);
+      if (bodyRes.status === 401) {
+        handleSessionExpired(app, { prefix: 'new', ...e });
+        return;
+      }
+      if (!bodyRes.ok) {
+        setFormStatus(app, 'new', 'error', 'Entry saved, but the paid full text failed to save. Click Publish Entry again to retry.');
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        return;
+      }
+    }
+    setFormStatus(app, 'new', 'success', '✓ Published.');
+    setTimeout(() => render(), 700);
   });
 
 
@@ -939,20 +1067,69 @@ function wireEntriesEvents(app, entries, render) {
   });
 
   entries.forEach((entry, i) => {
-    app.querySelector(`[data-edit="${i}"]`)?.addEventListener('click', () => {
+    app.querySelector(`[data-edit="${i}"]`)?.addEventListener('click', async () => {
       const form = app.querySelector(`#edit-form-${i}`);
-      if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      if (!form) return;
+      const opening = form.style.display === 'none';
+      form.style.display = opening ? 'block' : 'none';
+      if (!opening) return;
+
+      // The textarea defaults to the trimmed preview text. Fetch the entry's
+      // real saved full_body from the server and use that instead of trusting
+      // this browser's localStorage cache (tvn_paid_<id>), which is
+      // per-device and stale — relying on it is what let an entry get
+      // silently re-saved with only its preview paragraphs as the full text.
+      const prefix = `edit-${i}`;
+      const res = await getEntryFullBodyFromDB(entry.id);
+      if (res.status === 401) { handleSessionExpired(app); return; }
+      if (res.ok && Array.isArray(res.data?.fullBody) && res.data.fullBody.length > 0) {
+        const bodyEl = app.querySelector(`#${prefix}-body`);
+        if (bodyEl) bodyEl.value = res.data.fullBody.join('\n\n');
+        if (Number(entry.price) <= 0) {
+          setFormStatus(app, prefix, 'info',
+            'This entry is set to Free, but the server still has a longer saved version (likely from when it was paid). ' +
+            'The full text has been loaded below — check it and Save to publish it.');
+        }
+      }
     });
 
     app.querySelector(`[data-delete="${i}"]`)?.addEventListener('click', async () => {
       if (!confirm(`Delete "${entries[i].title}"?`)) return;
+      const btn = app.querySelector(`[data-delete="${i}"]`);
+      const statusEl = app.querySelector(`#delete-status-${i}`);
+      const showStatus = (color, msg) => {
+        if (!statusEl) return;
+        statusEl.style.display = 'block';
+        statusEl.style.color = color;
+        statusEl.textContent = msg;
+      };
+
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Deleting…';
+
+      const res = await deleteEntryFromDB(entries[i].id);
+      if (res.status === 401) {
+        handleSessionExpired(app);
+        return;
+      }
+      if (!res.ok) {
+        showStatus('hsl(0 60% 45%)', res.error || 'Could not delete this entry. Please try again.');
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        return;
+      }
+      // Only clear the cached paid body once the delete actually succeeded.
       localStorage.removeItem(`tvn_paid_${entries[i].id}`);
-      await deleteEntryFromDB(entries[i].id);
-      await render();
+      btn.textContent = 'Deleted ✓';
+      showStatus('hsl(143 55% 32%)', 'Deleted.');
+      setTimeout(() => render(), 500);
     });
 
     app.querySelector(`[data-save="${i}"]`)?.addEventListener('click', async () => {
-      const updated = readEntryForm(app, `edit-${i}`);
+      const prefix = `edit-${i}`;
+      const btn = app.querySelector(`[data-save="${i}"]`);
+      const updated = readEntryForm(app, prefix);
       const entryId = entries[i].id;
       const words = Number(updated.previewWords) > 0 ? Number(updated.previewWords) : 100;
 
@@ -964,12 +1141,39 @@ function wireEntriesEvents(app, entries, render) {
       }
 
       const updatedEntry = { ...entries[i], ...updated, previewWords: words, body: bodyToStore };
-      const saved = await upsertEntryToDB(updatedEntry);
-      if (saved && updated.price > 0) {
-        // Save full body to full_body column — server-side only, never exposed to browser
-        await upsertEntryFullBodyToDB(entryId, fullBodyParagraphs);
+
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Saving…';
+      setFormStatus(app, prefix, null, null);
+
+      const saveRes = await upsertEntryToDB(updatedEntry);
+      if (saveRes.status === 401) {
+        handleSessionExpired(app, { prefix: 'edit', entryId, ...updated });
+        return;
       }
-      await render();
+      if (!saveRes.ok) {
+        setFormStatus(app, prefix, 'error', saveRes.error || 'Could not save this entry. Please try again.');
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        return;
+      }
+      if (updated.price > 0) {
+        // Save full body to full_body column — server-side only, never exposed to browser
+        const bodyRes = await upsertEntryFullBodyToDB(entryId, fullBodyParagraphs);
+        if (bodyRes.status === 401) {
+          handleSessionExpired(app, { prefix: 'edit', entryId, ...updated });
+          return;
+        }
+        if (!bodyRes.ok) {
+          setFormStatus(app, prefix, 'error', 'Changes saved, but the paid full text failed to save. Click Save Changes again to retry.');
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+          return;
+        }
+      }
+      setFormStatus(app, prefix, 'success', '✓ Saved.');
+      setTimeout(() => render(), 700);
     });
 
 

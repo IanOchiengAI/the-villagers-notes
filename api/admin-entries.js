@@ -63,6 +63,28 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
+    if (action === 'get_full_body') {
+      // Lets the admin edit form load an entry's true saved text from the
+      // server instead of trusting this browser's localStorage cache, which
+      // is per-device and is what let an entry get silently re-saved with
+      // only its preview text (see DECISIONS_LOG 2026-09-23).
+      if (!entryId || typeof entryId !== 'string') {
+        return res.status(400).json({ error: 'Missing entryId' });
+      }
+      const r = await fetch(
+        `${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}&select=full_body`,
+        { headers }
+      );
+      if (!r.ok) {
+        const errText = await r.text();
+        console.error('[admin-entries] get_full_body error:', errText);
+        return res.status(502).json({ error: 'Failed to load full article body' });
+      }
+      const rows = await r.json();
+      const fullBody = Array.isArray(rows) && rows[0] && Array.isArray(rows[0].full_body) ? rows[0].full_body : [];
+      return res.status(200).json({ ok: true, fullBody });
+    }
+
     if (action === 'delete') {
       if (!entryId || typeof entryId !== 'string') {
         return res.status(400).json({ error: 'Missing entryId' });

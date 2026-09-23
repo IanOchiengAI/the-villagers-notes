@@ -132,6 +132,15 @@ function getAdminToken() {
   try { return sessionStorage.getItem('tvn_auth_token') || ''; } catch { return ''; }
 }
 
+/**
+ * @typedef {object} AdminWriteResult
+ * @property {boolean} ok
+ * @property {number} status - HTTP status, or 0 for a network/exception failure
+ * @property {string} [error] - Present when ok is false
+ * @property {object} [data] - The parsed response body, present when ok is true
+ */
+
+/** @returns {Promise<AdminWriteResult>} */
 async function callAdminEntries(payload) {
   try {
     const res = await fetch('/api/admin-entries', {
@@ -141,13 +150,14 @@ async function callAdminEntries(payload) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      console.warn('admin-entries error:', data.error || res.statusText);
-      return false;
+      const error = data.error || res.statusText || 'Request failed';
+      console.warn('admin-entries error:', error);
+      return { ok: false, status: res.status, error };
     }
-    return true;
+    return { ok: true, status: res.status, data };
   } catch (e) {
     console.warn('admin-entries exception:', e);
-    return false;
+    return { ok: false, status: 0, error: 'Network error — check your connection and try again.' };
   }
 }
 
@@ -156,10 +166,12 @@ async function callAdminEntries(payload) {
  * Called by the admin panel when saving a paid entry.
  * @param {string} entryId - The entry's id
  * @param {string[]} fullBody - Array of paragraph strings (the complete, unpreviewed body)
- * @returns {Promise<boolean>} true on success, false on failure
+ * @returns {Promise<AdminWriteResult>}
  */
 export async function upsertEntryFullBodyToDB(entryId, fullBody) {
-  if (!entryId || !Array.isArray(fullBody) || fullBody.length === 0) return false;
+  if (!entryId || !Array.isArray(fullBody) || fullBody.length === 0) {
+    return { ok: false, status: 0, error: 'Missing entry id or full body text.' };
+  }
   return callAdminEntries({ action: 'upsert_full_body', entryId, fullBody });
 }
 
@@ -168,7 +180,7 @@ export async function upsertEntryFullBodyToDB(entryId, fullBody) {
  * If the entry already has a sort_order, it is preserved.
  * New entries get sort_order = current epoch seconds (so they sort newest-first).
  * @param {object} entry - JS entry object
- * @returns {Promise<boolean>} true on success, false on failure
+ * @returns {Promise<AdminWriteResult>}
  */
 export async function upsertEntryToDB(entry) {
   const sortOrder = entry.sort_order ?? Math.floor(Date.now() / 1000);
@@ -179,11 +191,23 @@ export async function upsertEntryToDB(entry) {
 /**
  * Delete a single entry from Supabase by its id.
  * @param {string} id - Entry id
- * @returns {Promise<boolean>} true on success, false on failure
+ * @returns {Promise<AdminWriteResult>}
  */
 export async function deleteEntryFromDB(id) {
-  if (!id) return false;
+  if (!id) return { ok: false, status: 0, error: 'Missing entry id.' };
   return callAdminEntries({ action: 'delete', entryId: id });
+}
+
+/**
+ * Fetch an entry's true saved full_body from the server (admin-only).
+ * The admin edit form uses this instead of trusting this browser's
+ * localStorage cache, which is per-device and stale across sessions/devices.
+ * @param {string} id - Entry id
+ * @returns {Promise<AdminWriteResult>} data.fullBody is a string[] (possibly empty)
+ */
+export async function getEntryFullBodyFromDB(id) {
+  if (!id) return { ok: false, status: 0, error: 'Missing entry id.' };
+  return callAdminEntries({ action: 'get_full_body', entryId: id });
 }
 
 // ── Comments CRUD ────────────────────────────────────────────────────────────
