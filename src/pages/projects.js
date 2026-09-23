@@ -295,6 +295,7 @@ async function handleBookInlineStkPush(price) {
         name,
         address,
         amount: price,
+        purpose: 'book',
         narrative: `Book: Under the Mango Tree - ${name}`,
       }),
     });
@@ -385,7 +386,7 @@ async function handlePlayStkPush() {
     const res = await fetch('/api/stk-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleaned, name: `Play - ${email}`, address: email, amount: 1000 }),
+      body: JSON.stringify({ phone: cleaned, name: `Play - ${email}`, address: email, amount: 1000, purpose: 'play' }),
     });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');

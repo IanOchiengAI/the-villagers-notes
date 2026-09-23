@@ -189,6 +189,7 @@ async function handleStkPush() {
         name,
         address,
         amount: currentBook.price,
+        purpose: 'book',
         narrative: `Book: Under the Mango Tree - ${name}`,
       }),
     });
@@ -196,39 +197,6 @@ async function handleStkPush() {
     if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
     pollStkStatus(data.invoice_id || data.CheckoutRequestID, status, btn);
   } catch (err) {
-    // Try client-side IntaSend inline SDK if API endpoint failed (e.g. static dev)
-    if (typeof window !== 'undefined' && window.IntaSend) {
-      try {
-        const is = new window.IntaSend({
-          public_key: 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3',
-          live: true,
-        });
-        is.run({
-          amount: currentBook.price,
-          currency: 'KES',
-          phone_number: cleaned,
-          email: 'vikmunala@gmail.com',
-          first_name: name.split(' ')[0] || 'Reader',
-          last_name: name.split(' ').slice(1).join(' ') || 'Customer',
-          api_ref: `BOOK_${Date.now()}`,
-          comment: `Book order - ${name}`,
-        })
-        .on('IN-PROGRESS', () => {
-          setStatus(status, 'pending', '📲 M-Pesa prompt sent. Enter your PIN on your phone.');
-        })
-        .on('COMPLETE', () => {
-          setStatus(status, 'success', '✅ Payment received! Your signed copy will be delivered within 3–5 business days. Thank you!');
-          btn.textContent = 'Order Placed ✓';
-        })
-        .on('FAILED', () => {
-          setStatus(status, 'error', 'Payment declined or cancelled. Please try again.');
-          btn.disabled = false;
-          btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
-        });
-        return;
-      } catch (_) {}
-    }
-
     setStatus(status, 'error', `${err.message || 'Could not initiate STK push'}. Please try again.`);
     btn.disabled = false;
     btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
