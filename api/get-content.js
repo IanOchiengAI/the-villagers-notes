@@ -94,23 +94,18 @@ export default async function handler(req, res) {
     // Only unlock on confirmed complete payment
     if (state !== 'COMPLETE' && state !== 'SUCCESSFUL') {
       return res.status(402).json({
-        error: 'Payment not confirmed',
-        state: state || 'UNKNOWN',
-        detail: invoice.failed_reason || 'Payment status is not COMPLETE',
+        error: invoice.failed_reason || `Payment state is ${state}`,
+        state: state || 'UNKNOWN'
       });
     }
 
-    // Step 3: Bind the invoice to THIS entry — the api_ref set by /api/stk-push
-    // for an entry purchase is always "entry:<entry_id>". Reject anything else,
-    // including a missing api_ref, so an unrelated completed invoice (a tip, a
-    // book order, or a payment for a different entry) can never unlock this one.
+    // Step 3: Bind the invoice to THIS entry
     const expectedRef = `entry:${entry_id}`;
     if (invoice.api_ref !== expectedRef) {
       console.warn('[get-content] api_ref mismatch for entry', entry_id, '- got:', invoice.api_ref);
       return res.status(402).json({
-        error: 'Payment not confirmed',
-        state: 'MISMATCH',
-        detail: 'This payment does not match this article. If you just paid, contact the author with your M-Pesa message.',
+        error: `Payment mismatch (Expected ${expectedRef}, got ${invoice.api_ref}). Contact author.`,
+        state: 'MISMATCH'
       });
     }
 
@@ -119,9 +114,8 @@ export default async function handler(req, res) {
     if (!paidValue || paidValue < Number(entry.price)) {
       console.warn('[get-content] amount mismatch for entry', entry_id, '- expected:', entry.price, 'got:', paidValue);
       return res.status(402).json({
-        error: 'Payment not confirmed',
-        state: 'AMOUNT_MISMATCH',
-        detail: 'The payment amount does not match this article\'s price.',
+        error: `Amount mismatch (Paid ${paidValue}, Price ${entry.price}).`,
+        state: 'AMOUNT_MISMATCH'
       });
     }
 
