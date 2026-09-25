@@ -31,9 +31,8 @@
 
 ### 1.3a IntaSend must run on Vic's own account, keys only from Vercel env vars
 - **Rule:** No IntaSend key may ever be hardcoded in this repo (it was, until 2026-09-23 — see below). `api/stk-push.js`, `api/stk-status.js` and `api/get-content.js` must read `INTASEND_PUBLISHABLE_KEY` / `INTASEND_SECRET_KEY` only, and return 503 (pointing to WhatsApp ordering) if unset — never fall back to a baked-in key. A paid-entry unlock must also verify the invoice's `api_ref` matches `entry:<entry_id>` and its paid value covers the entry's price, not just that its state is `COMPLETE`.
-- **Status as of 2026-09-23: prepared, NOT live.** The code is on branch `feat/intasend-vic-account` (`8ae0526`), unmerged. **Do not merge until:** (1) Vic has a live, KYC-approved IntaSend account and has sent Kasuku Studio his `ISPubKey_live_…` and `ISSecretKey_live_…` keys over a private channel; (2) those two vars are set in Vercel (Production + Preview) and `INTASEND_PUBLIC_KEY` (old var name) is removed; (3) a real KES 10 soda-tip payment has been confirmed to land in *Vic's* IntaSend dashboard on the preview deploy; (4) a test paid entry has been confirmed to unlock correctly and to reject a mismatched invoice.
-- **Until merged:** production is still using whatever key is hardcoded in `api/*.js` on `main` — likely the studio's/Ian's IntaSend account, not Vic's. Treat this as active exposure: every book order, soda tip and (if any) paid-entry payment on the live site today is going to that account, not Vic's.
-- **Origin:** Ian's request 2026-09-23, Vic's account not yet set up.
+- **Status as of 2026-09-25: LIVE.** Keys set in Vercel (Production + Preview): `INTASEND_PUBLISHABLE_KEY` and `INTASEND_SECRET_KEY`. Branch `feat/intasend-vic-account` merged → `main` (`0dbd342`) and deployed. `INTASEND_PUBLIC_KEY` (old name) was never in Vercel — no cleanup needed. **Still required before marking fully complete:** (3) a real KES 10 soda-tip payment confirmed to land in *Vic's* IntaSend dashboard; (4) a test paid entry confirmed to unlock correctly and to reject a mismatched invoice.
+- **Origin:** Ian's request 2026-09-23; keys received and deployed 2026-09-25.
 
 ### 1.4 Public play pages stay editorial
 - **Rule:** Public play details stay editorial. Live engagement counters appear only in the Admin Stats dashboard. The share button uses `navigator.share` with a clipboard fallback, there is no frosted-glass nav effect, and the share dropdown uses the classic Twitter name and bird logo.
@@ -71,6 +70,9 @@
 ---
 
 ## 2. Chronological Decision & Feedback History
+
+### 2026-09-25
+- **IntaSend account migration complete:** Received Vic's live IntaSend keys. Set `INTASEND_PUBLISHABLE_KEY` and `INTASEND_SECRET_KEY` in Vercel for Production and Preview environments. Merged `feat/intasend-vic-account` → `main` (`0dbd342`). Vercel deploy triggered. All M-Pesa payments on the live site (`thevillagersnotes.com`) now route to Vic's IntaSend account, not the studio's. **Pending confirmation:** live KES 10 soda-tip test + paid-entry unlock test with a real invoice.
 
 ### 2026-09-24
 - **Vic's feedback (forwarded by Ian):**

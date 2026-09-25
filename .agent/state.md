@@ -44,8 +44,9 @@
 - [ ] **Merge `security/remove-admin-password-fallback`** (pushed to origin, `6f53f08`) — but only *after* the above is done, or Vic gets locked out of admin login entirely (the branch makes login fail closed with no fallback).
 
 ### Payments
-- [ ] **Get Vic's IntaSend keys and merge `feat/intasend-vic-account`** (pushed to origin, `8ae0526`). See DECISIONS_LOG 1.3a for the full checklist (KYC approval, keys via private channel, env vars, live test payment, mismatched-invoice test) before merging.
-- [ ] **M-Pesa end-to-end test** — test full payment → unlock flow once a paid article exists and Vic's IntaSend keys are live
+- [x] **Get Vic's IntaSend keys and merge `feat/intasend-vic-account`** — done 2026-09-25. Keys set in Vercel (Production + Preview). Branch merged to `main` (`0dbd342`). Deployed.
+- [ ] **M-Pesa end-to-end test** — test full payment → unlock flow with Vic's live IntaSend account (KES 10 soda tip to confirm it lands in Vic's dashboard; then test a paid-entry unlock)
+- [ ] **Mismatched-invoice test** — confirm a completed soda-tip invoice cannot unlock a paid entry (DECISIONS_LOG 1.3a step 4)
 - [ ] **Supabase RLS** — partly done: entries writes and the paywall were locked down in `6499fb4` (2026-09-13). Still to confirm: that the anon key cannot select `full_body` directly
 
 ### Content
@@ -83,3 +84,4 @@
 | 2026-09-19 | Added `DECISIONS_LOG.md` and a `CLAUDE.md` pointer; removed a credential that had been written into this file; corrected the project path and stale open items; prepared branch `security/remove-admin-password-fallback` (not merged) |
 | 2026-09-23 | Answered Vic's feedback + Ian's IntaSend-account request. Shipped to `main`: VN-logo link preview (`0e6e99c`), admin save/delete error handling + session-expiry recovery + full-body-from-server fix (`d0566cb`), GA4 page_view per route (`d63f2d7`). Prepared but held unmerged pending external inputs: `feat/intasend-vic-account` (`8ae0526`, needs Vic's IntaSend keys) and `security/remove-admin-password-fallback` (`6f53f08`, pushed this session, needs `ADMIN_PASSWORD`/`ADMIN_TOKEN_SECRET` set first). Found live: `ADMIN_PASSWORD` unset in Vercel (public-repo password is the real admin password right now) and one live free entry showing a truncated stub instead of its real text. Rewrote `MPESA_SETUP_GUIDE.md` for IntaSend and removed Vic's phone number from it. Did not widen the CSP for GA as originally planned — tested and found it wasn't the actual blocker. |
 | 2026-09-24 | Inverted prev/next entry navigation to match chronological order (newest-first array); audited codebase and fixed soda tip amount buttons, polling timeout message, contact form mailto launch, and entry re-render navigation guards. |
+| 2026-09-25 | Set Vic's IntaSend live keys (`INTASEND_PUBLISHABLE_KEY` + `INTASEND_SECRET_KEY`) in Vercel (Production + Preview). Merged `feat/intasend-vic-account` → `main` (`0dbd342`) and pushed to GitHub. Vercel deploy triggered. All payments on the live site now route to Vic's own IntaSend account, not the studio's. |
