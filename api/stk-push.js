@@ -54,8 +54,8 @@ export default async function handler(req, res) {
 
   // Validate amount bounds
   const numAmount = Math.round(Number(chargeAmount));
-  if (isNaN(numAmount) || numAmount < 10 || numAmount > 500000) {
-    return res.status(400).json({ error: 'Invalid amount. Minimum is KES 10, maximum KES 500,000.' });
+  if (isNaN(numAmount) || numAmount < 50 || numAmount > 500000) {
+    return res.status(400).json({ error: 'Invalid amount. Minimum is KES 50, maximum KES 500,000.' });
   }
 
   // Validate Kenyan phone format

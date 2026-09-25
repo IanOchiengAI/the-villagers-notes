@@ -22,7 +22,7 @@ export function renderSodaTip(container) {
                 ${a}
               </button>
             `).join('')}
-            <input type="number" id="soda-custom-val" value="${selected}" min="1" aria-label="Custom amount in shillings"
+            <input type="number" id="soda-custom-val" value="${selected}" min="50" aria-label="Custom amount in shillings"
                    style="width:5.5rem;border:none;border-bottom:1px solid var(--rule);background:transparent;padding-bottom:0.25rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);" />
           </div>
 
@@ -84,6 +84,10 @@ export function renderSodaTip(container) {
 
         if (!phone) {
           setStatus(statusEl, 'error', '⚠ Enter a valid Kenyan phone number (e.g. 0712345678).');
+          return;
+        }
+        if (selected < 50) {
+          setStatus(statusEl, 'error', '⚠ Minimum tip amount is KES 50.');
           return;
         }
 
