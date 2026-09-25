@@ -133,7 +133,7 @@ export async function renderEntry(app, id) {
   else if (entry.meta) metaParts.push(entry.meta.split('·')[0].trim().toUpperCase());
   else metaParts.push('ESSAY');
   if (entry.date) metaParts.push(entry.date.toUpperCase());
-  if (isUnlocked) metaParts.push(`${readMins} MIN READ`);
+  metaParts.push(`${readMins} MIN READ`); // header format is a logged client decision (2026-08-24): always shown
   metaParts.push(`BY ${(entry.author || 'Vic Munala').toUpperCase()}`);
   const metaText = esc(metaParts.join(' · '));
 

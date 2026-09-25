@@ -63,7 +63,7 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
         email,
-        _subject: 'New Newsletter Subscriber',
+        _subject: `New Newsletter Subscriber: ${email}`,
         message: `New reader subscribed to The Villager's Notes:\n\nEmail: ${email}\nDate: ${new Date().toISOString()}`,
         _replyto: email,
       }),
