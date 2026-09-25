@@ -1,15 +1,59 @@
-// Vercel serverless function — M-Pesa STK Push via IntaSend / Direct Gateway
+// Vercel serverless function — M-Pesa STK Push via IntaSend
 
-const DEFAULT_INTASEND_KEY = 'ISPubKey_live_7a3054ea-0add-41ba-a643-46933dff26f3';
+import { intasendKeys, keysMissingResponse } from './_intasend.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { phone, amount, name, narrative } = req.body || {};
-  if (!phone || !amount) return res.status(400).json({ error: 'Missing phone or amount' });
+  const { phone, amount, name, narrative, purpose, entry_id } = req.body || {};
+  if (!phone) return res.status(400).json({ error: 'Missing phone' });
+
+  const { publicKey } = intasendKeys();
+  if (!publicKey) return keysMissingResponse(res);
+
+  // For a paid-entry unlock, never trust the client's amount — look up the
+  // real price server-side and bind the invoice to this exact entry via
+  // api_ref. This closes the hole where any completed invoice (e.g. a KES 10
+  // soda tip) could otherwise be replayed against /api/get-content to unlock
+  // any paid article.
+  let chargeAmount = amount;
+  let apiRef = null;
+
+  if (purpose === 'entry') {
+    if (!entry_id || typeof entry_id !== 'string' || entry_id.length > 200) {
+      return res.status(400).json({ error: 'Missing entry_id' });
+    }
+    const supabaseUrl = process.env.VITE_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+    try {
+      const dbRes = await fetch(
+        `${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=id,price`,
+        { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, Accept: 'application/json' } }
+      );
+      if (!dbRes.ok) return res.status(500).json({ error: 'Could not verify article price' });
+      const rows = await dbRes.json();
+      if (!Array.isArray(rows) || rows.length === 0) return res.status(404).json({ error: 'Entry not found' });
+      const price = Number(rows[0].price);
+      if (!price || price <= 0) return res.status(400).json({ error: 'This article is free — no payment required' });
+      chargeAmount = price;
+      apiRef = `entry:${entry_id}`;
+    } catch (err) {
+      console.error('[stk-push] entry price lookup failed:', err);
+      return res.status(500).json({ error: 'Could not verify article price' });
+    }
+  } else if (purpose === 'book') {
+    apiRef = `book:${Date.now()}`;
+  } else if (purpose === 'play') {
+    apiRef = `play:${Date.now()}`;
+  } else if (purpose === 'tip') {
+    apiRef = `tip:${Date.now()}`;
+  }
 
   // Validate amount bounds
-  const numAmount = Math.round(Number(amount));
+  const numAmount = Math.round(Number(chargeAmount));
   if (isNaN(numAmount) || numAmount < 10 || numAmount > 500000) {
     return res.status(400).json({ error: 'Invalid amount. Minimum is KES 10, maximum KES 500,000.' });
   }
@@ -26,7 +70,6 @@ export default async function handler(req, res) {
   }
 
   const cleanNarrative = String(narrative || `Order - ${name || 'Customer'}`).slice(0, 100).replace(/[^\w\s\-.,]/g, '');
-  const publicKey = process.env.INTASEND_PUBLISHABLE_KEY || process.env.INTASEND_PUBLIC_KEY || DEFAULT_INTASEND_KEY;
 
   try {
     const response = await fetch('https://payment.intasend.com/api/v1/payment/mpesa-stk-push/', {
@@ -41,6 +84,7 @@ export default async function handler(req, res) {
         phone_number: formattedPhone,
         amount: numAmount,
         narrative: cleanNarrative,
+        ...(apiRef ? { api_ref: apiRef } : {}),
       }),
     });
 
@@ -62,5 +106,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message || 'Payment server error' });
   }
 }
-
-

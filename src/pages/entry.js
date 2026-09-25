@@ -522,7 +522,8 @@ export async function renderEntry(app, id) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             phone,
-            amount: Number(entry.price),
+            purpose: 'entry',
+            entry_id: entry.id,
             narrative: `Unlock: ${entry.title}`,
           }),
         });
