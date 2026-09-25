@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       // eq lookups instead of a composite or=() filter.
       const q = (col) =>
         fetchT(
-          `${supabaseUrl}/rest/v1/entries?${col}=eq.${slug}&select=id,slug,title,excerpt,image_url,price,body&limit=1`,
+          `${supabaseUrl}/rest/v1/entries?${col}=eq.${slug}&select=id,slug,title,excerpt,price,body&limit=1`,
           { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, Accept: 'application/json' } },
           6000
         ).then((r) => (r.ok ? r.json() : []));
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
         title = `${e.title} — The Villager's Notes`;
         if (e.excerpt) description = e.excerpt;
         if (e.slug && isSafeSlug(e.slug)) canonicalSlug = e.slug;
-        if (e.image_url && /^https:\/\//.test(e.image_url)) ogImage = e.image_url;
+        // No per-entry image: the entries table has no image_url column (asking for it made the whole lookup fail).
       }
     } catch (err) {
       console.error('[entry-meta] Supabase fetch error:', err);
