@@ -13,14 +13,16 @@ export default async function handler(req, res) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
+  const siteUrl = 'https://thevillagersnotes.com';
   let title = "The Villager's Notes";
   let description = "You can remove a person from the village, but you can never remove the village from a person. We are all villagers, aren't we?";
   let canonicalSlug = slug;
+  let ogImage = `${siteUrl}/images/og-vn.png`;
 
   if (supabaseUrl && supabaseKey) {
     try {
       const r = await fetch(
-        `${supabaseUrl}/rest/v1/entries?or=(slug.eq.${encodeURIComponent(slug)},id.eq.${encodeURIComponent(slug)})&select=id,slug,title,excerpt,category,price&limit=1`,
+        `${supabaseUrl}/rest/v1/entries?or=(slug.eq.${encodeURIComponent(slug)},id.eq.${encodeURIComponent(slug)})&select=id,slug,title,excerpt,category,price,image_url&limit=1`,
         {
           headers: {
             apikey: supabaseKey,
@@ -36,6 +38,7 @@ export default async function handler(req, res) {
           title = `${e.title} — The Villager's Notes`;
           if (e.excerpt) description = e.excerpt;
           if (e.slug) canonicalSlug = e.slug;
+          if (e.image_url) ogImage = e.image_url;
         }
       }
     } catch (err) {
@@ -43,8 +46,6 @@ export default async function handler(req, res) {
     }
   }
 
-  const siteUrl = 'https://thevillagersnotes.com';
-  const ogImage = `${siteUrl}/images/og-vn.png`;
   const canonicalUrl = `${siteUrl}/entries/${canonicalSlug}`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
