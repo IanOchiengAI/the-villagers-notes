@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const { phone, amount, name, narrative, purpose, entry_id } = req.body || {};
   if (!phone) return res.status(400).json({ error: 'Missing phone' });
 
-  const { publicKey } = intasendKeys();
+  const { publicKey, secretKey } = intasendKeys();
   if (!publicKey) return keysMissingResponse(res);
 
   // For a paid-entry unlock, never trust the client's amount — look up the
@@ -72,12 +72,17 @@ export default async function handler(req, res) {
   const cleanNarrative = String(narrative || `Order - ${name || 'Customer'}`).slice(0, 100).replace(/[^\w\s\-.,]/g, '');
 
   try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (secretKey) {
+      headers['Authorization'] = `Bearer ${secretKey}`;
+    }
+
     const response = await fetch('https://payment.intasend.com/api/v1/payment/mpesa-stk-push/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         public_key: publicKey,
         currency: 'KES',
