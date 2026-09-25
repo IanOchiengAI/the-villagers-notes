@@ -46,7 +46,7 @@ export function renderContact(container) {
 
       // Direct mailto fallback / feedback
       const mailtoUrl = `mailto:vikmunala@gmail.com?subject=${encodeURIComponent('Note from ' + email)}&body=${encodeURIComponent(msg + '\n\nFrom: ' + email)}`;
-      window.location.href = mailtoUrl;
+      window.open(mailtoUrl, '_blank');
 
       if (status) {
         form.style.display = 'none';

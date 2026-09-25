@@ -72,6 +72,15 @@
 
 ## 2. Chronological Decision & Feedback History
 
+### 2026-09-24
+- **Vic's feedback (forwarded by Ian):**
+  > "another small tweak....ideally, the My tongue story should be Previous Entry, not Next Entry (cause ni story ya last week)...if you can flip those"
+- **Prev / Next Entry navigation flipped (`entry.js`):** Entries are fetched from Supabase sorted newest-first (`sort_order DESC, created_at DESC`). `idx + 1` is an older entry ("Previous entry") and `idx - 1` is a newer entry ("Next entry"). Swapped assignments so older stories display as "← Previous entry".
+- **Codebase audit & bugfix pass:**
+  - `src/components/soda-tip.js`: Preset amount buttons (50, 100, 500) were missing the `.soda-box__amount-btn` class referenced in `querySelectorAll`, causing click handlers to never bind. Added the class, synced inline border/color styles with custom input changes, and added an explicit timeout status message when polling reaches 15 attempts.
+  - `src/components/contact.js`: Form submission was triggering `window.location.href = mailto:...` directly before updating UI state, which could abort client state or cause navigation issues. Switched to `window.open(mailtoUrl, '_blank')`.
+  - `src/pages/entry.js`: Added DOM guard `if (document.getElementById('entry-body'))` before calling `renderEntry()` in async invoice re-verification and post-unlock timeout, preventing stale re-renders if a visitor navigates away while verification is in-flight. Also updated reading time estimation on entries to check full available text.
+
 ### 2026-09-23
 - **Vic's message (verbatim, Swahili/English mix), forwarded by Ian:**
   > "A few things hapa pale nilikuwa nangoja umalize ile story ingine ndo nikushow, but here it goes. When sharing the link, the featured image ni cover book ya UTMT, naeza penda kama ingekuwa the logo ya VN, if possible…

@@ -17,7 +17,7 @@ export function renderSodaTip(container) {
           <div class="label" style="margin-bottom:0.75rem;">AMOUNT (KES)</div>
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:1.25rem;">
             ${AMOUNTS.map(a => `
-              <button class="label" type="button" data-val="${a}"
+              <button class="label soda-box__amount-btn ${a === selected ? 'selected' : ''}" type="button" data-val="${a}"
                       style="border:1px solid ${a === selected ? 'var(--accent)' : 'var(--rule)'};color:${a === selected ? 'var(--accent)' : 'var(--foreground)'};background:transparent;padding:0.5rem 1rem;cursor:pointer;transition:all 0.15s ease;">
                 ${a}
               </button>
@@ -65,7 +65,10 @@ export function renderSodaTip(container) {
           selected = val;
           customAmount = val;
           container.querySelectorAll('.soda-box__amount-btn').forEach(b => {
-            b.classList.toggle('selected', Number(b.dataset.val) === val);
+            const isMatch = Number(b.dataset.val) === val;
+            b.classList.toggle('selected', isMatch);
+            b.style.borderColor = isMatch ? 'var(--accent)' : 'var(--rule)';
+            b.style.color = isMatch ? 'var(--accent)' : 'var(--foreground)';
           });
         }
       });
@@ -127,6 +130,7 @@ export function renderSodaTip(container) {
               clearInterval(iv);
               payBtn.disabled = false;
               payBtn.textContent = 'SEND THE SODA';
+              setStatus(statusEl, 'error', '⏱ No response. If you entered your PIN, check your M-Pesa messages and try again if needed.');
             }
           }, 3000);
 

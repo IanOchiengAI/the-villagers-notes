@@ -26,8 +26,8 @@ export async function renderEntry(app, id) {
   const ENTRIES = await getEntries();
   const idx   = ENTRIES.findIndex(e => e.id === id || e.slug === id);
   const entry = ENTRIES[idx];
-  const prev  = ENTRIES[idx - 1] ?? null;
-  const next  = ENTRIES[idx + 1] ?? null;
+  const prev  = ENTRIES[idx + 1] ?? null; // older entry (array is newest-first)
+  const next  = ENTRIES[idx - 1] ?? null; // newer entry
 
   if (!entry) {
     app.innerHTML = `
@@ -73,8 +73,10 @@ export async function renderEntry(app, id) {
               const contentData = await contentRes.json();
               if (contentRes.ok && contentData.ok && Array.isArray(contentData.body)) {
                 sessionStorage.setItem(`tvn_content_${entry.id}`, JSON.stringify(contentData.body));
-                // Re-render with full content
-                renderEntry(app, id);
+                // Guard: only re-render if the user is still on this entry page
+                if (document.getElementById('entry-body')) {
+                  renderEntry(app, id);
+                }
               } else {
                 // Invoice no longer verifiable — clear stored invoice
                 localStorage.removeItem(`tvn_invoice_${entry.id}`);
@@ -159,7 +161,8 @@ export async function renderEntry(app, id) {
   }
 
   // Reading time — average 200 wpm
-  const bodyText   = bodyParagraphs.join(' ');
+  const allBodyParagraphs = Array.isArray(entry.body) && entry.body.length > bodyParagraphs.length ? entry.body : bodyParagraphs;
+  const bodyText   = allBodyParagraphs.join(' ');
   const excerptText = entry.excerpt || '';
   const wordCount  = bodyText.split(/\s+/).length + excerptText.split(/\s+/).length;
   const readMins   = Math.max(1, Math.ceil(wordCount / 200));
@@ -566,7 +569,11 @@ export async function renderEntry(app, id) {
 
                 statusEl.style.color = 'hsl(143 60% 40%)';
                 statusEl.textContent = '✅ Unlocked! Loading story…';
-                setTimeout(() => renderEntry(app, id), 800);
+                setTimeout(() => {
+                  if (document.getElementById('entry-body')) {
+                    renderEntry(app, id);
+                  }
+                }, 800);
 
               } catch (fetchErr) {
                 statusEl.style.color = 'hsl(0 60% 50%)';
