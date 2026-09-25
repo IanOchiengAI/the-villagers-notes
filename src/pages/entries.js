@@ -1,4 +1,5 @@
-import { getEntries } from './admin.js';
+import { getEntryList } from '../lib/store.js';
+import { esc, loadErrorHTML, wireRetry } from '../lib/html.js';
 import { renderNewsletter } from '../components/newsletter.js';
 import { footerHTML } from '../components/footer.js';
 
@@ -8,12 +9,20 @@ export function toTitleCase(str) {
 }
 
 export async function renderEntries(app) {
-  const ENTRIES = await getEntries();
+  const nav = app.dataset.nav;
+  const ENTRIES = await getEntryList();
+  if (app.dataset.nav !== nav) return;
+  if (ENTRIES === null) {
+    app.innerHTML = loadErrorHTML("We couldn't load the entries. Check your connection and try again.");
+    wireRetry(app, () => renderEntries(app));
+    return;
+  }
 
   app.innerHTML = `
     <div style="padding:4rem 0;">
       <div class="container">
         <ul style="list-style:none;padding:0;margin:0;" id="entries-container">
+          ${ENTRIES.length === 0 ? '<li style="padding:2rem 0;color:var(--muted-foreground);">Nothing published yet.</li>' : ''}
           ${renderEntriesList(ENTRIES)}
         </ul>
 
@@ -41,10 +50,10 @@ function renderEntriesList(list) {
 
     return `
       <li style="border-top:1px solid var(--rule);padding:1.75rem 0;">
-        <a href="#/entries/${e.id}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
-          <div class="label" style="margin-bottom:0.5rem;">${metaText}</div>
-          <h2 style="font-size:clamp(1.5rem, 4vw, 1.85rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--foreground)'">${e.title}</h2>
-          <p style="margin-top:0.4rem;max-width:62ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;">${e.excerpt || ''}</p>
+        <a href="#/entries/${encodeURIComponent(e.slug || e.id)}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
+          <div class="label" style="margin-bottom:0.5rem;">${esc(metaText)}</div>
+          <h2 style="font-size:clamp(1.5rem, 4vw, 1.85rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--foreground)'">${esc(e.title)}</h2>
+          <p style="margin-top:0.4rem;max-width:62ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;">${esc(e.excerpt || '')}</p>
         </a>
       </li>
     `;

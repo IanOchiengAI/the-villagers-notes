@@ -31,11 +31,11 @@
   --text: var(--foreground);
   --text-muted: var(--muted-foreground);
   --white: var(--accent-foreground);
+  --accent-dark: oklch(0.42 0.12 40);
+  --accent-bg: oklch(0.955 0.025 60);
 
   /* Typography (Exact Lovable Declaration) */
-  --font-display: "Caveat", "Instrument Serif", cursive;
-  --font-hand: "Shadows Into Light", "Caveat", cursive;
-  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-hand: "Shadows Into Light", cursive;
   --font-body: "Newsreader", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --font-sans: "IBM Plex Mono", ui-monospace, monospace;
@@ -51,6 +51,7 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
+  --space-20: 5rem;
   --space-24: 6rem;
 
   /* Squeezed Central Layout (Vic Lovable max-w-3xl) */
@@ -112,20 +113,6 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   padding-left: 1rem;
   font-style: italic;
   color: var(--muted-foreground);
-}
-
-@keyframes reveal {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.reveal {
-  animation: reveal 0.4s ease-out both;
 }
 
 /* ============================================

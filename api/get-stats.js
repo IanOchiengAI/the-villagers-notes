@@ -3,6 +3,7 @@
 // Requires a valid admin token. No sensitive data in client.
 
 import { verifyToken } from './_admin-token.js';
+import { fetchT } from './_util.js';
 
 const SUPABASE_HEADERS = (key) => ({
   apikey: key,
@@ -26,17 +27,19 @@ export default async function handler(req, res) {
   const headers = SUPABASE_HEADERS(key);
 
   try {
+    const T = 9000;
     const [tipsRes, ordersRes, subsRes] = await Promise.all([
-      fetch(`${url}/rest/v1/tips?select=phone,amount,created_at&order=created_at.desc`, { headers }),
-      fetch(`${url}/rest/v1/orders?select=*&order=created_at.desc`, { headers }),
-      fetch(`${url}/rest/v1/subscribers?select=email,created_at&order=created_at.desc`, { headers }),
+      fetchT(`${url}/rest/v1/tips?select=phone,amount,created_at&order=created_at.desc&limit=500`, { headers }, T),
+      fetchT(`${url}/rest/v1/orders?select=order_id,name,phone,address,amount,signed,status,created_at&order=created_at.desc&limit=500`, { headers }, T),
+      fetchT(`${url}/rest/v1/subscribers?select=email,created_at&order=created_at.desc&limit=2000`, { headers }, T),
     ]);
 
-    const [tips, orders, subscribers] = await Promise.all([
-      tipsRes.ok ? tipsRes.json() : [],
-      ordersRes.ok ? ordersRes.json() : [],
-      subsRes.ok ? subsRes.json() : [],
-    ]);
+    // A failed table is an error the admin should SEE, not an empty list.
+    if (!tipsRes.ok || !ordersRes.ok || !subsRes.ok) {
+      return res.status(502).json({ error: 'Some stats could not be loaded' });
+    }
+
+    const [tips, orders, subscribers] = await Promise.all([tipsRes.json(), ordersRes.json(), subsRes.json()]);
 
     // Normalize dates to be display-ready
     const fmt = (iso) =>
@@ -46,7 +49,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       tips: tips.map((t) => ({ phone: t.phone, amount: t.amount, date: fmt(t.created_at) })),
-      orders: orders.map((o) => ({ ...o, date: fmt(o.created_at) })),
+      orders: orders.map((o) => ({ ...o, id: o.order_id, date: fmt(o.created_at) })),
       subscribers: subscribers.map((s) => ({ email: s.email, date: fmt(s.created_at) })),
     });
   } catch (err) {

@@ -1,15 +1,22 @@
 // /api/admin-entries.js
-// Vercel serverless function — the ONLY way entries get written now that
-// anon has no insert/update/delete grant on the entries table (see the
+// Vercel serverless function — the ONLY way entries (and admin-only tables) get
+// written now that anon has no insert/update/delete grant on them (see the
 // 2026-09-13 RLS lockdown). Requires a signed admin token from /api/admin-auth
 // and writes via the Supabase service role key, which bypasses RLS/grants.
 
 import { verifyToken } from './_admin-token.js';
+import { fetchT, safeJson } from './_util.js';
+
+const ENTRY_COLUMNS = [
+  'id', 'slug', 'title', 'excerpt', 'category', 'entry_date', 'author',
+  'price', 'preview_words', 'likes', 'body', 'sort_order',
+];
+const ORDER_STATUSES = ['Awaiting payment', 'Paid', 'Dispatched', 'Delivered'];
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { token, action, entry, entryId, fullBody } = req.body || {};
+  const { token, action, entry, entryId, fullBody, commentId, orderId, status } = req.body || {};
 
   if (!verifyToken(token)) {
     return res.status(401).json({ error: 'Unauthorized — please log in again' });
@@ -27,20 +34,28 @@ export default async function handler(req, res) {
     Authorization: `Bearer ${serviceKey}`,
     'Content-Type': 'application/json',
   };
+  const T = 9000;
 
   try {
     if (action === 'upsert') {
-      if (!entry || typeof entry !== 'object' || !entry.id) {
+      if (!entry || typeof entry !== 'object' || !entry.id || typeof entry.id !== 'string') {
         return res.status(400).json({ error: 'Missing or invalid entry' });
       }
-      const r = await fetch(`${supabaseUrl}/rest/v1/entries?on_conflict=id`, {
+      // Whitelist columns; never let the client write arbitrary ones.
+      const row = {};
+      for (const c of ENTRY_COLUMNS) if (entry[c] !== undefined) row[c] = entry[c];
+      // Paid full text travels in the SAME write as the preview so the two can never diverge.
+      if (Array.isArray(fullBody)) {
+        if (fullBody.length === 0) return res.status(400).json({ error: 'Full text is empty' });
+        row.full_body = fullBody;
+      }
+      const r = await fetchT(`${supabaseUrl}/rest/v1/entries?on_conflict=id`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(entry),
-      });
+        body: JSON.stringify(row),
+      }, T);
       if (!r.ok) {
-        const errText = await r.text();
-        console.error('[admin-entries] upsert error:', errText);
+        console.error('[admin-entries] upsert error:', await r.text());
         return res.status(502).json({ error: 'Failed to save entry' });
       }
       return res.status(200).json({ ok: true });
@@ -50,60 +65,88 @@ export default async function handler(req, res) {
       if (!entryId || typeof entryId !== 'string' || !Array.isArray(fullBody) || fullBody.length === 0) {
         return res.status(400).json({ error: 'Missing entryId or fullBody' });
       }
-      const r = await fetch(`${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}`, {
+      const r = await fetchT(`${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}`, {
         method: 'PATCH',
         headers: { ...headers, Prefer: 'return=minimal' },
         body: JSON.stringify({ full_body: fullBody }),
-      });
+      }, T);
       if (!r.ok) {
-        const errText = await r.text();
-        console.error('[admin-entries] upsert_full_body error:', errText);
+        console.error('[admin-entries] upsert_full_body error:', await r.text());
         return res.status(502).json({ error: 'Failed to save full article body' });
       }
       return res.status(200).json({ ok: true });
     }
 
     if (action === 'get_full_body') {
-      // Lets the admin edit form load an entry's true saved text from the
-      // server instead of trusting this browser's localStorage cache, which
-      // is per-device and is what let an entry get silently re-saved with
-      // only its preview text (see DECISIONS_LOG 2026-09-23).
       if (!entryId || typeof entryId !== 'string') {
         return res.status(400).json({ error: 'Missing entryId' });
       }
-      const r = await fetch(
+      const r = await fetchT(
         `${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}&select=full_body`,
-        { headers }
+        { headers },
+        T
       );
       if (!r.ok) {
-        const errText = await r.text();
-        console.error('[admin-entries] get_full_body error:', errText);
+        console.error('[admin-entries] get_full_body error:', await r.text());
         return res.status(502).json({ error: 'Failed to load full article body' });
       }
-      const rows = await r.json();
-      const fullBody = Array.isArray(rows) && rows[0] && Array.isArray(rows[0].full_body) ? rows[0].full_body : [];
-      return res.status(200).json({ ok: true, fullBody });
+      const rows = await safeJson(r);
+      const fb = Array.isArray(rows) && rows[0] && Array.isArray(rows[0].full_body) ? rows[0].full_body : [];
+      return res.status(200).json({ ok: true, fullBody: fb });
     }
 
     if (action === 'delete') {
       if (!entryId || typeof entryId !== 'string') {
         return res.status(400).json({ error: 'Missing entryId' });
       }
-      const r = await fetch(`${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}`, {
+      const r = await fetchT(`${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}`, {
         method: 'DELETE',
         headers,
-      });
+      }, T);
       if (!r.ok) {
-        const errText = await r.text();
-        console.error('[admin-entries] delete error:', errText);
+        console.error('[admin-entries] delete error:', await r.text());
         return res.status(502).json({ error: 'Failed to delete entry' });
       }
+      return res.status(200).json({ ok: true });
+    }
+
+    // ── Comment moderation ──────────────────────────────────────────────────
+    if (action === 'list_comments') {
+      const r = await fetchT(
+        `${supabaseUrl}/rest/v1/comments?select=id,entry_id,author,comment,created_at&order=created_at.desc&limit=100`,
+        { headers },
+        T
+      );
+      if (!r.ok) return res.status(502).json({ error: 'Failed to load comments' });
+      return res.status(200).json({ ok: true, comments: (await safeJson(r)) || [] });
+    }
+
+    if (action === 'delete_comment') {
+      if (!commentId || typeof commentId !== 'string' || !/^[0-9a-f-]{36}$/i.test(commentId)) {
+        return res.status(400).json({ error: 'Missing commentId' });
+      }
+      const r = await fetchT(`${supabaseUrl}/rest/v1/comments?id=eq.${commentId}`, { method: 'DELETE', headers }, T);
+      if (!r.ok) return res.status(502).json({ error: 'Failed to delete comment' });
+      return res.status(200).json({ ok: true });
+    }
+
+    // ── Book order status ───────────────────────────────────────────────────
+    if (action === 'set_order_status') {
+      if (!orderId || typeof orderId !== 'string' || orderId.length > 200 || !ORDER_STATUSES.includes(status)) {
+        return res.status(400).json({ error: 'Invalid order or status' });
+      }
+      const r = await fetchT(`${supabaseUrl}/rest/v1/orders?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH',
+        headers: { ...headers, Prefer: 'return=minimal' },
+        body: JSON.stringify({ status }),
+      }, T);
+      if (!r.ok) return res.status(502).json({ error: 'Failed to update order' });
       return res.status(200).json({ ok: true });
     }
 
     return res.status(400).json({ error: 'Unknown action' });
   } catch (err) {
     console.error('[admin-entries] Error:', err);
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+    return res.status(502).json({ error: 'The database did not respond in time. Please try again.' });
   }
 }

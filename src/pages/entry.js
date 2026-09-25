@@ -1,268 +1,199 @@
-import { getEntries } from './admin.js';
+import { getEntryList, getEntry } from '../lib/store.js';
 import { getCommentsFromDB, addCommentToDB } from '../lib/supabase.js';
-import { renderNewsletter } from '../components/newsletter.js';
+import { esc, loadErrorHTML, wireRetry } from '../lib/html.js';
+import { postJson } from '../lib/net.js';
+import { cleanPhone, pollInvoice } from '../lib/pay.js';
 import { footerHTML } from '../components/footer.js';
 
-function toTitleCase(str) {
-  if (!str) return '';
-  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+// ── Module state: one entry page is live at a time ───────────────────────────
+let disposeCurrent = null; // removes document-level listeners + stops polling from the previous render
+
+const invoiceKey = (id) => `tvn_invoice_${id}`;
+const contentKey = (id) => `tvn_content_${id}`;
+
+function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (_) {} }
+
+// Inline formatting with XSS protection: escape first, then re-introduce a tiny safe subset.
+function formatInline(text) {
+  if (!text) return '';
+  return esc(text)
+    .replace(/&lt;br\s*\/?&gt;/gi, '<br />')
+    .replace(/&lt;u&gt;([\s\S]+?)&lt;\/u&gt;/g, '<u>$1</u>')
+    .replace(/\n/g, '<br />')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/__(.+?)__/g, '<u>$1</u>');
 }
 
-function logAnalyticsEvent(type, payload = {}) {
-  try {
-    const raw = localStorage.getItem('tvn_analytics');
-    const log = raw ? JSON.parse(raw) : [];
-    log.push({
-      type,
-      time: new Date().toISOString(),
-      ...payload
-    });
-    if (log.length > 500) log.splice(0, log.length - 500); // keep recent
-    localStorage.setItem('tvn_analytics', JSON.stringify(log));
-  } catch (_) {}
+function formatParagraph(p) {
+  if (!p) return '';
+  const trimmed = p.trim();
+  if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+    return `<div class="scene-break" role="separator" aria-label="Scene break">⁂</div>`;
+  }
+  if (trimmed.startsWith('>')) {
+    return `<blockquote>${formatInline(trimmed.replace(/^>\s*/, ''))}</blockquote>`;
+  }
+  return `<p>${formatInline(p)}</p>`;
+}
+
+// Preview paragraphs for the paywalled state: N words (author-set previewWords, default 100)
+function getPreviewContent(paragraphs, entryObj) {
+  if (!Array.isArray(paragraphs) || paragraphs.length === 0) return [];
+  const maxWords = Number(entryObj.previewWords) > 0 ? Number(entryObj.previewWords) : 100;
+  const result = [];
+  let currentWords = 0;
+  for (const para of paragraphs) {
+    if (currentWords >= maxWords) break;
+    const words = para.trim().split(/\s+/).filter(Boolean);
+    if (currentWords + words.length <= maxWords) {
+      result.push(para);
+      currentWords += words.length;
+    } else {
+      const remaining = maxWords - currentWords;
+      // No trailing "..." — the fade-out overlay signals there's more.
+      if (remaining > 0) result.push(words.slice(0, remaining).join(' '));
+      break;
+    }
+  }
+  return result.length > 0 ? result : [paragraphs[0]];
+}
+
+/**
+ * Ask the server to verify an invoice and return the full text.
+ * `definitive` is true only when the server gave a real verdict against the invoice
+ * (so it is safe to forget it). Outages, timeouts and "still pending" are NOT verdicts:
+ * the reader keeps their proof of payment and can simply try again.
+ */
+async function unlockWithInvoice(entryId, invoiceId) {
+  const { ok, status, data, network } = await postJson('/api/get-content', { entry_id: entryId, invoice_id: invoiceId }, 20000);
+  if (ok && data.ok && Array.isArray(data.body)) return { unlocked: true, body: data.body };
+  if (network) return { unlocked: false, definitive: false, message: 'No connection. Check your network and try again.' };
+  const badState = ['FAILED', 'CANCELLED', 'MISMATCH', 'AMOUNT_MISMATCH'].includes(data.state);
+  const definitive = status === 402 && badState;
+  return { unlocked: false, definitive, state: data.state, message: data.error || 'Could not fetch article content.' };
 }
 
 export async function renderEntry(app, id) {
-  const ENTRIES = await getEntries();
-  const idx   = ENTRIES.findIndex(e => e.id === id || e.slug === id);
-  const entry = ENTRIES[idx];
-  const prev  = ENTRIES[idx + 1] ?? null; // older entry (array is newest-first)
-  const next  = ENTRIES[idx - 1] ?? null; // newer entry
+  if (disposeCurrent) { disposeCurrent(); disposeCurrent = null; }
 
+  const nav = app.dataset.nav;
+  const [list, entry] = await Promise.all([getEntryList(), getEntry(id)]);
+  if (app.dataset.nav !== nav) return; // a newer navigation took over while we were loading
+
+  if (entry === null) {
+    // Supabase failed — never claim the entry doesn't exist.
+    app.innerHTML = loadErrorHTML("We couldn't load this entry. Check your connection and try again.");
+    wireRetry(app, () => renderEntry(app, id));
+    return;
+  }
   if (!entry) {
     app.innerHTML = `
       <div class="container" style="padding:var(--space-24) 0;text-align:center;">
-        <p style="color:var(--text-muted)">Entry not found.</p>
+        <p style="color:var(--muted-foreground)">Entry not found.</p>
         <a href="#/entries" class="label" style="margin-top:var(--space-6);display:inline-flex;text-decoration:none;">← Back to Entries</a>
       </div>`;
     return;
   }
 
-  // Paywall handling: check if paid entry
+  const idx = Array.isArray(list) ? list.findIndex((e) => e.id === entry.id) : -1;
+  const prev = idx >= 0 ? list[idx + 1] ?? null : null; // older entry (list is newest-first)
+  const next = idx > 0 ? list[idx - 1] : null;           // newer entry
+
+  const entryId = entry.id;
   const isPaid = Number(entry.price) > 0;
-  let isUnlocked = !isPaid;
-  let unlockedBody = null; // full body — only set after payment verification
+  const priceLabel = `KES ${Number(entry.price).toLocaleString()}`;
+  let unlockedBody = null;
+
+  // A page is "current" only while THIS entry is what's on screen. Guards every async callback.
+  app.dataset.entryId = entryId;
+  const stillHere = () => app.dataset.entryId === entryId && !!document.getElementById('entry-body');
 
   if (isPaid) {
     try {
-      // Check if this browser/session has already paid and cached the content
-      const cachedBody = sessionStorage.getItem(`tvn_content_${entry.id}`);
-      if (cachedBody) {
-        const parsed = JSON.parse(cachedBody);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          isUnlocked = true;
-          unlockedBody = parsed;
-        }
-      }
+      const cached = sessionStorage.getItem(contentKey(entryId));
+      const parsed = cached ? JSON.parse(cached) : null;
+      if (Array.isArray(parsed) && parsed.length > 0) unlockedBody = parsed;
     } catch (_) {}
-
-    // If no sessionStorage cache, check if there's a stored invoice_id to re-verify
-    // This handles page refreshes in the same browser without requiring re-payment
-    if (!isUnlocked) {
-      try {
-        const storedInvoiceId = localStorage.getItem(`tvn_invoice_${entry.id}`);
-        if (storedInvoiceId) {
-          // Re-verify server-side — this runs async, will re-render if successful
-          (async () => {
-            try {
-              const contentRes = await fetch('/api/get-content', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entry_id: entry.id, invoice_id: storedInvoiceId }),
-              });
-              const contentData = await contentRes.json();
-              if (contentRes.ok && contentData.ok && Array.isArray(contentData.body)) {
-                sessionStorage.setItem(`tvn_content_${entry.id}`, JSON.stringify(contentData.body));
-                // Guard: only re-render if the user is still on this entry page
-                if (document.getElementById('entry-body')) {
-                  renderEntry(app, id);
-                }
-              } else {
-                // Invoice no longer verifiable — clear stored invoice
-                localStorage.removeItem(`tvn_invoice_${entry.id}`);
-              }
-            } catch (_) {}
-          })();
-        }
-      } catch (_) {}
-    }
   }
+  const isUnlocked = !isPaid || !!unlockedBody;
+  const storedInvoice = isPaid && !isUnlocked ? lsGet(invoiceKey(entryId)) : null;
 
-  let bodyParagraphs = Array.isArray(entry.body) ? [...entry.body] : [];
-  if (isUnlocked && unlockedBody) {
-    bodyParagraphs = unlockedBody;
-  }
-
-  // Preview paragraphs for paywalled state: 100 words (or author-specified previewWords / legacy previewCount)
-  function getPreviewContent(paragraphs, entryObj) {
-    if (!Array.isArray(paragraphs) || paragraphs.length === 0) return [];
-    // If explicit small previewCount (< 10), treat as legacy paragraph count
-    if (entryObj.previewCount && Number(entryObj.previewCount) <= 10 && !entryObj.previewWords) {
-      return paragraphs.slice(0, Number(entryObj.previewCount));
-    }
-    const maxWords = Number(entryObj.previewWords) > 0 ? Number(entryObj.previewWords) : 100;
-    const result = [];
-    let currentWords = 0;
-    for (const para of paragraphs) {
-      if (currentWords >= maxWords) break;
-      const wordsInPara = para.trim().split(/\s+/).filter(Boolean);
-      if (currentWords + wordsInPara.length <= maxWords) {
-        result.push(para);
-        currentWords += wordsInPara.length;
-      } else {
-        const remaining = maxWords - currentWords;
-        if (remaining > 0) {
-          // No trailing "..." — the fade-out overlay on the preview signals
-          // there's more content, rather than a literal truncation mark.
-          result.push(wordsInPara.slice(0, remaining).join(' '));
-          currentWords += remaining;
-        }
-        break;
-      }
-    }
-    return result.length > 0 ? result : [paragraphs[0]];
-  }
+  const bodyParagraphs = isUnlocked && unlockedBody ? unlockedBody : (Array.isArray(entry.body) ? entry.body : []);
   const previewParagraphs = getPreviewContent(bodyParagraphs, entry);
 
-  // HTML sanitization & escaping helper
-  function escapeHTML(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
+  // Reading time — average 200 wpm (paid entries: based on what we can see)
+  const wordCount = bodyParagraphs.join(' ').split(/\s+/).filter(Boolean).length;
+  const readMins = Math.max(1, Math.ceil(wordCount / 200));
 
-  // Markdown / Rich text formatting helper with XSS protection
-  function formatInline(text) {
-    if (!text) return '';
-    const safe = escapeHTML(text);
-    return safe
-      .replace(/&lt;br\s*\/?&gt;/gi, '<br />')
-      .replace(/\n/g, '<br />')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*([^\*]+)\*/g, '<em>$1</em>')
-      .replace(/__(.+?)__/g, '<u>$1</u>');
-  }
-
-  function formatParagraph(p) {
-    if (!p) return '';
-    const trimmed = p.trim();
-    if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
-      return `<hr class="divider" style="margin:2.5rem 0;" />`;
-    }
-    if (trimmed.startsWith('>')) {
-      const quoteText = trimmed.replace(/^>\s*/, '');
-      return `<blockquote style="border-left:2px solid var(--accent);padding-left:1.25rem;margin:1.75rem 0;font-style:italic;color:var(--foreground);">${formatInline(quoteText)}</blockquote>`;
-    }
-    return `<p>${formatInline(p)}</p>`;
-  }
-
-  // Reading time — average 200 wpm
-  const allBodyParagraphs = Array.isArray(entry.body) && entry.body.length > bodyParagraphs.length ? entry.body : bodyParagraphs;
-  const bodyText   = allBodyParagraphs.join(' ');
-  const excerptText = entry.excerpt || '';
-  const wordCount  = bodyText.split(/\s+/).length + excerptText.split(/\s+/).length;
-  const readMins   = Math.max(1, Math.ceil(wordCount / 200));
-
-  // Author formatting & meta
   const metaParts = [];
-  if (entry.category) {
-    metaParts.push(entry.category.toUpperCase());
-  } else if (entry.meta) {
-    metaParts.push(entry.meta.split('·')[0].trim().toUpperCase());
-  } else {
-    metaParts.push('ESSAY');
-  }
-
-  if (entry.date) {
-    metaParts.push(entry.date.toUpperCase());
-  }
-
-  metaParts.push(`${readMins} MIN READ`);
+  if (entry.category) metaParts.push(entry.category.toUpperCase());
+  else if (entry.meta) metaParts.push(entry.meta.split('·')[0].trim().toUpperCase());
+  else metaParts.push('ESSAY');
+  if (entry.date) metaParts.push(entry.date.toUpperCase());
+  if (isUnlocked) metaParts.push(`${readMins} MIN READ`);
   metaParts.push(`BY ${(entry.author || 'Vic Munala').toUpperCase()}`);
+  const metaText = esc(metaParts.join(' · '));
 
-  const metaText = metaParts.join(' · ');
+  // Likes (personal, this-device only)
+  const likedKey = `tvn_liked_${entryId}`;
+  const isLiked = !!lsGet(likedKey);
+  let currentLikes = (typeof entry.likes === 'number' ? entry.likes : 0) + (isLiked ? 1 : 0);
 
-  // Likes tracking
-  const likedKey = `tvn_liked_${entry.id}`;
-  const isLiked = !!localStorage.getItem(likedKey);
-  const baseLikes = typeof entry.likes === 'number' ? entry.likes : 0;
-  const storedLikeDelta = isLiked ? 1 : 0;
-  let currentLikes = baseLikes + storedLikeDelta;
-
-  // Set page title dynamically
   document.title = `${entry.title} — The Villager's Notes`;
 
+  const slug = entry.slug || entry.id;
+  const linkFor = (e) => `#/entries/${encodeURIComponent(e.slug || e.id)}`;
+
   app.innerHTML = `
-    <article style="padding:4rem 0;">
+    <article class="entry-page" data-cat="${esc(entry.category)}">
       <div class="container">
 
-        <!-- Back link -->
         <div>
-          <a href="#/entries" class="label" style="text-decoration:none;display:inline-block;transition:color 0.15s ease;letter-spacing:0.18em;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted-foreground)'">
-            ← ENTRIES
-          </a>
+          <a href="#/entries" class="label back-link">← ENTRIES</a>
         </div>
 
-        <!-- Meta -->
-        <div class="label" style="margin-top:2.25rem;letter-spacing:0.18em;color:var(--muted-foreground);line-height:1.6;">
-          ${metaText}
-        </div>
+        <div class="label entry-meta">${metaText}</div>
 
-        <!-- Title -->
-        <h1 style="margin-top:0.75rem;max-width:22ch;font-size:clamp(2.25rem, 6.5vw, 3.75rem);font-family:var(--font-hand);font-weight:400;line-height:1.05;">
-          ${entry.title}
-        </h1>
+        <h1 class="entry-title">${esc(entry.title)}</h1>
 
-        <!-- Excerpt / standfirst -->
-        <p style="margin-top:1.25rem;max-width:54ch;font-size:1.15rem;line-height:1.65;color:var(--foreground);font-family:var(--font-body);font-style:normal;">
-          ${entry.excerpt || ''}
-        </p>
+        <p class="entry-standfirst">${esc(entry.excerpt || '')}</p>
 
-        <!-- Body / Paywall -->
-        <div class="prose-note" id="entry-body" style="margin-top:2.5rem;max-width:62ch;border-top:1px solid var(--rule);padding-top:2rem;font-size:1.25rem;line-height:1.75;">
+        <div class="prose-note entry-body" id="entry-body">
           ${isPaid && !isUnlocked ? `
             <div style="position:relative;">
               ${previewParagraphs.map(formatParagraph).join('')}
-              <div aria-hidden="true" style="position:absolute;left:0;right:0;bottom:0;height:9rem;background:linear-gradient(to bottom, transparent, var(--background) 78%);pointer-events:none;"></div>
+              <div aria-hidden="true" class="paywall-fade"></div>
             </div>
-            <div style="background:var(--card);border:1px solid var(--rule);padding:2rem;margin:1rem 0 2rem;">
+            <div class="paywall-card">
               <div class="label" style="margin-bottom:0.75rem;">Rest of this one is paid</div>
-              <h2 style="font-size:clamp(1.5rem, 4vw, 2rem);font-family:var(--font-hand);font-weight:400;margin-bottom:1rem;">
-                Read the whole thing — KES ${Number(entry.price).toLocaleString()}
-              </h2>
-              <div style="max-width:28rem;margin-top:1.5rem;display:flex;flex-direction:column;gap:1.25rem;">
+              <h2>Read the whole thing — ${priceLabel}</h2>
+              <div class="paywall-form">
                 <div>
                   <label class="label" for="paywall-phone" style="display:block;margin-bottom:0.5rem;">M-Pesa Number</label>
-                  <input type="tel" id="paywall-phone" placeholder="07XX XXX XXX"
-                         style="width:100%;border:none;border-bottom:1px solid var(--foreground);background:transparent;padding-bottom:0.5rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);" />
+                  <input type="tel" id="paywall-phone" class="paywall-input" placeholder="07XX XXX XXX" inputmode="tel" autocomplete="tel" />
                 </div>
-                <div style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;margin-top:0.5rem;">
-                  <button class="label" id="paywall-unlock-btn"
-                          style="border:1px solid var(--foreground);background:transparent;padding:0.625rem 1.25rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;"
-                          onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
-                          onmouseout="this.style.borderColor='var(--foreground)';this.style.color='var(--foreground)';">
-                    Pay KES ${Number(entry.price).toLocaleString()}
-                  </button>
+                <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                  <button class="label paywall-btn" id="paywall-unlock-btn" type="button">Pay ${priceLabel}</button>
+                  <button class="label paywall-btn paywall-btn--quiet" id="paywall-check-btn" type="button" style="${storedInvoice ? '' : 'display:none;'}">I've already paid — check</button>
                 </div>
-                <div id="paywall-status" style="font-size:0.85rem;"></div>
+                <div id="paywall-status" role="status" aria-live="polite" style="font-size:0.9rem;line-height:1.5;"></div>
               </div>
             </div>
           ` : bodyParagraphs.map(formatParagraph).join('')}
         </div>
 
-        <!-- Social interactions: Likes & Share -->
-        <div style="display:flex;align-items:center;gap:1.5rem;margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--rule);max-width:62ch;">
-          <button id="like-btn" class="label" style="background:transparent;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;color:${isLiked ? 'var(--accent)' : 'inherit'};font-size:0.85rem;padding:0;">
-            <span id="like-icon" style="font-size:1.1rem;line-height:1;">${isLiked ? '♥' : '♡'}</span>
+        <!-- Likes & Share -->
+        <div class="entry-actions">
+          <button id="like-btn" class="label like-btn" type="button" aria-pressed="${isLiked}" style="color:${isLiked ? 'var(--accent)' : 'inherit'};">
+            <span id="like-icon" aria-hidden="true" style="font-size:1.1rem;line-height:1;">${isLiked ? '♥' : '♡'}</span>
             <span id="like-count">${currentLikes} ${currentLikes === 1 ? 'like' : 'likes'}</span>
           </button>
 
           <div class="share-btn-wrap">
-            <button id="share-btn" class="share-btn" type="button">
+            <button id="share-btn" class="share-btn" type="button" aria-haspopup="true" aria-expanded="false">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               Share
             </button>
@@ -285,338 +216,314 @@ export async function renderEntry(app, id) {
               </button>
             </div>
           </div>
-          <span id="share-feedback" class="label" style="display:none;color:var(--accent);">Link copied ✓</span>
+          <span id="share-feedback" class="label" role="status" style="display:none;color:var(--accent);">Link copied ✓</span>
         </div>
 
         <!-- Prev / Next navigation -->
-        <nav style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--rule);max-width:62ch;">
+        <nav class="entry-nav-grid" aria-label="More entries">
           <div>
             ${prev ? `
-              <a href="#/entries/${prev.id}" style="text-decoration:none;color:inherit;display:block;" class="entry-link-group">
+              <a href="${linkFor(prev)}" class="entry-link-group">
                 <div class="label">← Previous entry</div>
-                <div style="font-family:var(--font-hand);font-size:1.35rem;margin-top:0.25rem;transition:color 0.15s ease;">${prev.title}</div>
-              </a>
-            ` : ''}
+                <div class="entry-nav-title">${esc(prev.title)}</div>
+              </a>` : ''}
           </div>
           <div style="text-align:right;">
             ${next ? `
-              <a href="#/entries/${next.id}" style="text-decoration:none;color:inherit;display:block;" class="entry-link-group">
+              <a href="${linkFor(next)}" class="entry-link-group">
                 <div class="label">Next entry →</div>
-                <div style="font-family:var(--font-hand);font-size:1.35rem;margin-top:0.25rem;transition:color 0.15s ease;">${next.title}</div>
-              </a>
-            ` : ''}
+                <div class="entry-nav-title">${esc(next.title)}</div>
+              </a>` : ''}
           </div>
         </nav>
 
-        <!-- Comments Section (Live Cloud Sync via Supabase) -->
-        <section style="margin-top:3.5rem;padding-top:2.5rem;border-top:1px solid var(--rule);max-width:62ch;" id="comments-section">
-          <div style="margin-bottom:2rem;">
-            <h2 style="font-family:var(--font-hand);font-size:2.5rem;margin:0;font-weight:400;color:var(--foreground);line-height:1.2;">Comments</h2>
-          </div>
+        <!-- Comments -->
+        <section class="comments-section" id="comments-section">
+          <h2 class="comments-title">Comments</h2>
 
           <div id="comment-form-container" style="margin-bottom:2.5rem;">
             <form id="new-comment-form">
               <div style="margin-bottom:1.75rem;">
-                <input type="text" id="comment-author" required placeholder="Your name" class="comment-author-input" style="width:100%;border:none;border-bottom:1.5px solid #8e4823;background:transparent;padding:0.4rem 0 0.5rem;font-family:var(--font-body);outline:none;font-size:1.125rem;color:var(--foreground);" />
+                <input type="text" id="comment-author" required maxlength="100" placeholder="Your name" autocomplete="nickname" class="comment-author-input" />
               </div>
               <div style="margin-bottom:1.25rem;">
-                <textarea id="comment-text" required rows="5" maxlength="500" placeholder="Say something" class="comment-textarea" style="width:100%;border:1px solid #c8bcaf;background:transparent;padding:1rem 1.15rem;font-family:var(--font-body);outline:none;font-size:1.0625rem;color:var(--foreground);resize:vertical;display:block;min-height:140px;box-sizing:border-box;transition:border-color 0.15s ease;" onfocus="this.style.borderColor='var(--foreground)'" onblur="this.style.borderColor='#c8bcaf'"></textarea>
+                <textarea id="comment-text" required rows="5" maxlength="500" placeholder="Say something" class="comment-textarea"></textarea>
                 <div style="display:flex;justify-content:flex-end;margin-top:0.4rem;">
                   <span id="comment-char-counter" class="label" style="font-size:0.65rem;color:var(--muted-foreground);"><span id="comment-chars-left">500</span> characters remaining</span>
                 </div>
               </div>
               <div>
-                <button type="submit" id="comment-submit-btn" class="comment-submit-btn" style="background:transparent;color:var(--foreground);border:1px solid var(--foreground);padding:0.7rem 1.4rem;font-family:var(--font-mono);font-size:0.6875rem;letter-spacing:0.18em;text-transform:uppercase;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='var(--foreground)';this.style.color='var(--background)';" onmouseout="this.style.background='transparent';this.style.color='var(--foreground)';">
-                  LEAVE A COMMENT
-                </button>
+                <button type="submit" id="comment-submit-btn" class="comment-submit-btn">LEAVE A COMMENT</button>
               </div>
-              <div id="comment-status" style="margin-top:0.75rem;font-size:0.85rem;display:none;"></div>
+              <div id="comment-status" role="status" aria-live="polite" style="margin-top:0.75rem;font-size:0.9rem;display:none;"></div>
             </form>
           </div>
 
-          <div id="comments-container"></div>
+          <div id="comments-container" aria-live="polite"><p class="label" style="color:var(--muted-foreground);">Loading comments…</p></div>
         </section>
 
       </div>
     </article>
   `;
 
-  // ── Comments handling (Supabase Cloud) ─────────────────────────────────────
-  async function loadAndRenderComments() {
+  // ── Comments ───────────────────────────────────────────────────────────────
+  let commentList = [];
+  function paintComments() {
+    const target = document.getElementById('comments-container');
+    if (!target) return;
+    if (commentList.length === 0) { target.innerHTML = ''; return; }
+    target.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        ${commentList.map((c) => `
+          <div style="border-top:1px solid var(--rule);padding-top:1rem;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;">
+              <span class="label" style="font-weight:600;color:var(--foreground);">${esc(c.author)}</span>
+              <span class="label" style="font-size:0.65rem;color:var(--muted-foreground);">${esc(c.date)}</span>
+            </div>
+            <p style="margin-top:0.5rem;font-family:var(--font-body);font-size:1.05rem;line-height:1.5;color:var(--foreground);">${esc(c.text)}</p>
+          </div>`).join('')}
+      </div>`;
+  }
+  async function loadComments() {
     const target = document.getElementById('comments-container');
     if (!target) return;
     try {
-      const list = await getCommentsFromDB(entry.id);
-      if (list.length === 0) {
-        target.innerHTML = '';
-        return;
-      }
-      target.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:1.25rem;">
-          ${list.map(c => `
-            <div style="border-top:1px solid var(--rule);padding-top:1rem;">
-              <div style="display:flex;align-items:baseline;justify-content:space-between;">
-                <span class="label" style="font-weight:600;color:var(--foreground);">${escapeHTML(c.author)}</span>
-                <span class="label" style="font-size:0.65rem;color:var(--muted-foreground);">${escapeHTML(c.date)}</span>
-              </div>
-              <p style="margin-top:0.5rem;font-family:var(--font-body);font-size:1.05rem;line-height:1.5;color:var(--foreground);">${escapeHTML(c.text)}</p>
-            </div>
-          `).join('')}
-        </div>
-      `;
+      commentList = await getCommentsFromDB(entryId);
+      if (!stillHere()) return;
+      paintComments();
     } catch (_) {
-      target.innerHTML = `<p style="color:var(--muted-foreground);font-size:0.9rem;">Could not load comments at this time.</p>`;
+      if (!stillHere()) return;
+      target.innerHTML = `<p style="color:var(--muted-foreground);font-size:0.95rem;">Couldn't load comments. <button type="button" id="comments-retry" class="label" style="text-decoration:underline;color:var(--accent);">Try again</button></p>`;
+      document.getElementById('comments-retry')?.addEventListener('click', () => {
+        target.innerHTML = '<p class="label" style="color:var(--muted-foreground);">Loading comments…</p>';
+        loadComments();
+      });
     }
   }
-  loadAndRenderComments();
+  loadComments();
 
+  const authorInput = document.getElementById('comment-author');
   const commentTextarea = document.getElementById('comment-text');
   const charsLeftEl = document.getElementById('comment-chars-left');
-  if (commentTextarea && charsLeftEl) {
-    commentTextarea.addEventListener('input', () => {
-      const remaining = 500 - commentTextarea.value.length;
-      charsLeftEl.textContent = String(Math.max(0, remaining));
-    });
-  }
+  const rememberedName = lsGet('tvn_commenter');
+  if (authorInput && rememberedName) authorInput.value = rememberedName;
+  commentTextarea?.addEventListener('input', () => {
+    if (charsLeftEl) charsLeftEl.textContent = String(Math.max(0, 500 - commentTextarea.value.length));
+  });
 
-  const newCommentForm = document.getElementById('new-comment-form');
-  if (newCommentForm) {
-    newCommentForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const authorInput = document.getElementById('comment-author');
-      const textInput = document.getElementById('comment-text');
-      const submitBtn = document.getElementById('comment-submit-btn');
-      const statusEl = document.getElementById('comment-status');
+  document.getElementById('new-comment-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = document.getElementById('comment-submit-btn');
+    const statusEl = document.getElementById('comment-status');
+    const authorVal = authorInput?.value.trim();
+    const textVal = commentTextarea?.value.trim();
+    if (!authorVal || !textVal) return;
+    if (submitBtn.disabled) return;
 
-      const authorVal = authorInput?.value.trim();
-      const textVal = textInput?.value.trim();
-      if (!authorVal || !textVal) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'POSTING…';
+    statusEl.style.display = 'none';
 
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'POSTING…'; }
-      if (statusEl) { statusEl.style.display = 'none'; }
+    const added = await addCommentToDB(entryId, authorVal, textVal);
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'LEAVE A COMMENT';
+    statusEl.style.display = 'block';
 
-      const added = await addCommentToDB(entry.id, authorVal, textVal);
-      if (added) {
-        authorInput.value = '';
-        textInput.value = '';
-        if (charsLeftEl) charsLeftEl.textContent = '500';
-        if (statusEl) {
-          statusEl.style.display = 'block';
-          statusEl.style.color = 'hsl(143 60% 40%)';
-          statusEl.textContent = '✓ Comment posted!';
-          setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
-        }
-        await loadAndRenderComments();
-      } else {
-        if (statusEl) {
-          statusEl.style.display = 'block';
-          statusEl.style.color = 'hsl(0 60% 50%)';
-          statusEl.textContent = 'Could not post comment. Please try again.';
-        }
-      }
+    if (added) {
+      lsSet('tvn_commenter', authorVal);
+      commentTextarea.value = '';
+      if (charsLeftEl) charsLeftEl.textContent = '500';
+      // Show it immediately from the server's response — a slow refetch can't make it vanish.
+      commentList = [added, ...commentList];
+      paintComments();
+      statusEl.style.color = 'hsl(143 60% 32%)';
+      statusEl.textContent = '✓ Comment posted!';
+      setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 3000);
+    } else {
+      // Text stays in the box so nothing they typed is lost.
+      statusEl.style.color = 'hsl(0 60% 42%)';
+      statusEl.textContent = navigator.onLine === false
+        ? "You're offline. Your comment is still here — try again when you're back online."
+        : "Couldn't post your comment — it's still in the box, so just try again.";
+    }
+  });
 
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'LEAVE A COMMENT'; }
-    });
-  }
-
-  // Like button handling
+  // ── Likes ──────────────────────────────────────────────────────────────────
   const likeBtn = document.getElementById('like-btn');
   const likeIcon = document.getElementById('like-icon');
   const likeCountEl = document.getElementById('like-count');
-  if (likeBtn && likeIcon && likeCountEl) {
-    likeBtn.addEventListener('click', () => {
-      const alreadyLiked = !!localStorage.getItem(likedKey);
-      if (alreadyLiked) {
-        localStorage.removeItem(likedKey);
-        currentLikes = Math.max(0, currentLikes - 1);
-        likeIcon.textContent = '♡';
-        likeBtn.style.color = 'inherit';
-      } else {
-        localStorage.setItem(likedKey, 'true');
-        currentLikes = currentLikes + 1;
-        likeIcon.textContent = '♥';
-        likeBtn.style.color = 'var(--accent)';
-      }
-      likeCountEl.textContent = `${currentLikes} ${currentLikes === 1 ? 'like' : 'likes'}`;
-    });
-  }
+  likeBtn?.addEventListener('click', () => {
+    const already = !!lsGet(likedKey);
+    if (already) { lsDel(likedKey); currentLikes = Math.max(0, currentLikes - 1); }
+    else { lsSet(likedKey, 'true'); currentLikes += 1; }
+    likeIcon.textContent = already ? '♡' : '♥';
+    likeBtn.style.color = already ? 'inherit' : 'var(--accent)';
+    likeBtn.setAttribute('aria-pressed', String(!already));
+    likeCountEl.textContent = `${currentLikes} ${currentLikes === 1 ? 'like' : 'likes'}`;
+  });
 
-  // Share pill dropdown
+  // ── Share ──────────────────────────────────────────────────────────────────
   const shareBtn = document.getElementById('share-btn');
   const shareDropdown = document.getElementById('share-dropdown');
-  const shareCopyBtn = document.getElementById('share-copy-btn');
-  const shareFeedback = document.getElementById('share-feedback');
-  const shareTwitter = document.getElementById('share-twitter');
-  const shareFacebook = document.getElementById('share-facebook');
-  const shareWhatsapp = document.getElementById('share-whatsapp');
-
+  const canonicalUrl = `${window.location.origin}/entries/${encodeURIComponent(slug)}`;
+  const outsideClick = (e) => {
+    if (shareDropdown && !shareDropdown.contains(e.target) && e.target !== shareBtn && !shareBtn.contains(e.target)) {
+      shareDropdown.style.display = 'none';
+      shareBtn.setAttribute('aria-expanded', 'false');
+    }
+  };
   if (shareBtn && shareDropdown) {
-    // Toggle dropdown open/close
     shareBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = shareDropdown.style.display === 'flex';
-      // Build canonical URLs fresh at click time (path-based URL gives proper previews & avoids Safari hash stripping)
-      const slug = entry.slug || entry.id;
-      const canonicalUrl = `${window.location.origin}/entries/${encodeURIComponent(slug)}`;
       const url = encodeURIComponent(canonicalUrl);
       const title = encodeURIComponent(entry.title);
-      if (shareTwitter) shareTwitter.href = `https://twitter.com/intent/tweet?text=${title}&url=${url}`;
-      if (shareFacebook) shareFacebook.href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
-      if (shareWhatsapp) shareWhatsapp.href = `https://wa.me/?text=${title}%20${url}`;
+      document.getElementById('share-twitter').href = `https://twitter.com/intent/tweet?text=${title}&url=${url}`;
+      document.getElementById('share-facebook').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+      document.getElementById('share-whatsapp').href = `https://wa.me/?text=${title}%20${url}`;
       shareDropdown.style.display = isOpen ? 'none' : 'flex';
+      shareBtn.setAttribute('aria-expanded', String(!isOpen));
     });
-
-    // Copy link button
-    if (shareCopyBtn) {
-      shareCopyBtn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        try {
-          const slug = entry.slug || entry.id;
-          const canonicalUrl = `${window.location.origin}/entries/${encodeURIComponent(slug)}`;
-          await navigator.clipboard.writeText(canonicalUrl);
-          shareDropdown.style.display = 'none';
-          if (shareFeedback) {
-            shareFeedback.style.display = 'inline';
-            setTimeout(() => { shareFeedback.style.display = 'none'; }, 2000);
-          }
-        } catch (_) {}
-      });
-    }
-
-    // Close dropdown when clicking anywhere else
-    const handleOutsideClick = (e) => {
-      if (!shareDropdown.contains(e.target) && e.target !== shareBtn) {
-        shareDropdown.style.display = 'none';
+    document.getElementById('share-copy-btn')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const fb = document.getElementById('share-feedback');
+      try {
+        await navigator.clipboard.writeText(canonicalUrl);
+        if (fb) fb.textContent = 'Link copied ✓';
+      } catch (_) {
+        if (fb) fb.textContent = canonicalUrl; // clipboard blocked: show the link so it can be copied by hand
       }
-    };
-    document.addEventListener('click', handleOutsideClick);
-    window.addEventListener('hashchange', () => {
-      document.removeEventListener('click', handleOutsideClick);
-    }, { once: true });
+      shareDropdown.style.display = 'none';
+      if (fb) { fb.style.display = 'inline'; setTimeout(() => { fb.style.display = 'none'; }, 3500); }
+    });
+    document.addEventListener('click', outsideClick);
   }
 
-  // Paywall unlock button handler
+  // ── Paywall ────────────────────────────────────────────────────────────────
+  let activePoll = null;
+  disposeCurrent = () => {
+    document.removeEventListener('click', outsideClick);
+    if (activePoll) activePoll.cancel();
+  };
+
   const unlockBtn = document.getElementById('paywall-unlock-btn');
+  const checkBtn = document.getElementById('paywall-check-btn');
   const phoneInput = document.getElementById('paywall-phone');
   const statusEl = document.getElementById('paywall-status');
 
   if (unlockBtn && phoneInput && statusEl) {
-    unlockBtn.addEventListener('click', async () => {
-      const raw = phoneInput.value.trim().replace(/\D/g, '');
-      let phone = null;
-      if (raw.startsWith('254') && raw.length === 12) phone = raw;
-      else if ((raw.startsWith('07') || raw.startsWith('01')) && raw.length === 10) phone = '254' + raw.slice(1);
-      else if (raw.length === 9) phone = '254' + raw;
+    const say = (type, msg) => {
+      statusEl.style.color = type === 'error' ? 'hsl(0 60% 42%)' : type === 'ok' ? 'hsl(143 60% 30%)' : 'var(--muted-foreground)';
+      statusEl.textContent = msg;
+    };
+    const resetButtons = () => {
+      unlockBtn.disabled = false;
+      unlockBtn.textContent = `Pay ${priceLabel}`;
+      if (checkBtn) checkBtn.disabled = false;
+    };
+    const showCheck = () => { if (checkBtn) checkBtn.style.display = ''; };
 
+    // Verify an invoice, retrying quickly on transient failures, then unlock the page.
+    async function verifyAndUnlock(invoiceId, { retries = 2 } = {}) {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        if (!stillHere()) return false;
+        const r = await unlockWithInvoice(entryId, invoiceId);
+        if (r.unlocked) {
+          try { sessionStorage.setItem(contentKey(entryId), JSON.stringify(r.body)); } catch (_) {}
+          lsSet(invoiceKey(entryId), invoiceId);
+          say('ok', '✅ Unlocked! Loading the story…');
+          setTimeout(() => { if (stillHere()) renderEntry(app, id); }, 500);
+          return true;
+        }
+        if (r.definitive) {
+          lsDel(invoiceKey(entryId)); // a real "no" — safe to forget
+          if (checkBtn) checkBtn.style.display = 'none';
+          say('error', `❌ ${r.message}`);
+          return false;
+        }
+        if (attempt < retries) { await new Promise((res) => setTimeout(res, 2500)); continue; }
+        // Not a verdict: keep the invoice so they can retry.
+        showCheck();
+        say('info', `${r.message} Your payment is safe — tap "I've already paid — check" to try again.`);
+      }
+      return false;
+    }
+
+    // A previously-started payment (same browser): verify quietly on load, never destroy the invoice.
+    if (storedInvoice) {
+      say('info', 'Checking your earlier payment…');
+      verifyAndUnlock(storedInvoice, { retries: 0 }).then((done) => {
+        if (!done && statusEl && !statusEl.textContent) say('info', '');
+      });
+    }
+
+    checkBtn?.addEventListener('click', async () => {
+      const inv = lsGet(invoiceKey(entryId));
+      if (!inv) { checkBtn.style.display = 'none'; return; }
+      checkBtn.disabled = true;
+      say('info', 'Checking your payment…');
+      await verifyAndUnlock(inv);
+      checkBtn.disabled = false;
+    });
+
+    unlockBtn.addEventListener('click', async () => {
+      const phone = cleanPhone(phoneInput.value);
       if (!phone) {
-        statusEl.style.color = 'hsl(0 60% 50%)';
-        statusEl.textContent = '⚠ Enter a valid Kenyan phone number (e.g. 0712345678).';
+        say('error', '⚠ Enter a valid Kenyan phone number (e.g. 0712345678).');
+        phoneInput.focus();
         return;
       }
 
       unlockBtn.disabled = true;
+      if (checkBtn) checkBtn.disabled = true;
       unlockBtn.textContent = 'Sending prompt…';
-      statusEl.style.color = 'var(--text-muted)';
-      statusEl.textContent = '📲 Prompt sent — enter your M-Pesa PIN on your phone.';
+      say('info', 'Sending the payment prompt…');
 
-      try {
-        // Step 1: Initiate STK push
-        const res = await fetch('/api/stk-push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone,
-            purpose: 'entry',
-            entry_id: entry.id,
-            narrative: `Unlock: ${entry.title}`,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
+      const push = await postJson('/api/stk-push', {
+        phone, purpose: 'entry', entry_id: entryId, narrative: `Unlock: ${entry.title}`,
+      }, 20000);
 
-        const invoiceId = data.invoice_id || data.CheckoutRequestID;
+      if (!push.ok || push.data.error) {
+        say('error', `❌ ${push.network ? 'No connection. Check your network and try again.' : (push.data.error || 'Could not start the payment.')}`);
+        resetButtons();
+        return;
+      }
 
-        // Step 2: Poll stk-status until confirmed
-        let tries = 0;
-        const interval = setInterval(async () => {
-          tries++;
-          try {
-            const check = await fetch('/api/stk-status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ invoice_id: invoiceId, CheckoutRequestID: invoiceId }),
-            }).then(r => r.json());
+      const invoiceId = push.data.invoice_id || push.data.CheckoutRequestID;
+      // Save the invoice the moment the prompt is out: even if they close the tab or refresh
+      // mid-payment, coming back re-verifies it instead of losing their money.
+      lsSet(invoiceKey(entryId), invoiceId);
+      say('info', '📲 Prompt sent — enter your M-Pesa PIN on your phone.');
 
-            if (check.ResultCode === '0' || check.state === 'COMPLETE' || check.state === 'SUCCESSFUL') {
-              clearInterval(interval);
-              statusEl.style.color = 'var(--text-muted)';
-              statusEl.textContent = '✅ Payment confirmed — fetching your article…';
+      activePoll = pollInvoice(invoiceId, {
+        maxMs: 150000,
+        cancelOnNavigate: true,
+        onTick: ({ elapsed, offline }) => {
+          if (!stillHere()) return;
+          if (offline) say('info', '📶 Waiting for a connection… your prompt is still active on your phone.');
+          else if (elapsed > 45000) say('info', '⏳ Still waiting for M-Pesa to confirm. Enter your PIN if you haven’t yet.');
+        },
+      });
+      const result = await activePoll.promise;
+      activePoll = null;
+      if (result.state === 'CANCELLED' || !stillHere()) return;
 
-              // Step 3: Call /api/get-content — server verifies payment & returns full body
-              try {
-                const contentRes = await fetch('/api/get-content', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ entry_id: entry.id, invoice_id: invoiceId }),
-                });
-                const contentData = await contentRes.json();
-
-                if (!contentRes.ok || !contentData.ok || !Array.isArray(contentData.body)) {
-                  throw new Error(contentData.error || 'Could not fetch article content.');
-                }
-
-                // Cache in sessionStorage (tab-scoped, not persistent)
-                try {
-                  sessionStorage.setItem(`tvn_content_${entry.id}`, JSON.stringify(contentData.body));
-                  // Store invoice_id in localStorage so same browser can re-verify after refresh
-                  localStorage.setItem(`tvn_invoice_${entry.id}`, invoiceId);
-                } catch (_) {}
-
-                statusEl.style.color = 'hsl(143 60% 40%)';
-                statusEl.textContent = '✅ Unlocked! Loading story…';
-                setTimeout(() => {
-                  if (document.getElementById('entry-body')) {
-                    renderEntry(app, id);
-                  }
-                }, 800);
-
-              } catch (fetchErr) {
-                statusEl.style.color = 'hsl(0 60% 50%)';
-                statusEl.textContent = `❌ ${fetchErr.message}`;
-                unlockBtn.disabled = false;
-                unlockBtn.textContent = `Pay KES ${Number(entry.price).toLocaleString()}`;
-              }
-
-            } else if (check.ResultCode === '1' || check.state === 'FAILED' || check.state === 'CANCELLED') {
-              clearInterval(interval);
-              statusEl.style.color = 'hsl(0 60% 50%)';
-              statusEl.textContent = `❌ Payment failed: ${check.ResultDesc || 'Declined'}.`;
-              unlockBtn.disabled = false;
-              unlockBtn.textContent = `Pay KES ${Number(entry.price).toLocaleString()}`;
-            }
-          } catch (_) {}
-
-          if (tries >= 15) {
-            clearInterval(interval);
-            statusEl.style.color = 'var(--text-muted)';
-            statusEl.textContent = 'Payment confirmation in progress. If you entered your PIN, please refresh.';
-            unlockBtn.disabled = false;
-            unlockBtn.textContent = `Pay KES ${Number(entry.price).toLocaleString()}`;
-          }
-        }, 3000);
-
-      } catch (err) {
-        statusEl.style.color = 'hsl(0 60% 50%)';
-        statusEl.textContent = `❌ ${err.message || 'Could not initiate payment'}`;
-        unlockBtn.disabled = false;
-        unlockBtn.textContent = `Pay KES ${Number(entry.price).toLocaleString()}`;
+      if (result.state === 'COMPLETE') {
+        say('info', '✅ Payment confirmed — fetching your article…');
+        const ok = await verifyAndUnlock(invoiceId, { retries: 3 });
+        if (!ok) resetButtons();
+      } else if (result.state === 'FAILED') {
+        lsDel(invoiceKey(entryId));
+        say('error', `❌ Payment didn't go through${result.desc ? ` (${result.desc})` : ''}. You haven't been charged.`);
+        resetButtons();
+      } else {
+        // Timed out: they may still have paid. Keep the invoice and offer a manual re-check.
+        showCheck();
+        say('info', "We haven't heard back from M-Pesa yet. If you entered your PIN, tap \"I've already paid — check\" in a minute.");
+        resetButtons();
       }
     });
   }
 
-
-
-  // Footer
   app.insertAdjacentHTML('beforeend', footerHTML());
 }
-

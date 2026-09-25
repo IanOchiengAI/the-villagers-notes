@@ -202,3 +202,153 @@
   flex-shrink: 0;
 }
 
+
+/* ============================================
+   ENTRY PAGE (moved out of inline styles)
+   ============================================ */
+.entry-page { padding: 4rem 0; }
+.back-link { text-decoration: none; display: inline-block; letter-spacing: 0.18em; transition: color 0.15s ease; }
+.back-link:hover { color: var(--accent); }
+.entry-meta { margin-top: 2.25rem; letter-spacing: 0.18em; color: var(--muted-foreground); line-height: 1.6; }
+.entry-title {
+  margin-top: 0.75rem;
+  max-width: 22ch;
+  font-size: clamp(2.25rem, 6.5vw, 3.75rem);
+  font-family: var(--font-hand);
+  font-weight: 400;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+.entry-standfirst {
+  margin-top: 1.25rem;
+  max-width: 54ch;
+  font-size: 1.15rem;
+  line-height: 1.65;
+  font-family: var(--font-body);
+  text-wrap: pretty;
+}
+.entry-body {
+  margin-top: 2.5rem;
+  max-width: 62ch;
+  border-top: 1px solid var(--rule);
+  padding-top: 2rem;
+  font-size: 1.25rem;
+  line-height: 1.75;
+  /* Reading typography */
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures;
+  font-variant-numeric: oldstyle-nums;
+  hyphens: manual;
+  overflow-wrap: break-word;
+}
+.entry-body p { text-wrap: pretty; }
+.entry-body blockquote { margin: 1.75rem 0; color: var(--foreground); }
+/* Fiction reads like a book: indented paragraphs, no gaps */
+.entry-page[data-cat="Fiction"] .entry-body p + p,
+.entry-page[data-cat="Shorts"] .entry-body p + p { text-indent: 1.6em; margin-top: 0; }
+.scene-break {
+  margin: 2.5rem 0;
+  text-align: center;
+  font-family: var(--font-hand);
+  font-size: 1.6rem;
+  letter-spacing: 0.5em;
+  padding-left: 0.5em;
+  color: var(--accent);
+  user-select: none;
+}
+
+.paywall-fade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 9rem;
+  background: linear-gradient(to bottom, color-mix(in oklch, var(--background) 0%, transparent), var(--background) 78%);
+  pointer-events: none;
+}
+.paywall-card { background: var(--card); border: 1px solid var(--rule); padding: 2rem; margin: 1rem 0 2rem; }
+.paywall-card h2 { font-size: clamp(1.5rem, 4vw, 2rem); font-family: var(--font-hand); font-weight: 400; margin-bottom: 1rem; }
+.paywall-form { max-width: 28rem; margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+.paywall-input {
+  width: 100%; border: none; border-bottom: 1px solid var(--foreground); background: transparent;
+  padding-bottom: 0.5rem; font-size: 1.125rem; font-family: var(--font-body); color: var(--foreground); border-radius: 0;
+}
+.paywall-btn {
+  border: 1px solid var(--foreground); background: transparent; padding: 0.7rem 1.3rem;
+  color: var(--foreground); cursor: pointer; transition: color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.paywall-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.paywall-btn:disabled { opacity: 0.55; cursor: progress; }
+.paywall-btn--quiet { border-color: var(--rule); color: var(--muted-foreground); }
+
+.entry-actions {
+  display: flex; align-items: center; gap: 1.5rem; margin-top: 2.5rem; padding-top: 1.5rem;
+  border-top: 1px solid var(--rule); max-width: 62ch; flex-wrap: wrap;
+}
+.like-btn { background: transparent; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; padding: 0.4rem 0; }
+
+.entry-nav-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 2.5rem; padding-top: 1.5rem;
+  border-top: 1px solid var(--rule); max-width: 62ch;
+}
+.entry-link-group { text-decoration: none; color: inherit; display: block; }
+.entry-nav-title { font-family: var(--font-hand); font-size: 1.35rem; margin-top: 0.25rem; transition: color 0.15s ease; text-wrap: balance; }
+.entry-link-group:hover .entry-nav-title { color: var(--accent); }
+
+.comments-section { margin-top: 3.5rem; padding-top: 2.5rem; border-top: 1px solid var(--rule); max-width: 62ch; }
+.comments-title { font-family: var(--font-hand); font-size: 2.5rem; margin: 0 0 2rem; font-weight: 400; line-height: 1.2; }
+.comment-author-input {
+  width: 100%; border: none; border-bottom: 1.5px solid var(--accent); background: transparent;
+  padding: 0.4rem 0 0.5rem; font-family: var(--font-body); font-size: 1.125rem; color: var(--foreground); border-radius: 0;
+}
+.comment-textarea {
+  width: 100%; border: 1px solid var(--rule); background: transparent; padding: 1rem 1.15rem;
+  font-family: var(--font-body); font-size: 1.0625rem; color: var(--foreground);
+  resize: vertical; display: block; min-height: 140px; transition: border-color 0.15s ease;
+}
+.comment-textarea:focus { border-color: var(--foreground); }
+.comment-submit-btn {
+  background: transparent; color: var(--foreground); border: 1px solid var(--foreground);
+  padding: 0.7rem 1.4rem; font-family: var(--font-mono); font-size: 0.6875rem; text-transform: uppercase;
+  cursor: pointer; transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.comment-submit-btn:hover:not(:disabled) { background: var(--foreground); color: var(--background); }
+.comment-submit-btn:disabled { opacity: 0.55; cursor: progress; }
+
+/* ============================================
+   FOCUS: inputs previously removed their outline with nothing in its place
+   ============================================ */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ============================================
+   ROUTE ARRIVAL + LOADING LINE
+   ============================================ */
+@keyframes route-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#app.route-enter > * { animation: route-enter 0.35s ease-out both; }
+
+html.is-loading::before {
+  content: '';
+  position: fixed; top: 0; left: 0; height: 2px; width: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  animation: route-load 1.4s ease-in-out infinite;
+  z-index: 1000;
+}
+@keyframes route-load { 0% { transform: scaleX(0); } 60% { transform: scaleX(0.85); } 100% { transform: scaleX(1); opacity: 0; } }
+
+[data-retry] { transition: color 0.15s ease, border-color 0.15s ease; }
+[data-retry]:hover { color: var(--accent); border-color: var(--accent); }
+
+@media (max-width: 680px) {
+  .entry-page { padding: 2.5rem 0; }
+  .entry-body { font-size: 1.15rem; }
+  .entry-nav-grid { grid-template-columns: 1fr; }
+  .entry-nav-grid > div { text-align: left !important; }
+  .paywall-card { padding: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  #app.route-enter > *, html.is-loading::before { animation: none; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}

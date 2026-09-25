@@ -1,5 +1,6 @@
 import { renderSodaTip } from '../components/soda-tip.js';
-import { getBookData, addOrder } from './admin.js';
+import { cleanPhone, pollInvoice } from '../lib/pay.js';
+import { postJson } from '../lib/net.js';
 import { footerHTML } from '../components/footer.js';
 
 const BOOK_DEFAULT = {
@@ -15,20 +16,12 @@ const BOOK_DEFAULT = {
 const EXCERPT_TEXT = ``;
 
 function getCurrentBook() {
-  const saved = getBookData();
-  return {
-    title:       BOOK_DEFAULT.title,
-    subtitle:    BOOK_DEFAULT.subtitle,
-    description: saved?.description ?? BOOK_DEFAULT.description,
-    price:       saved?.price       ?? BOOK_DEFAULT.price,
-    currency:    BOOK_DEFAULT.currency,
-  };
+  return { ...BOOK_DEFAULT };
 }
 
 export function renderBook(app) {
   const book = getCurrentBook();
-  const saved = getBookData();
-  const excerpt = saved?.excerpt ?? EXCERPT_TEXT;
+  const excerpt = EXCERPT_TEXT;
   const hasExcerpt = excerpt.trim().length > 0;
 
   app.innerHTML = `
@@ -159,15 +152,15 @@ async function handleStkPush() {
   if (!nameInput || !phoneInput || !addressInput || !status || !btn) return;
 
   const name    = nameInput.value.trim();
-  const phone   = phoneInput.value.trim().replace(/\s/g, '');
   const address = addressInput.value.trim();
   const signed  = signedInput?.checked ?? true;
+  const label   = `PAY KES ${currentBook.price.toLocaleString()} →`;
 
-  if (!name || !phone || !address) {
+  if (!name || !phoneInput.value.trim() || !address) {
     setStatus(status, 'error', 'Please fill in all fields.');
     return;
   }
-  const cleaned = cleanPhone(phone);
+  const cleaned = cleanPhone(phoneInput.value);
   if (!cleaned) {
     setStatus(status, 'error', 'Enter a valid Kenyan phone number (e.g. 0712345678).');
     return;
@@ -175,72 +168,44 @@ async function handleStkPush() {
 
   btn.disabled = true;
   btn.textContent = 'Sending prompt…';
-  setStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
+  setStatus(status, 'pending', 'Sending the payment prompt…');
 
-  // Track order in admin
-  addOrder({ name, phone: cleaned, address, amount: currentBook.price, signed });
+  // The server saves the order (name, phone, address) as soon as the prompt is sent,
+  // so Vic has the delivery details even if this tab is closed.
+  const push = await postJson('/api/stk-push', {
+    phone: cleaned, name, address, signed, amount: currentBook.price,
+    purpose: 'book', narrative: `Book: Under the Mango Tree - ${name}`,
+  }, 20000);
 
-  try {
-    const res = await fetch('/api/stk-push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        phone: cleaned,
-        name,
-        address,
-        amount: currentBook.price,
-        purpose: 'book',
-        narrative: `Book: Under the Mango Tree - ${name}`,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
-    pollStkStatus(data.invoice_id || data.CheckoutRequestID, status, btn);
-  } catch (err) {
-    setStatus(status, 'error', `${err.message || 'Could not initiate STK push'}. Please try again.`);
+  if (!push.ok || push.data.error) {
+    const msg = push.network ? 'No connection. Check your network' : (push.data.error || 'Could not start the payment');
+    setStatus(status, 'error', `${msg}. Please try again.`);
     btn.disabled = false;
-    btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
+    btn.textContent = label;
+    return;
   }
-}
 
-async function pollStkStatus(checkoutRequestID, statusEl, btn) {
-  const currentBook = getCurrentBook();
-  let attempts = 0;
-  const max = 15;
-  const interval = setInterval(async () => {
-    attempts++;
-    try {
-      const res  = await fetch('/api/stk-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoice_id: checkoutRequestID, CheckoutRequestID: checkoutRequestID }),
-      });
-      const data = await res.json();
-      if (data.ResultCode === '0' || data.state === 'COMPLETE' || data.state === 'SUCCESSFUL') {
-        clearInterval(interval);
-        setStatus(statusEl, 'success', '✅ Payment received! Your signed copy will be delivered within 3–5 business days. Thank you!');
-        btn.textContent = 'Order Placed ✓';
-      } else if (data.ResultCode === '1' || data.state === 'FAILED' || data.state === 'CANCELLED') {
-        clearInterval(interval);
-        setStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Unknown error'}. Please try again.`);
-        btn.disabled = false;
-        btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
-      }
-    } catch (_) {}
-    if (attempts >= max) {
-      clearInterval(interval);
-      setStatus(statusEl, 'error', 'Payment confirmation in progress. If you entered your PIN, you will receive an SMS and your order is recorded.');
-      btn.disabled = false;
-      btn.textContent = `Pay KES ${currentBook.price.toLocaleString()} via M-Pesa`;
-    }
-  }, 3000);
-}
+  setStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
+  const { promise } = pollInvoice(push.data.invoice_id || push.data.CheckoutRequestID, {
+    maxMs: 150000,
+    onTick: ({ offline }) => {
+      if (offline) setStatus(status, 'pending', '📶 Waiting for a connection… your prompt is still active on your phone.');
+    },
+  });
+  const result = await promise;
 
-function cleanPhone(raw) {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.startsWith('254') && digits.length === 12) return digits;
-  if ((digits.startsWith('07') || digits.startsWith('01')) && digits.length === 10) return '254' + digits.slice(1);
-  return null;
+  if (result.state === 'COMPLETE') {
+    setStatus(status, 'success', '✅ Payment received! Your signed copy will be delivered within 3–5 business days. Thank you!');
+    btn.textContent = 'Order Placed ✓';
+  } else if (result.state === 'FAILED') {
+    setStatus(status, 'error', `Payment declined${result.desc ? `: ${result.desc}` : ''}. You haven't been charged. Please try again.`);
+    btn.disabled = false;
+    btn.textContent = label;
+  } else {
+    setStatus(status, 'error', 'We have not heard back from M-Pesa yet. If you entered your PIN you will get an SMS — your order details are saved, and Vic will confirm with you.');
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 function setStatus(el, type, msg) {

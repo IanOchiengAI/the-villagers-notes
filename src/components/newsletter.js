@@ -1,4 +1,4 @@
-import { addSubscriber } from '../pages/admin.js';
+import { postJson } from '../lib/net.js';
 
 export function renderNewsletter(container, { variant = 'entry' } = {}) {
   container.innerHTML = `
@@ -31,7 +31,7 @@ export function renderNewsletter(container, { variant = 'entry' } = {}) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = input.value.trim();
-    if (!email || !email.includes('@')) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
       input.style.borderBottomColor = 'var(--destructive)';
       input.focus();
       return;
@@ -42,32 +42,20 @@ export function renderNewsletter(container, { variant = 'entry' } = {}) {
     btn.disabled = true;
     input.style.borderBottomColor = 'var(--foreground)';
 
-    try {
-      let already = false;
-      try {
-        const res = await fetch('/api/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          already = !!data.already;
-        }
-      } catch (_) {
-        // Fallback for static dev environments
-      }
-
-      addSubscriber(email);
+    const { ok, data, network } = await postJson('/api/subscribe', { email }, 20000);
+    if (ok) {
       form.style.display = 'none';
-      confirm.textContent = already
+      confirm.textContent = data.already
         ? "You're already on the list. Nothing more to do."
         : "Done. You'll hear from me only when there's something to hear.";
       confirm.style.display = 'block';
-    } catch {
+    } else {
+      // Honest failure: the address was NOT saved, so don't pretend it was.
       btn.textContent = 'Put me on the list';
       btn.disabled = false;
-      confirm.textContent = 'That didn\'t go through. Try again.';
+      confirm.textContent = network
+        ? "No connection. Check your network and try again."
+        : (data.error || "That didn't go through. Try again.");
       confirm.style.display = 'block';
     }
   });

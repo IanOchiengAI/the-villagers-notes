@@ -1,4 +1,6 @@
-// Tip recording is done server-side via /api/record-tip after payment COMPLETE
+// Tip recording is done server-side via /api/record-tip (which re-verifies the invoice)
+import { cleanPhone, pollInvoice } from '../lib/pay.js';
+import { postJson } from '../lib/net.js';
 
 const AMOUNTS = [50, 100, 500];
 
@@ -22,7 +24,7 @@ export function renderSodaTip(container) {
                 ${a}
               </button>
             `).join('')}
-            <input type="number" id="soda-custom-val" value="${selected}" min="50" aria-label="Custom amount in shillings"
+            <input type="number" id="soda-custom-val" value="${selected}" min="50" inputmode="numeric" aria-label="Custom amount in shillings"
                    style="width:5.5rem;border:none;border-bottom:1px solid var(--rule);background:transparent;padding-bottom:0.25rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);" />
           </div>
 
@@ -93,59 +95,47 @@ export function renderSodaTip(container) {
 
         payBtn.disabled = true;
         payBtn.textContent = 'SENDING PROMPT…';
+        setStatus(statusEl, 'pending', 'Sending the payment prompt…');
+
+        const push = await postJson('/api/stk-push', {
+          phone,
+          amount: selected,
+          purpose: 'tip',
+          name: 'Soda Supporter',
+          narrative: 'Buy me soda madiaba',
+        }, 20000);
+
+        if (!push.ok || push.data.error) {
+          const msg = push.network
+            ? 'No connection. Check your network and try again.'
+            : (push.data.error || 'Could not start the payment. Please try again.');
+          setStatus(statusEl, 'error', `❌ ${msg}`);
+          payBtn.disabled = false;
+          payBtn.textContent = 'SEND THE SODA';
+          return;
+        }
+
+        const invoiceId = push.data.invoice_id || push.data.CheckoutRequestID;
         setStatus(statusEl, 'pending', '📲 Prompt sent — enter your M-Pesa PIN on your phone.');
 
-        try {
-          const res = await fetch('/api/stk-push', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              phone,
-              amount: selected,
-              purpose: 'tip',
-              name: 'Soda Supporter',
-              narrative: 'Buy me soda madiaba',
-            }),
-          });
-          const data = await res.json();
-          if (!res.ok || data.error) throw new Error(data.error || 'Failed');
+        const { promise } = pollInvoice(invoiceId, {
+          onTick: ({ offline }) => {
+            if (offline) setStatus(statusEl, 'pending', '📶 Waiting for a connection… if you already entered your PIN, your soda is safe.');
+          },
+        });
+        const result = await promise;
 
-          const invoiceId = data.invoice_id || data.CheckoutRequestID;
-          let tries = 0;
-          const iv = setInterval(async () => {
-            tries++;
-            const s = await fetch('/api/stk-status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ invoice_id: invoiceId, CheckoutRequestID: invoiceId }),
-            }).then(r => r.json());
-
-            if (s.ResultCode === '0' || s.state === 'COMPLETE' || s.state === 'SUCCESSFUL') {
-              clearInterval(iv);
-              setStatus(statusEl, 'success', '✅ Thank you for the soda! ❤️');
-              payBtn.textContent = 'SENT ✓';
-              // Record the confirmed tip to Supabase (fire-and-forget)
-              fetch('/api/record-tip', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone, amount: selected }),
-              }).catch(() => {}); // silent fail — payment already succeeded
-            } else if (s.ResultCode === '1' || s.state === 'FAILED' || s.state === 'CANCELLED') {
-              clearInterval(iv);
-              setStatus(statusEl, 'error', '❌ Payment declined or timed out.');
-              payBtn.disabled = false;
-              payBtn.textContent = 'SEND THE SODA';
-            }
-            if (tries >= 15) {
-              clearInterval(iv);
-              payBtn.disabled = false;
-              payBtn.textContent = 'SEND THE SODA';
-              setStatus(statusEl, 'error', '⏱ No response. If you entered your PIN, check your M-Pesa messages and try again if needed.');
-            }
-          }, 3000);
-
-        } catch (err) {
-          setStatus(statusEl, 'error', `❌ ${err.message || 'Could not initiate payment'}`);
+        if (result.state === 'COMPLETE') {
+          setStatus(statusEl, 'success', '✅ Thank you for the soda! ❤️');
+          payBtn.textContent = 'SENT ✓';
+          // Server re-verifies the invoice before saving, so this can't be faked.
+          postJson('/api/record-tip', { invoice_id: invoiceId, phone }, 15000);
+        } else if (result.state === 'FAILED') {
+          setStatus(statusEl, 'error', '❌ Payment declined or cancelled.');
+          payBtn.disabled = false;
+          payBtn.textContent = 'SEND THE SODA';
+        } else {
+          setStatus(statusEl, 'error', '⏱ No response yet. If you entered your PIN, check your M-Pesa messages before trying again.');
           payBtn.disabled = false;
           payBtn.textContent = 'SEND THE SODA';
         }
@@ -154,13 +144,6 @@ export function renderSodaTip(container) {
   }
 
   render();
-}
-
-function cleanPhone(raw) {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.startsWith('254') && digits.length === 12) return digits;
-  if ((digits.startsWith('07') || digits.startsWith('01')) && digits.length === 10) return '254' + digits.slice(1);
-  return null;
 }
 
 function setStatus(el, type, msg) {

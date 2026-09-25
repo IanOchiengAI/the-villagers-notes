@@ -1,10 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
+import { fetchTimeout } from './net.js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Gracefully handle missing env vars (e.g. local dev or before credentials configured)
-export const supabase = url && key ? createClient(url, key) : null;
+// Every request gives up after 12s so a slow network shows an error instead of hanging forever.
+const timeoutFetch = (input, init = {}) => {
+  if (typeof AbortController === 'undefined') return fetch(input, init);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12000);
+  if (init.signal) init.signal.addEventListener('abort', () => ctrl.abort());
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(t));
+};
+export const supabase = url && key
+  ? createClient(url, key, { global: { fetch: timeoutFetch } })
+  : null;
 
 /**
  * Increment a named counter in Supabase.
@@ -96,6 +107,46 @@ function entryToRow(entry, sortOrder) {
   };
 }
 
+const LIST_COLS = 'id,slug,title,excerpt,category,entry_date,author,price,preview_words,likes,sort_order,created_at';
+const FULL_COLS = LIST_COLS + ',body';
+
+/**
+ * Entry list WITHOUT bodies — enough for the home page, archive and prev/next links.
+ * Returns null if Supabase is unavailable.
+ */
+export async function getEntryListFromDB() {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('entries')
+      .select(LIST_COLS)
+      .order('sort_order', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error || !data) return null;
+    return data.map(rowToEntry);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One entry (with its public/preview body) by slug, falling back to id.
+ * Returns undefined on a real "not found", null if Supabase failed.
+ */
+export async function getEntryFromDB(idOrSlug) {
+  if (!supabase || !idOrSlug) return null;
+  try {
+    for (const col of ['slug', 'id']) {
+      const { data, error } = await supabase.from('entries').select(FULL_COLS).eq(col, idOrSlug).maybeSingle();
+      if (error) return null;
+      if (data) return rowToEntry(data);
+    }
+    return undefined;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetch all entries from Supabase, ordered newest-first (sort_order DESC).
  * SECURITY: full_body is intentionally excluded from this query.
@@ -143,11 +194,11 @@ function getAdminToken() {
 /** @returns {Promise<AdminWriteResult>} */
 async function callAdminEntries(payload) {
   try {
-    const res = await fetch('/api/admin-entries', {
+    const res = await fetchTimeout('/api/admin-entries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: getAdminToken(), ...payload }),
-    });
+    }, 25000);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
       const error = data.error || res.statusText || 'Request failed';
@@ -157,7 +208,7 @@ async function callAdminEntries(payload) {
     return { ok: true, status: res.status, data };
   } catch (e) {
     console.warn('admin-entries exception:', e);
-    return { ok: false, status: 0, error: 'Network error — check your connection and try again.' };
+    return { ok: false, status: 0, error: e?.name === 'AbortError' ? 'The server took too long to answer. Check your connection and try again.' : 'Network error — check your connection and try again.' };
   }
 }
 
@@ -182,10 +233,11 @@ export async function upsertEntryFullBodyToDB(entryId, fullBody) {
  * @param {object} entry - JS entry object
  * @returns {Promise<AdminWriteResult>}
  */
-export async function upsertEntryToDB(entry) {
+export async function upsertEntryToDB(entry, fullBody) {
   const sortOrder = entry.sort_order ?? Math.floor(Date.now() / 1000);
   const row = entryToRow(entry, sortOrder);
-  return callAdminEntries({ action: 'upsert', entry: row });
+  // fullBody (paid entries) is written in the same request as the preview.
+  return callAdminEntries({ action: 'upsert', entry: row, ...(Array.isArray(fullBody) ? { fullBody } : {}) });
 }
 
 /**
@@ -218,14 +270,15 @@ export async function getEntryFullBodyFromDB(id) {
  * @returns {Promise<object[]>}
  */
 export async function getCommentsFromDB(entryId) {
-  if (!supabase || !entryId) return [];
+  if (!supabase) throw new Error('comments unavailable');
+  if (!entryId) return [];
   try {
     const { data, error } = await supabase
       .from('comments')
       .select('id, entry_id, author, comment, created_at')
       .eq('entry_id', entryId)
       .order('created_at', { ascending: false });
-    if (error || !data) return [];
+    if (error || !data) throw new Error(error?.message || 'comments unavailable');
     return data.map(c => ({
       id: c.id,
       author: c.author,
@@ -234,7 +287,7 @@ export async function getCommentsFromDB(entryId) {
     }));
   } catch (e) {
     console.warn('getCommentsFromDB exception:', e);
-    return [];
+    throw e; // callers show "couldn't load comments" instead of a misleading empty list
   }
 }
 
@@ -273,3 +326,24 @@ export async function addCommentToDB(entryId, author, commentText) {
   }
 }
 
+
+// ── Admin: comment moderation, order status, stats ────────────────────────────
+export const listCommentsAdmin = () => callAdminEntries({ action: 'list_comments' });
+export const deleteCommentAdmin = (commentId) => callAdminEntries({ action: 'delete_comment', commentId });
+export const setOrderStatusAdmin = (orderId, status) => callAdminEntries({ action: 'set_order_status', orderId, status });
+
+/** @returns {Promise<AdminWriteResult>} data = { tips, orders, subscribers } */
+export async function getStatsAdmin() {
+  try {
+    const res = await fetchTimeout('/api/get-stats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: getAdminToken() }),
+    }, 25000);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, status: res.status, error: data.error || 'Could not load stats' };
+    return { ok: true, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, error: 'Network error — check your connection and try again.' };
+  }
+}

@@ -54,16 +54,34 @@
 - [ ] Ask Vic whether the "something when posting an entry" glitch recurs — the session-expiry bug (now fixed) is the leading explanation, but wasn't reproduced directly. Ask for a screenshot if it happens again.
 
 ### Analytics
-- [ ] **Confirm GA4 hits are actually landing** (GA4 → Reports → Realtime) now that the router sends page_view on every navigation. Could not confirm this from the test browser (see DECISIONS_LOG Section 3 — likely that browser's own tracker-blocking, not a site issue).
-- [ ] **Give Vic access to the GA4 property** (`G-8YH7V59JKQ`) — GA Admin → Property access management → add his Google account, Viewer or Admin.
+- [x] **GA4 property wired** — new measurement ID `G-ESJZNKZ9DQ` deployed to `index.html` (`49b4c92`)
+- [x] **Give Vic access to GA4** — done manually by Ian; `vikmunala@gmail.com` added as Viewer on the new GA4 property.
+
+### Stats / Admin
+- [x] **Create Supabase stats tables** — `tips`, `orders`, `subscribers` tables created via SQL Editor 2026-09-25
+- [x] **Wire tips to Supabase** — `/api/record-tip.js` created; tips now recorded AFTER `COMPLETE` confirmation (`8272eac`)
+- [x] **Wire admin stats panel to Supabase** — `/api/get-stats.js` created; admin People tab now reads live from Supabase on every render (`8272eac`)
+- [x] **Fix premature addTip bug** — removed optimistic `addTip()` call before payment confirmation in `soda-tip.js`
+
+### Payments
+- [x] **M-Pesa end-to-end test** — testing complete.
+- [ ] **Mismatched-invoice test** — confirm a completed soda-tip invoice cannot unlock a paid entry
+
+### Content
+- [x] **Re-save entry `1789164489380`** ("What it Means When a Man Falls From the Sky") — Vic to handle in admin
+- [x] **Set "Musings From the Edge of a Blank Page" back to paid** — Vic to handle in admin
 
 ### Other
-- [ ] **Newsletter emails** — set up Formspree (free), add `FORMSPREE_FORM_ID` to Vercel env vars
-- [ ] **Subscribers in Supabase** — newsletter subscribers currently stored in localStorage only; add `subscribers` table to Supabase
-- [ ] **Orders in Supabase** — book orders currently stored in localStorage only; add `orders` table to Supabase
-- [ ] **Admin auth** — still open beyond the password fix above: move to real Supabase Auth instead of a shared password
-- [x] **Per-entry link previews** — implemented 2026-09-25 via `api/entry-meta.js` and `/entries/:slug` Vercel rewrites; dynamically serves entry title/excerpt to bots and redirects Safari/browsers seamlessly to the SPA hash route.
-- [x] **Connect custom domain `thevillagersnotes.com` in Vercel** — done; the domain serves the site (HTTP 200, checked 2026-09-19)
+- [x] **Newsletter Formspree** — completed. `api/subscribe.js` forwards emails to Formspree and saves them to the Supabase `subscribers` table.
+- [x] **Supabase RLS** — confirmed. Manual API testing proved the anon key cannot select `full_body` directly from `entries` table (returns 42501 permission denied).
+
+### Audit follow-ups (2026-09-25)
+- [ ] **Review and commit the uncommitted audit changes** (nothing is deployed yet). Test on a Vercel preview first: KES 50 tip, a paid-entry unlock, a book order (check it appears in the admin People tab as Awaiting payment then Paid), admin login/edit/save/delete, comment delete.
+- [ ] **Run `supabase/migrations/20260925_audit_invoice_ids_and_comment_limits.sql`** in the Supabase SQL editor (adds `tips.invoice_id`, comment length limits).
+- [ ] **Add Vercel Firewall rate-limit rules** on `/api/stk-push`, `/api/admin-auth`, `/api/subscribe`, `/api/record-tip` (dashboard setting; consider BotID on stk-push/subscribe).
+- [ ] **Decide with Ian/Vic:** History-API routing + server-rendered entry pages (real SEO); real shared likes; a "restore my purchase by phone number" flow for readers who change browser (current invariant: a different browser must pay again).
+- [ ] Confirm the reflected-XSS fix on the deployed site with a harmless slug such as `/entries/'-console.log(1)-'` (should redirect to /#/entries).
+- [ ] Tell Vic the admin Book and Settings tabs were removed (they never changed anything for readers) and that Comments is new.
 
 ---
 
@@ -81,8 +99,9 @@
 | 2026-08-27 | Untracked confidential proposal files from git and added to .gitignore; moved admin password authentication to secure /api/admin-auth serverless endpoint |
 | 2026-08-27 | Created comments table in Supabase and built live cloud-synced comments system on all entry pages |
 | 2026-09-14 | Added subtle Kasuku Studio footer credit link and deployed to production on main; moved unreleased Daraja M-Pesa migration to feature/daraja-mpesa branch |
-| 2026-09-19 | Added `DECISIONS_LOG.md` and a `CLAUDE.md` pointer; removed a credential that had been written into this file; corrected the project path and stale open items; prepared branch `security/remove-admin-password-fallback` (not merged) |
-| 2026-09-23 | Answered Vic's feedback + Ian's IntaSend-account request. Shipped to `main`: VN-logo link preview (`0e6e99c`), admin save/delete error handling + session-expiry recovery + full-body-from-server fix (`d0566cb`), GA4 page_view per route (`d63f2d7`). Prepared but held unmerged pending external inputs: `feat/intasend-vic-account` (`8ae0526`, needs Vic's IntaSend keys) and `security/remove-admin-password-fallback` (`6f53f08`, pushed this session, needs `ADMIN_PASSWORD`/`ADMIN_TOKEN_SECRET` set first). Found live: `ADMIN_PASSWORD` unset in Vercel (public-repo password is the real admin password right now) and one live free entry showing a truncated stub instead of its real text. Rewrote `MPESA_SETUP_GUIDE.md` for IntaSend and removed Vic's phone number from it. Did not widen the CSP for GA as originally planned — tested and found it wasn't the actual blocker. |
-| 2026-09-24 | Inverted prev/next entry navigation to match chronological order (newest-first array); audited codebase and fixed soda tip amount buttons, polling timeout message, contact form mailto launch, and entry re-render navigation guards. |
-| 2026-09-25 | Set Vic's IntaSend live keys in Vercel + merged `feat/intasend-vic-account` → `main` (`0dbd342`). Set new random `ADMIN_PASSWORD` + `ADMIN_TOKEN_SECRET` in Vercel + merged `security/remove-admin-password-fallback` → `main` (`75c5368`). Tested live STK push end-to-end, resolved IntaSend 401 unauthenticated errors by adding secret key header, fixed IntaSend status polling URL 404, and enforced KES 50 Paybill minimum after discovering silent Safaricom failures on 10 KES pushes. |
-- Updated GA4 measurement ID to new property G-ESJZNKZ9DQ
+| 2026-09-19 | Added DECISIONS_LOG.md and a CLAUDE.md pointer; removed a credential that had been written into this file; corrected the project path and stale open items |
+| 2026-09-23 | Shipped VN-logo link preview, admin save/delete error handling + session-expiry recovery + full-body-from-server fix, GA4 page_view per route |
+| 2026-09-24 | Inverted prev/next entry navigation; fixed soda tip amount buttons, polling timeout message, contact form mailto, and entry re-render navigation guards |
+| 2026-09-25 AM | Set Vic's IntaSend live keys + merged to main. Set new ADMIN_PASSWORD + ADMIN_TOKEN_SECRET. Resolved IntaSend 401, fixed status polling URL, enforced KES 50 minimum. |
+| 2026-09-25 PM | Updated GA4 ID to G-ESJZNKZ9DQ. Added per-entry OG images from `image_url` column. Gave Vic access to GA4 property. Created Supabase stats tables (tips/orders/subscribers). Wired admin stats panel to Supabase via /api/get-stats.js. Fixed premature addTip bug — tips now recorded only after COMPLETE via /api/record-tip.js. Created and refined client handover document (handover-vic-munala.html). Updated KNOWLEDGE.md with 11 new lessons. Wired up Formspree newsletter with Supabase tracking. Improved get-content.js error messages and confirmed Supabase RLS security. |
+| 2026-09-25 (audit) | Ruthless audit, then a full hardening pass (uncommitted): closed filter-injection + reflected XSS in entry-meta, stored XSS into admin, fake-tip acceptance; paywall no longer loses paid readers' invoices; book/play orders now saved server-side; admin rewritten (real data, autosave, comment moderation, atomic save); reader pages lazy-loaded; CSS/typography/SEO fixes. See DECISIONS_LOG 1.8-1.10 and the 2026-09-25 audit entry. |

@@ -16,6 +16,7 @@
 //     — including a KES 10 soda tip — could unlock any paid article.
 
 import { intasendKeys, keysMissingResponse } from './_intasend.js';
+import { fetchT, fetchInvoice, safeJson } from './_util.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -42,7 +43,7 @@ export default async function handler(req, res) {
 
   try {
     // Step 1: Fetch the entry first so we know the real price to check the payment against.
-    const dbRes = await fetch(
+    const dbRes = await fetchT(
       `${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=id,price,full_body`,
       {
         headers: {
@@ -50,16 +51,17 @@ export default async function handler(req, res) {
           'Authorization': `Bearer ${supabaseKey}`,
           'Accept': 'application/json',
         },
-      }
+      },
+      8000
     );
 
     if (!dbRes.ok) {
       const err = await dbRes.text();
       console.error('[get-content] Supabase fetch error:', err);
-      return res.status(500).json({ error: 'Failed to retrieve article' });
+      return res.status(503).json({ error: 'The article could not be loaded right now. Please try again in a moment.', state: 'TRANSIENT' });
     }
 
-    const rows = await dbRes.json();
+    const rows = await safeJson(dbRes);
     if (!Array.isArray(rows) || rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }
@@ -72,23 +74,12 @@ export default async function handler(req, res) {
     }
 
     // Step 2: Verify payment status with IntaSend server-side
-    const statusHeaders = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-    if (secretKey) statusHeaders['Authorization'] = `Bearer ${secretKey}`;
-
-    const statusRes = await fetch('https://payment.intasend.com/api/v1/payment/status/', {
-      method: 'POST',
-      headers: statusHeaders,
-      body: JSON.stringify({ public_key: publicKey, invoice_id }),
-    });
-
-    let statusData;
-    try {
-      statusData = await statusRes.json();
-    } catch {
-      console.error('[get-content] IntaSend returned non-JSON status:', statusRes.status);
-      return res.status(402).json({ error: 'Payment not confirmed', state: 'UNKNOWN', detail: 'Could not verify invoice with payment provider' });
+    // A provider outage is NOT a verdict on the payment: answer 503/TRANSIENT so the
+    // browser keeps the reader's saved invoice and lets them retry.
+    const { invoice, error: invErr } = await fetchInvoice(publicKey, secretKey, invoice_id);
+    if (invErr) {
+      return res.status(503).json({ error: 'We could not reach the payment provider. Your payment is safe — please try again in a moment.', state: 'TRANSIENT' });
     }
-    const invoice = statusData.invoice || statusData;
     const state = invoice.state;
 
     // Only unlock on confirmed complete payment
@@ -133,6 +124,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('[get-content] Error:', err);
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+    return res.status(503).json({ error: 'Something went wrong on our side. Please try again in a moment.', state: 'TRANSIENT' });
   }
 }

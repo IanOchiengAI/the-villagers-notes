@@ -1,1359 +1,798 @@
-import { ENTRIES as DEFAULT_ENTRIES } from '../data/entries.js';
-import { getCounters, getEntriesFromDB, upsertEntryToDB, upsertEntryFullBodyToDB, deleteEntryFromDB, getEntryFullBodyFromDB } from '../lib/supabase.js';
+import {
+  getEntriesFromDB, upsertEntryToDB, deleteEntryFromDB, getEntryFullBodyFromDB,
+  listCommentsAdmin, deleteCommentAdmin, setOrderStatusAdmin, getStatsAdmin, getCounters,
+} from '../lib/supabase.js';
+import { invalidateEntryList } from '../lib/store.js';
+import { esc } from '../lib/html.js';
 
+const CATEGORIES = ['Fiction', 'Random Thoughts', 'Shorts', 'Essay', 'Article', 'Reflections'];
+const MIN_PRICE = 50; // IntaSend STK floor — a lower price could never be paid
+const ORDER_STATUSES = ['Awaiting payment', 'Paid', 'Dispatched', 'Delivered'];
 
-const STORAGE_KEY = 'tvn_admin_data';
-const ORDERS_KEY = 'tvn_orders_data';
-const SUBSCRIBERS_KEY = 'tvn_subscribers_data';
-const TIPS_KEY = 'tvn_tips_data';
+const LABEL_CSS = 'font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;';
+const FIELD_CSS = 'width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;background:var(--white);color:var(--text);';
+const CARD_CSS = 'background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;';
+const EYEBROW_CSS = 'font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;';
+const H2_CSS = 'font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;';
+const H3_CSS = 'font-family:var(--font-hand);font-size:1.6rem;font-weight:600;';
 
-// ── Default Mock / Seed Data for Tracking ────────────────────────────────────
-const DEFAULT_ORDERS = [
-  { id: 'ORD-1001', name: 'Wanjiku Kamau', phone: '0722123456', address: 'Kilimani, Nairobi (Near Yaya Centre)', amount: 1500, signed: true, date: '11 Aug 2026', status: 'Delivered' },
-  { id: 'ORD-1002', name: 'David Omondi', phone: '0711987654', address: 'Milimani, Nakuru', amount: 1500, signed: true, date: '12 Aug 2026', status: 'Dispatched' },
-  { id: 'ORD-1003', name: 'Faith Kiprono', phone: '0733456789', address: 'Westlands, Nairobi (Rhapta Rd)', amount: 1500, signed: false, date: '13 Aug 2026', status: 'Paid' },
-];
-
-const DEFAULT_SUBSCRIBERS = [
-  { email: 'sarah.mwangi@gmail.com', date: '08 Aug 2026' },
-  { email: 'brian.ochieng@yahoo.com', date: '11 Aug 2026' },
-  { email: 'njeri.writer@outlook.com', date: '13 Aug 2026' },
-];
-
-const DEFAULT_TIPS = [
-  { phone: '0722445566', amount: 250, date: '10 Aug 2026' },
-  { phone: '0710889900', amount: 100, date: '12 Aug 2026' },
-  { phone: '0799112233', amount: 500, date: '13 Aug 2026' },
-];
-
-// ── Content Data helpers ─────────────────────────────────────────────────────
-export function loadData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+// ── Session helpers ──────────────────────────────────────────────────────────
+function checkAuth() {
+  try { return sessionStorage.getItem('tvn_auth') === 'ok'; } catch { return false; }
 }
-export function saveData(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-export async function getEntries() {
-  // Try Supabase first (cloud DB, visible to all visitors)
-  const dbEntries = await getEntriesFromDB();
-  if (dbEntries !== null) return dbEntries;
-  // Supabase unavailable — fall back to localStorage, then hardcoded defaults
-  const d = loadData();
-  if (d?.entries && d.entries.length > 0 && d.entries[0].id !== '1') {
-    return d.entries;
-  }
-  return DEFAULT_ENTRIES;
-}
-export function getProjects() {
-  const d = loadData();
-  return d?.projects ?? null;
-}
-export function getBookData() {
-  const d = loadData();
-  return d?.book ?? null;
+function clearAuth() {
+  try { sessionStorage.removeItem('tvn_auth'); sessionStorage.removeItem('tvn_auth_token'); } catch (_) {}
 }
 
-// ── People & Customer Tracking Helpers ───────────────────────────────────────
-export function getOrders() {
-  try {
-    const cleared = localStorage.getItem('tvn_cleared_mock_data') === 'true';
-    const raw = localStorage.getItem(ORDERS_KEY);
-    if (raw) return JSON.parse(raw);
-    return cleared ? [] : DEFAULT_ORDERS;
-  } catch { return []; }
+// ── Drafts: everything typed into an entry form is autosaved locally ─────────
+// so a tab switch, refresh, expired session or dead network never costs Vic his writing.
+const draftKey = (k) => `tvn_draft_${k}`;
+function loadDraft(k) {
+  try { const raw = localStorage.getItem(draftKey(k)); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function saveDraft(k, d) { try { localStorage.setItem(draftKey(k), JSON.stringify(d)); } catch (_) {} }
+function clearDraft(k) { try { localStorage.removeItem(draftKey(k)); } catch (_) {} }
+function anyDraft() {
+  try { for (let i = 0; i < localStorage.length; i++) if (localStorage.key(i).startsWith('tvn_draft_')) return true; } catch (_) {}
+  return false;
 }
 
-export function saveOrders(orders) {
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-}
-
-export function addOrder(order) {
-  const orders = getOrders();
-  const newOrder = {
-    id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-    date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-    status: 'Paid',
-    ...order,
-  };
-  orders.unshift(newOrder);
-  saveOrders(orders);
-  return newOrder;
-}
-
-export function updateOrderStatus(id, newStatus) {
-  const orders = getOrders();
-  const idx = orders.findIndex(o => o.id === id);
-  if (idx !== -1) {
-    orders[idx].status = newStatus;
-    saveOrders(orders);
-  }
-}
-
-export function getSubscribers() {
-  try {
-    const cleared = localStorage.getItem('tvn_cleared_mock_data') === 'true';
-    const raw = localStorage.getItem(SUBSCRIBERS_KEY);
-    if (raw) return JSON.parse(raw);
-    return cleared ? [] : DEFAULT_SUBSCRIBERS;
-  } catch { return []; }
-}
-
-export function saveSubscribers(subs) {
-  localStorage.setItem(SUBSCRIBERS_KEY, JSON.stringify(subs));
-}
-
-export function addSubscriber(email) {
-  const subs = getSubscribers();
-  if (!subs.some(s => s.email.toLowerCase() === email.toLowerCase())) {
-    subs.unshift({
-      email,
-      date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-    });
-    saveSubscribers(subs);
-  }
-}
-
-export function getTips() {
-  try {
-    const cleared = localStorage.getItem('tvn_cleared_mock_data') === 'true';
-    const raw = localStorage.getItem(TIPS_KEY);
-    if (raw) return JSON.parse(raw);
-    return cleared ? [] : DEFAULT_TIPS;
-  } catch { return []; }
-}
-
-export function saveTips(tips) {
-  localStorage.setItem(TIPS_KEY, JSON.stringify(tips));
-}
-
-export function clearDemoData() {
-  localStorage.setItem('tvn_cleared_mock_data', 'true');
-  saveOrders([]);
-  saveSubscribers([]);
-  saveTips([]);
-}
-
-export function addTip(tip) {
-  const tips = getTips();
-  tips.unshift({
-    date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-    ...tip,
+// Warn before closing the tab while an unsaved draft exists.
+let beforeUnloadBound = false;
+function bindBeforeUnload() {
+  if (beforeUnloadBound) return;
+  beforeUnloadBound = true;
+  window.addEventListener('beforeunload', (e) => {
+    if (checkAuth() && location.hash.replace(/^#\/?/, '') === 'admin' && anyDraft()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
   });
-  saveTips(tips);
-}
-
-// ── Analytics Helpers ────────────────────────────────────────────────────────
-export function getAnalytics() {
-  try {
-    const raw = localStorage.getItem('tvn_analytics');
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-export function clearAnalytics() {
-  localStorage.removeItem('tvn_analytics');
-}
-
-
-export function getAdminPass() {
-  return localStorage.getItem('tvn_custom_admin_pass') || '';
-}
-
-export function setAdminPass(newPass) {
-  localStorage.setItem('tvn_custom_admin_pass', newPass);
 }
 
 // ── Admin page ───────────────────────────────────────────────────────────────
 export async function renderAdmin(app) {
   if (!checkAuth()) { renderLogin(app); return; }
-  await renderDashboard(app);
+  bindBeforeUnload();
+  renderDashboard(app);
 }
 
-function checkAuth() {
-  return sessionStorage.getItem('tvn_auth') === 'ok';
-}
-
-// ── Session-expiry recovery ───────────────────────────────────────────────────
-// checkAuth() above never expires client-side, but the signed write token from
-// /api/admin-auth is only valid for 12 hours (see api/_admin-token.js). Without
-// this, the dashboard looks logged in indefinitely while every save/delete
-// silently 401s once the token goes stale — this is what made deletes (and
-// likely posts) appear to "just not work." When a write comes back 401, we
-// stash whatever was in the form, log the admin out, and restore the draft
-// once they log back in.
-const DRAFT_KEY = 'tvn_admin_draft';
-
-function stashDraft(draft) {
-  try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch (_) {}
-}
-
-function popStashedDraft() {
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(DRAFT_KEY);
-    return JSON.parse(raw);
-  } catch (_) {
-    return null;
-  }
-}
-
-/**
- * A write came back 401: the 12-hour admin token expired. Log out, keep
- * whatever was in the form (if any) for one restore after the next login,
- * and send the admin back to the login screen.
- * @param {HTMLElement} app
- * @param {object} [draft] - shape: { prefix: 'new' } or { prefix: 'edit', entryId, ...readEntryForm() fields }
- */
-function handleSessionExpired(app, draft) {
-  sessionStorage.removeItem('tvn_auth');
-  sessionStorage.removeItem('tvn_auth_token');
-  if (draft) stashDraft(draft);
-  renderLogin(app, draft
-    ? 'Your session expired after 12 hours. Please log in again — your unsaved entry has been kept below.'
-    : 'Your session expired after 12 hours. Please log in again.');
-}
-
-function setFormStatus(app, prefix, type, msg) {
-  const el = app.querySelector(`#${prefix}-form-status`);
-  if (!el) return;
-  if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
-  const colors = {
-    error: 'hsl(0 60% 45%)',
-    success: 'hsl(143 55% 32%)',
-    info: 'var(--text-muted)',
-  };
-  el.style.display = 'block';
-  el.style.color = colors[type] || colors.info;
-  el.textContent = msg;
-}
-
-/** Fill an entry form (new or edit) from a stashed draft after a restored login. */
-function populateEntryForm(app, prefix, data) {
-  const setVal = (id, val) => {
-    const el = app.querySelector(`#${prefix}-${id}`);
-    if (el) el.value = val ?? '';
-  };
-  setVal('category', data.category);
-  setVal('author', data.author);
-  setVal('price', data.price);
-  setVal('preview-count', data.previewWords);
-  setVal('title', data.title);
-  setVal('excerpt', data.excerpt);
-  setVal('body', Array.isArray(data.body) ? data.body.join('\n\n') : (data.body || ''));
-  // Re-run the price-warning toggle for the restored price
-  app.querySelector(`#${prefix}-price`)?.dispatchEvent(new Event('input'));
-  setFormStatus(app, prefix, 'info', 'Restored from before your session expired — review and save again.');
-}
-
-// ── Login screen ─────────────────────────────────────────────────────────────
 function renderLogin(app, notice) {
   document.title = "Admin — The Villager's Notes";
   app.innerHTML = `
     <div style="min-height:80vh;display:flex;align-items:center;justify-content:center;padding:24px;">
       <div style="width:100%;max-width:380px;background:var(--white);border:1px solid var(--border);border-radius:16px;padding:32px;box-shadow:0 4px 20px rgba(0,0,0,0.04);">
-        <p style="font-family:var(--font-hand);font-size:2.2rem;color:var(--accent);margin-bottom:4px;line-height:1.1;">
-          The Villager's Notes
-        </p>
-        <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:28px;">
-          Private Author Admin
-        </p>
-        ${notice ? `
-          <p style="background:#FFF3CD;border:1px solid #FFC107;color:#7A5000;font-size:0.82rem;
-                     padding:10px 12px;border-radius:8px;margin-bottom:16px;line-height:1.4;">
-            ${notice}
-          </p>` : ''}
+        <p style="font-family:var(--font-hand);font-size:2.2rem;color:var(--accent);margin-bottom:4px;line-height:1.1;">The Villager's Notes</p>
+        <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:28px;">Private Author Admin</p>
+        ${notice ? `<p role="alert" style="background:#FFF3CD;border:1px solid #FFC107;color:#7A5000;font-size:0.85rem;padding:10px 12px;border-radius:8px;margin-bottom:16px;line-height:1.4;">${esc(notice)}</p>` : ''}
         <form id="login-form">
-          <input type="password" id="pass-input" placeholder="Password" autocomplete="current-password"
-            style="width:100%;padding:12px 16px;border:1.5px solid var(--border);
-                   border-radius:8px;font-size:1rem;font-family:var(--font-sans);
-                   background:var(--white);color:var(--text);outline:none;margin-bottom:16px;
-                   box-sizing:border-box;" />
-          <button type="submit"
-            style="width:100%;padding:12px;background:var(--text);color:var(--white);
-                   border:none;border-radius:8px;font-size:0.9rem;font-weight:600;cursor:pointer;">
-            Enter Dashboard
-          </button>
-          <p id="login-err" style="color:hsl(0 60% 55%);font-size:0.82rem;margin-top:12px;display:none;">
-            Wrong password.
-          </p>
+          <label for="pass-input" style="${LABEL_CSS}">Password</label>
+          <input type="password" id="pass-input" autocomplete="current-password" style="${FIELD_CSS}margin-bottom:16px;padding:12px 16px;font-size:1rem;" />
+          <button type="submit" style="width:100%;padding:12px;background:var(--text);color:var(--white);border:none;border-radius:8px;font-size:0.9rem;font-weight:600;cursor:pointer;">Enter Dashboard</button>
+          <p id="login-err" role="alert" style="color:hsl(0 60% 42%);font-size:0.85rem;margin-top:12px;display:none;"></p>
         </form>
       </div>
     </div>`;
 
-  document.getElementById('login-form').addEventListener('submit', async e => {
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
     const errEl = document.getElementById('login-err');
     const val = document.getElementById('pass-input').value;
-    if (errEl) errEl.style.display = 'none';
-    if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
-
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Verifying…';
     try {
       const res = await fetch('/api/admin-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: val })
+        body: JSON.stringify({ password: val }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
-        sessionStorage.setItem('tvn_auth', 'ok');
-        sessionStorage.setItem('tvn_auth_token', data.token || '');
-        renderDashboard(app);
-      } else {
-        if (errEl) {
-          errEl.textContent = data?.error || 'Wrong password.';
-          errEl.style.display = 'block';
-        }
+        try {
+          sessionStorage.setItem('tvn_auth', 'ok');
+          sessionStorage.setItem('tvn_auth_token', data.token || '');
+        } catch (_) {}
+        renderAdmin(app);
+        return;
       }
+      errEl.textContent = data?.error || 'Wrong password.';
+      errEl.style.display = 'block';
     } catch (_) {
-      if (errEl) {
-        errEl.textContent = 'Verification error. Please try again.';
-        errEl.style.display = 'block';
-      }
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Enter Dashboard'; }
+      errEl.textContent = 'Could not reach the server. Check your connection and try again.';
+      errEl.style.display = 'block';
     }
+    btn.disabled = false;
+    btn.textContent = 'Enter Dashboard';
   });
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
-async function renderDashboard(app) {
+/** A write came back 401: the 12-hour token expired. Drafts are already autosaved, so just go back to login. */
+function handleSessionExpired(app) {
+  clearAuth();
+  renderLogin(app, 'Your session expired. Log in again — anything you were writing has been kept and will be waiting for you.');
+}
+
+// ── Dashboard shell ──────────────────────────────────────────────────────────
+function renderDashboard(app) {
   document.title = "Admin — The Villager's Notes";
-  // If a save/delete failed with an expired session, the draft was stashed —
-  // land straight on Entries so it can be restored and reviewed.
-  let pendingDraft = popStashedDraft();
-  let section = pendingDraft ? 'entries' : 'people';
 
-  async function render() {
-    const data = loadData() || { entries: [...DEFAULT_ENTRIES], projects: null, book: null };
-    const entries = await getEntries();
+  // Data lives here; switching tabs re-uses it instead of re-fetching everything.
+  const store = {
+    entries: null, entriesErr: null,
+    stats: null, statsErr: null,
+    comments: null, commentsErr: null,
+  };
+  let section = anyDraft() ? 'entries' : 'people';
+  const openForms = new Set(); // 'new' | entry ids — forms the user has open, kept across tab switches
 
-    // Load people stats from Supabase via the admin API (falls back to localStorage on error)
-    let orders = getOrders();
-    let subs = getSubscribers();
-    let tips = getTips();
-    try {
-      const token = sessionStorage.getItem('tvn_auth_token');
-      if (token) {
-        const statsRes = await fetch('/api/get-stats', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
-        });
-        if (statsRes.ok) {
-          const stats = await statsRes.json();
-          orders = stats.orders?.length > 0 ? stats.orders : orders;
-          subs   = stats.subscribers?.length > 0 ? stats.subscribers : subs;
-          tips   = stats.tips?.length > 0 ? stats.tips : tips;
-        }
-      }
-    } catch (_) {
-      // Network error — silently fall back to localStorage values above
-    }
+  const TABS = [
+    { id: 'people', label: 'People' },
+    { id: 'entries', label: 'Entries' },
+    { id: 'comments', label: 'Comments' },
+    { id: 'analytics', label: 'Stats' },
+    { id: 'logout', label: 'Log out' },
+  ];
 
-    app.innerHTML = `
+  function shell(body) {
+    return `
       <div style="min-height:100vh;background:var(--bg-subtle);">
-        <!-- Admin top bar (Sticky top: 0 with solid opaque background) -->
-        <div style="background:var(--background);border-bottom:1px solid var(--border);
-                    padding:0 16px;display:flex;align-items:center;
-                    justify-content:space-between;height:56px;position:sticky;top:0;z-index:999;gap:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+        <div style="background:var(--background);border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:999;gap:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
           <div style="display:flex;align-items:center;gap:10px;overflow-x:auto;flex-shrink:1;min-width:0;">
-            <a href="#/" class="label" style="text-decoration:none;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;padding:4px 10px;border:1px solid var(--border);border-radius:999px;transition:all 0.15s ease;"
-               onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'"
-               onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border)'">
-              ← View Site
-            </a>
-            ${[
-              { id: 'people',    short: 'People',    full: `People (${orders.length + subs.length})` },
-              { id: 'entries',   short: 'Entries',   full: `Entries (${entries.length})` },
-              { id: 'book',      short: 'Book',      full: 'Book' },
-              { id: 'analytics', short: 'Stats',     full: 'Analytics' },
-              { id: 'settings',  short: 'Settings',  full: 'Settings' },
-              { id: 'logout',    short: 'Log out',   full: 'Log out' },
-            ].map(tab => `
-              <button data-tab="${tab.id}"
-                style="padding:6px 10px;border-radius:999px;border:none;cursor:pointer;
-                       font-size:0.72rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;
-                       white-space:nowrap;flex-shrink:0;
-                       background:${section===tab.id ? 'var(--text)' : 'transparent'};
-                       color:${section===tab.id ? 'var(--white)' : 'var(--text-muted)'};">
-                ${section===tab.id ? tab.full : tab.short}
-              </button>`).join('')}
+            <a href="#/" class="label" style="text-decoration:none;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;padding:4px 10px;border:1px solid var(--border);border-radius:999px;">← View Site</a>
+            ${TABS.map((t) => `
+              <button type="button" data-tab="${t.id}" style="padding:6px 10px;border-radius:999px;border:none;cursor:pointer;font-size:0.72rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap;flex-shrink:0;background:${section === t.id ? 'var(--text)' : 'transparent'};color:${section === t.id ? 'var(--white)' : 'var(--text-muted)'};">${t.label}</button>`).join('')}
           </div>
           <span class="admin-owner-name" style="font-size:0.72rem;color:var(--text-muted);font-weight:500;white-space:nowrap;flex-shrink:0;">Vic Munala</span>
-          <style>.admin-owner-name{display:none}@media(min-width:540px){.admin-owner-name{display:inline}}</style>
         </div>
-
-        <div style="max-width:880px;margin:0 auto;padding:40px 24px 80px;">
-          ${section === 'people'    ? renderPeopleSection(orders, subs, tips) : ''}
-          ${section === 'entries'   ? renderEntriesSection(entries) : ''}
-          ${section === 'book'      ? renderBookSection(data.book) : ''}
-          ${section === 'analytics' ? renderAnalyticsSection() : ''}
-          ${section === 'settings'  ? renderSettingsSection() : ''}
-        </div>
+        <div style="max-width:880px;margin:0 auto;padding:40px 24px 80px;">${body}</div>
       </div>`;
+  }
 
-    // Tab buttons
-    app.querySelectorAll('[data-tab]').forEach(btn => {
+  const loadingBlock = (what) => `<p style="color:var(--text-muted);padding:40px 0;" role="status">Loading ${what}…</p>`;
+  const errorBlock = (msg, retryId) => `
+    <div role="alert" style="${CARD_CSS}border-color:hsl(0 60% 80%);">
+      <p style="color:hsl(0 60% 38%);margin-bottom:14px;">${esc(msg)}</p>
+      <button type="button" id="${retryId}" style="padding:8px 18px;border:1.5px solid var(--border);border-radius:999px;background:var(--bg-subtle);font-weight:600;cursor:pointer;">Try again</button>
+    </div>`;
+
+  // ── Data loaders ───────────────────────────────────────────────────────────
+  async function loadEntries(force) {
+    if (store.entries && !force) return;
+    store.entriesErr = null;
+    const list = await getEntriesFromDB();
+    if (list === null) { store.entriesErr = "Couldn't load your entries. Nothing has been changed — check your connection and try again."; return; }
+    store.entries = list;
+  }
+  async function loadStats(force) {
+    if (store.stats && !force) return;
+    store.statsErr = null;
+    const r = await getStatsAdmin();
+    if (r.status === 401) { handleSessionExpired(app); return 'expired'; }
+    if (!r.ok) { store.statsErr = r.error || "Couldn't load the numbers."; return; }
+    store.stats = r.data;
+  }
+  async function loadComments(force) {
+    if (store.comments && !force) return;
+    store.commentsErr = null;
+    const r = await listCommentsAdmin();
+    if (r.status === 401) { handleSessionExpired(app); return 'expired'; }
+    if (!r.ok) { store.commentsErr = r.error || "Couldn't load comments."; return; }
+    store.comments = r.data.comments || [];
+  }
+
+  async function show(nextSection, { force = false } = {}) {
+    section = nextSection;
+    // Paint the shell immediately with a loading line; never leave a blank screen.
+    app.innerHTML = shell(loadingBlock(section === 'people' ? 'the numbers' : section));
+    wireShell();
+
+    let expired;
+    if (section === 'people') expired = await loadStats(force);
+    else if (section === 'entries') await loadEntries(force);
+    else if (section === 'comments') expired = await loadComments(force);
+    if (expired === 'expired') return;
+    if (section !== nextSection) return; // user clicked another tab meanwhile
+
+    let body = '';
+    if (section === 'people') body = store.statsErr ? errorBlock(store.statsErr, 'retry-btn') : renderPeople(store.stats);
+    else if (section === 'entries') body = store.entriesErr ? errorBlock(store.entriesErr, 'retry-btn') : renderEntriesSection(store.entries);
+    else if (section === 'comments') body = store.commentsErr ? errorBlock(store.commentsErr, 'retry-btn') : renderCommentsSection(store.comments);
+    else if (section === 'analytics') body = renderAnalyticsSection();
+    app.innerHTML = shell(body);
+    wireShell();
+    app.querySelector('#retry-btn')?.addEventListener('click', () => show(section, { force: true }));
+
+    if (section === 'people' && !store.statsErr) wirePeople();
+    if (section === 'entries' && !store.entriesErr) wireEntries();
+    if (section === 'comments' && !store.commentsErr) wireComments();
+    if (section === 'analytics') wireAnalytics();
+  }
+
+  function wireShell() {
+    app.querySelectorAll('[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (btn.dataset.tab === 'logout') {
-          sessionStorage.removeItem('tvn_auth');
-          sessionStorage.removeItem('tvn_auth_token');
+          clearAuth();
           window.location.hash = '#/';
           return;
         }
-        section = btn.dataset.tab;
-        render();
+        show(btn.dataset.tab);
       });
     });
-
-    if (section === 'people') wirePeopleEvents(app, render);
-    if (section === 'entries') wireEntriesEvents(app, entries, render);
-    if (section === 'book') wireBookEvents(app, data, render);
-    if (section === 'analytics') wireAnalyticsEvents(app, render);
-    if (section === 'settings') wireSettingsEvents(app, render);
-
-    // Restore a form stashed just before the session expired (once).
-    if (pendingDraft && section === 'entries') {
-      if (pendingDraft.prefix === 'new') {
-        const form = app.querySelector('#new-entry-form');
-        if (form) form.style.display = 'block';
-        populateEntryForm(app, 'new', pendingDraft);
-      } else if (pendingDraft.prefix === 'edit') {
-        const idx = entries.findIndex(en => en.id === pendingDraft.entryId);
-        if (idx !== -1) {
-          const form = app.querySelector(`#edit-form-${idx}`);
-          if (form) form.style.display = 'block';
-          populateEntryForm(app, `edit-${idx}`, pendingDraft);
-        }
-      }
-      pendingDraft = null;
-    }
   }
 
-  await render();
-}
+  // ── People ─────────────────────────────────────────────────────────────────
+  function renderPeople(stats) {
+    const { orders = [], subscribers: subs = [], tips = [] } = stats;
+    const paidOrders = orders.filter((o) => o.status !== 'Awaiting payment');
+    const totalRevenue = paidOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+    const totalTips = tips.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const stat = (label, value, sub, color = 'var(--text)') => `
+      <div style="${CARD_CSS.replace('margin-bottom:32px;', 'margin-bottom:0;padding:24px;')}">
+        <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">${label}</div>
+        <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:${color};line-height:1;margin-bottom:8px;">${value}</div>
+        <div style="font-size:0.85rem;color:var(--text-muted);">${sub}</div>
+      </div>`;
 
-// ── People & Customers Section ───────────────────────────────────────────────
-function renderPeopleSection(orders, subs, tips) {
-  const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.amount) || 1500), 0);
-  const totalTips = tips.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const statusColors = { Delivered: ['hsl(143 60% 92%)', 'hsl(143 80% 25%)'], Dispatched: ['hsl(200 80% 92%)', 'hsl(200 80% 25%)'], 'Awaiting payment': ['hsl(0 0% 92%)', 'hsl(0 0% 30%)'] };
 
-  return `
-    <div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;flex-wrap:wrap;gap:12px;">
-        <div>
-          <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Audience &amp; Direct Sales</p>
-          <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Readers &amp; Customers</h2>
-        </div>
-        <button id="clear-demo-data-btn" style="padding:7px 16px;border:1px solid hsl(0 60% 85%);border-radius:999px;background:none;font-size:0.75rem;font-weight:600;color:hsl(0 60% 55%);cursor:pointer;transition:all 0.15s ease;"
-          onmouseover="this.style.background='hsl(0 60% 95%)'" onmouseout="this.style.background='none'">
-          Clear Demo Stats
-        </button>
-      </div>
-
-      <!-- Stat Cards -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;margin-bottom:32px;">
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Book Orders</div>
-          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:var(--accent);line-height:1;margin-bottom:8px;">${orders.length}</div>
-          <div style="font-size:0.85rem;color:var(--text-muted);">Gross: <strong style="color:var(--text)">KES ${totalRevenue.toLocaleString()}</strong></div>
+    return `
+      <div>
+        <div style="margin-bottom:28px;">
+          <p style="${EYEBROW_CSS}">Audience &amp; Direct Sales</p>
+          <h2 style="${H2_CSS}">Readers &amp; Customers</h2>
         </div>
 
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Newsletter Subscribers</div>
-          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:var(--text);line-height:1;margin-bottom:8px;">${subs.length}</div>
-          <div style="font-size:0.85rem;color:var(--text-muted);">Direct email audience</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;margin-bottom:32px;">
+          ${stat('Orders (paid)', paidOrders.length, `Gross: <strong style="color:var(--text)">KES ${totalRevenue.toLocaleString()}</strong>`, 'var(--accent)')}
+          ${stat('Newsletter Subscribers', subs.length, 'Direct email audience')}
+          ${stat('Soda Supporters', tips.length, `Tips: <strong style="color:var(--text)">KES ${totalTips.toLocaleString()}</strong>`, 'hsl(143 60% 32%)')}
         </div>
 
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Soda Supporters</div>
-          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:hsl(143 60% 40%);line-height:1;margin-bottom:8px;">${tips.length}</div>
-          <div style="font-size:0.85rem;color:var(--text-muted);">Tips: <strong style="color:var(--text)">KES ${totalTips.toLocaleString()}</strong></div>
-        </div>
-      </div>
-
-      <!-- 1. Book Orders Table -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
-          <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;">Book Orders (${orders.length})</h3>
-          <button id="copy-orders-phone" style="padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;font-weight:500;color:var(--text-muted);cursor:pointer;">
-            Copy Customer Phones
-          </button>
-        </div>
-
-        ${orders.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;">No orders yet.</p>` : `
-          <div style="display:flex;flex-direction:column;gap:14px;">
-            ${orders.map((o) => `
-              <div style="border:1px solid var(--border);border-radius:10px;padding:18px 20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;background:var(--bg-subtle);">
-                <div style="flex:1;min-width:260px;">
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                    <strong style="font-size:1.05rem;">${o.name}</strong>
-                    <span style="font-size:0.7rem;color:var(--text-muted);background:var(--white);border:1px solid var(--border);padding:2px 8px;border-radius:4px;">${o.id}</span>
-                    ${o.signed ? `<span style="font-size:0.7rem;background:hsl(44 95% 90%);color:hsl(44 95% 30%);padding:2px 8px;border-radius:4px;font-weight:600;">Signed Copy</span>` : ''}
+        <div style="${CARD_CSS}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+            <h3 style="${H3_CSS}">Orders (${orders.length})</h3>
+            <button type="button" id="copy-orders-phone" style="padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;font-weight:500;color:var(--text-muted);cursor:pointer;">Copy customer phones</button>
+          </div>
+          ${orders.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;">No orders yet.</p>` : `
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              ${orders.map((o) => {
+                const [bg, fg] = statusColors[o.status] || ['hsl(44 95% 92%)', 'hsl(44 95% 25%)'];
+                return `
+                <div style="border:1px solid var(--border);border-radius:10px;padding:18px 20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;background:var(--bg-subtle);">
+                  <div style="flex:1;min-width:240px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                      <strong style="font-size:1.05rem;">${esc(o.name)}</strong>
+                      ${o.signed ? `<span style="font-size:0.7rem;background:hsl(44 95% 90%);color:hsl(44 95% 30%);padding:2px 8px;border-radius:4px;font-weight:600;">Signed copy</span>` : ''}
+                    </div>
+                    <div style="font-size:0.88rem;color:var(--text-muted);line-height:1.6;overflow-wrap:anywhere;">
+                      ${esc(o.address)}<br/>
+                      <a href="https://wa.me/${esc(String(o.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;font-weight:600;">${esc(o.phone)}</a> &middot; ${esc(o.date)} &middot; KES ${Number(o.amount).toLocaleString()}
+                    </div>
                   </div>
-                  <div style="font-size:0.88rem;color:var(--text-muted);line-height:1.6;">
-                    📍 ${o.address}<br/>
-                    📞 <a href="https://wa.me/${o.phone.replace(/[^0-9]/g, '')}" target="_blank" style="color:var(--accent-dark);text-decoration:none;font-weight:600;">${o.phone}</a> &middot; ${o.date} &middot; KES ${Number(o.amount).toLocaleString()}
+                  <div>
+                    <select data-order-status="${esc(o.order_id)}" aria-label="Order status" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.8rem;font-weight:600;cursor:pointer;background:${bg};color:${fg};">
+                      ${ORDER_STATUSES.map((s) => `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                    <div data-order-msg="${esc(o.order_id)}" role="status" style="font-size:0.75rem;margin-top:4px;min-height:1em;"></div>
                   </div>
-                </div>
+                </div>`;
+              }).join('')}
+            </div>`}
+        </div>
 
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <select data-order-status="${o.id}" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.8rem;font-weight:600;cursor:pointer;
-                    background:${o.status==='Delivered' ? 'hsl(143 60% 92%)' : (o.status==='Dispatched' ? 'hsl(200 80% 92%)' : 'hsl(44 95% 92%)')};
-                    color:${o.status==='Delivered' ? 'hsl(143 80% 25%)' : (o.status==='Dispatched' ? 'hsl(200 80% 25%)' : 'hsl(44 95% 25%)')};">
-                    <option value="Paid" ${o.status==='Paid'?'selected':''}>Paid</option>
-                    <option value="Dispatched" ${o.status==='Dispatched'?'selected':''}>Dispatched</option>
-                    <option value="Delivered" ${o.status==='Delivered'?'selected':''}>Delivered</option>
-                  </select>
-                </div>
-              </div>
-            `).join('')}
+        <div style="${CARD_CSS}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+            <h3 style="${H3_CSS}">Newsletter Audience (${subs.length})</h3>
+            <button type="button" id="copy-emails-btn" style="padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;font-weight:500;color:var(--text-muted);cursor:pointer;">Copy all emails</button>
           </div>
-        `}
-      </div>
-
-      <!-- 2. Newsletter Subscribers -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
-          <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;">Newsletter Audience (${subs.length})</h3>
-          <button id="copy-emails-btn" style="padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;font-weight:500;color:var(--text-muted);cursor:pointer;">
-            Copy All Emails (CSV)
-          </button>
-        </div>
-
-        <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
-          ${subs.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">No subscribers yet.</p>` : subs.map(s => `
-            <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.9rem;">
-              <span style="font-weight:500;">${s.email}</span>
-              <span style="color:var(--text-muted);font-size:0.78rem;">${s.date}</span>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-
-      <!-- 3. Soda Supporters Log -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;box-sizing:border-box;">
-        <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:18px;">Soda Tips &amp; Support (${tips.length})</h3>
-        <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
-          ${tips.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">No tips yet.</p>` : tips.map(t => `
-            <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.9rem;">
-              <span>🥤 <strong>KES ${Number(t.amount).toLocaleString()}</strong> &middot; <span style="color:var(--text-muted)">${t.phone}</span></span>
-              <span style="color:var(--text-muted);font-size:0.78rem;">${t.date}</span>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    </div>`;
-}
-
-function wirePeopleEvents(app, render) {
-  // Status dropdown change
-  app.querySelectorAll('[data-order-status]').forEach(select => {
-    select.addEventListener('change', () => {
-      updateOrderStatus(select.dataset.orderStatus, select.value);
-      render();
-    });
-  });
-
-  // Copy customer phones
-  app.querySelector('#copy-orders-phone')?.addEventListener('click', () => {
-    const orders = getOrders();
-    const phones = orders.map(o => `${o.name}: ${o.phone}`).join('\n');
-    navigator.clipboard.writeText(phones);
-    alert('Customer contacts copied to clipboard!');
-  });
-
-  // Copy newsletter emails
-  app.querySelector('#copy-emails-btn')?.addEventListener('click', () => {
-    const subs = getSubscribers();
-    const emails = subs.map(s => s.email).join(', ');
-    navigator.clipboard.writeText(emails);
-    alert('Subscriber emails copied to clipboard!');
-  });
-
-  // Clear demo data button
-  app.querySelector('#clear-demo-data-btn')?.addEventListener('click', () => {
-    if (confirm('Clear all placeholder/demo orders, subscribers, and tips to start fresh?')) {
-      clearDemoData();
-      render();
-    }
-  });
-}
-
-// ── Analytics Section ───────────────────────────────────────────────────────
-function renderAnalyticsSection() {
-  const events = getAnalytics();
-  const visits = events.filter(e => e.type === 'visit');
-  const reads = events.filter(e => e.type === 'read_complete');
-  const subs = getSubscribers();
-
-  // Page breakdowns
-  const pageCounts = {};
-  visits.forEach(v => {
-    const p = v.path || 'home';
-    pageCounts[p] = (pageCounts[p] || 0) + 1;
-  });
-
-  const sortedPages = Object.entries(pageCounts).sort((a, b) => b[1] - a[1]);
-
-  return `
-    <div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;flex-wrap:wrap;gap:12px;">
-        <div>
-          <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Readership &amp; Engagement</p>
-          <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Site Analytics</h2>
-        </div>
-        <button id="clear-analytics-btn" style="padding:6px 14px;border:1px solid hsl(0 60% 88%);border-radius:999px;background:none;font-size:0.75rem;font-weight:600;color:hsl(0 60% 55%);cursor:pointer;">
-          Reset Logs
-        </button>
-      </div>
-
-      <!-- Stat Cards -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:32px;">
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Total Page Views</div>
-          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:var(--text);line-height:1;margin-bottom:8px;">${visits.length}</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Across ${sortedPages.length} unique routes</div>
-        </div>
-
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Completed Reads</div>
-          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:var(--accent);line-height:1;margin-bottom:8px;">${reads.length}</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Reached end of articles</div>
-        </div>
-
-        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;box-sizing:border-box;">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Subscribers</div>
-          <div style="font-family:var(--font-hand);font-size:2.4rem;font-weight:700;color:hsl(143 60% 40%);line-height:1;margin-bottom:8px;">${subs.length}</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Audience conversion</div>
-        </div>
-      </div>
-
-      <!-- Project Engagement Counters (Supabase / Live) -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:8px;">
-          <div>
-            <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin:0;">Project &amp; Creative Engagement</h3>
-            <p style="font-size:0.75rem;color:var(--text-muted);margin:4px 0 0;">Live tracking counters for Beneath the Surface &amp; Under the Mango Tree</p>
+          <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
+            ${subs.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">No subscribers yet.</p>` : subs.map((s) => `
+              <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:0.9rem;">
+                <span style="font-weight:500;overflow-wrap:anywhere;">${esc(s.email)}</span>
+                <span style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap;">${esc(s.date)}</span>
+              </div>`).join('')}
           </div>
-          <span style="font-size:0.7rem;font-family:monospace;background:var(--bg-subtle);padding:4px 8px;border-radius:4px;color:var(--text-muted);">SUPABASE LIVE</span>
+          <div id="copy-msg" role="status" style="font-size:0.8rem;margin-top:10px;min-height:1em;color:var(--text-muted);"></div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;">
-          <div style="padding:16px;background:var(--bg-subtle);border-radius:8px;">
-            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Play Page Views</div>
-            <div id="stat-play-views" style="font-family:var(--font-hand);font-size:1.8rem;font-weight:700;color:var(--text);line-height:1;">0</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Unique visitor sessions</div>
-          </div>
-          <div style="padding:16px;background:var(--bg-subtle);border-radius:8px;">
-            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Trailer Plays</div>
-            <div id="stat-trailer-plays" style="font-family:var(--font-hand);font-size:1.8rem;font-weight:700;color:var(--accent);line-height:1;">0</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Clicks to watch trailer</div>
-          </div>
-          <div style="padding:16px;background:var(--bg-subtle);border-radius:8px;">
-            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">Stream Intent</div>
-            <div id="stat-stream-clicks" style="font-family:var(--font-hand);font-size:1.8rem;font-weight:700;color:hsl(143 60% 40%);line-height:1;">0</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Clicks on stream checkout</div>
+
+        <div style="${CARD_CSS.replace('margin-bottom:32px;', '')}">
+          <h3 style="${H3_CSS}margin-bottom:18px;">Soda Tips &amp; Support (${tips.length})</h3>
+          <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
+            ${tips.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">No tips yet.</p>` : tips.map((t) => `
+              <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:0.9rem;">
+                <span><strong>KES ${Number(t.amount).toLocaleString()}</strong> &middot; <span style="color:var(--text-muted)">${esc(t.phone)}</span></span>
+                <span style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap;">${esc(t.date)}</span>
+              </div>`).join('')}
           </div>
         </div>
-      </div>
-
-      <!-- Page Views Breakdown -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:32px;box-sizing:border-box;">
-        <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:18px;">Page Popularity</h3>
-        ${sortedPages.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;">No page views logged yet.</p>` : `
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            ${sortedPages.map(([page, count]) => `
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-subtle);border-radius:6px;font-size:0.88rem;">
-                <span style="font-family:monospace;color:var(--text);">/${page === 'home' ? '' : page}</span>
-                <span style="font-weight:600;color:var(--accent-dark);">${count} view${count > 1 ? 's' : ''}</span>
-              </div>
-            `).join('')}
-          </div>
-        `}
-      </div>
-
-      <!-- Recent Activity Log -->
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;box-sizing:border-box;">
-        <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:18px;">Recent Activity (${events.length})</h3>
-        ${events.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;">No activity logged yet.</p>` : `
-          <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:var(--bg-subtle);">
-            ${events.slice().reverse().slice(0, 30).map(e => `
-              <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;flex-wrap:wrap;gap:8px;">
-                <span>
-                  ${e.type === 'visit' 
-                    ? `👁️ Visited <code style="background:var(--white);padding:2px 6px;border-radius:4px;border:1px solid var(--border);">/${e.path || ''}</code>` 
-                    : `📖 Finished reading <strong>${e.title || 'entry'}</strong>`}
-                </span>
-                <span style="color:var(--text-muted);font-size:0.75rem;">${new Date(e.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}, ${new Date(e.time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-              </div>
-            `).join('')}
-          </div>
-        `}
-      </div>
-    </div>`;
-}
-
-function wireAnalyticsEvents(app, render) {
-  app.querySelector('#clear-analytics-btn')?.addEventListener('click', () => {
-    if (confirm('Reset all site analytics logs?')) {
-      clearAnalytics();
-      render();
-    }
-  });
-
-  // Fetch Supabase live engagement counters
-  getCounters(['play_views', 'trailer_clicks', 'play_watch_clicks']).then(stats => {
-    const playViewsEl = app.querySelector('#stat-play-views');
-    const trailerPlaysEl = app.querySelector('#stat-trailer-plays');
-    const streamClicksEl = app.querySelector('#stat-stream-clicks');
-    if (playViewsEl && stats.play_views !== undefined) playViewsEl.textContent = Number(stats.play_views).toLocaleString();
-    if (trailerPlaysEl && stats.trailer_clicks !== undefined) trailerPlaysEl.textContent = Number(stats.trailer_clicks).toLocaleString();
-    if (streamClicksEl && stats.play_watch_clicks !== undefined) streamClicksEl.textContent = Number(stats.play_watch_clicks).toLocaleString();
-  }).catch(() => {});
-}
-
-// ── Entries section ──────────────────────────────────────────────────────────
-function renderEntriesSection(entries) {
-  return `
-    <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;flex-wrap:wrap;gap:12px;">
-        <div>
-          <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Published Works</p>
-          <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Entries (${entries.length})</h2>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="export-entries-btn" style="padding:10px 18px;background:var(--bg-subtle);
-            color:var(--text);border:1.5px solid var(--border);border-radius:999px;font-size:0.82rem;font-weight:600;cursor:pointer;">
-            ↓ Export entries.js
-          </button>
-          <button id="new-entry-btn" style="padding:10px 22px;background:var(--accent);
-            color:var(--text);border:none;border-radius:999px;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-            + New Entry
-          </button>
-        </div>
-      </div>
-
-      <!-- New entry form (hidden by default) -->
-      <div id="new-entry-form" style="display:none;background:var(--white);border:1px solid var(--border);
-           border-radius:14px;padding:28px;margin-bottom:28px;box-sizing:border-box;">
-        ${entryFormHTML({ id: '', meta:'', category:'Essay', date:'', title:'', excerpt:'', body:[] }, true)}
-      </div>
-
-      <!-- Entry list -->
-      <div style="display:flex;flex-direction:column;gap:16px;">
-        ${entries.map((e, i) => `
-          <div class="admin-entry-card" data-idx="${i}"
-               style="background:var(--white);border:1px solid var(--border);border-radius:12px;
-                      padding:24px 28px;box-sizing:border-box;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
-              <div style="flex:1;">
-                <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;
-                            color:var(--text-muted);margin-bottom:6px;">${e.meta}</div>
-                <div style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;color:var(--accent-dark);line-height:1.25;margin-bottom:8px;">${e.title}</div>
-                <p style="font-size:0.88rem;color:var(--text-muted);line-height:1.5;margin:0;">${e.excerpt || ''}</p>
-              </div>
-              <div style="display:flex;gap:8px;flex-shrink:0;">
-                <button data-edit="${i}"
-                  style="padding:6px 16px;border:1.5px solid var(--border);
-                         border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:var(--bg-subtle);
-                         color:var(--text);">Edit</button>
-                <button data-delete="${i}"
-                  style="padding:6px 14px;border:1.5px solid hsl(0 60% 88%);
-                         border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:none;
-                         color:hsl(0 60% 55%);">Delete</button>
-              </div>
-            </div>
-            <div id="delete-status-${i}" style="display:none;margin-top:12px;font-size:0.82rem;padding:8px 12px;border-radius:8px;background:var(--bg-subtle);"></div>
-            <!-- Inline edit form -->
-            <div id="edit-form-${i}" style="display:none;margin-top:24px;padding-top:24px;
-                 border-top:1px solid var(--border);">
-              ${entryFormHTML(e, false, i)}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>`;
-}
-
-function getPreviewParagraphsByWords(bodyParagraphs, maxWords = 100) {
-  if (!Array.isArray(bodyParagraphs) || bodyParagraphs.length === 0) return [];
-  const result = [];
-  let currentWords = 0;
-  for (const para of bodyParagraphs) {
-    if (currentWords >= maxWords) break;
-    const wordsInPara = para.trim().split(/\s+/).filter(Boolean);
-    if (currentWords + wordsInPara.length <= maxWords) {
-      result.push(para);
-      currentWords += wordsInPara.length;
-    } else {
-      const remaining = maxWords - currentWords;
-      if (remaining > 0) {
-        const sliced = wordsInPara.slice(0, remaining).join(' ') + '...';
-        result.push(sliced);
-        currentWords += remaining;
-      }
-      break;
-    }
+      </div>`;
   }
-  return result.length > 0 ? result : [bodyParagraphs[0]];
-}
 
-function insertAtCursor(textarea, text) {
-  if (!textarea) return;
-  const start = textarea.selectionStart || 0;
-  const end = textarea.selectionEnd || 0;
-  const val = textarea.value;
-  textarea.value = val.substring(0, start) + text + val.substring(end);
-  textarea.selectionStart = textarea.selectionEnd = start + text.length;
-  textarea.focus();
-}
-
-function wrapSelection(textarea, before, after) {
-  if (!textarea) return;
-  const start = textarea.selectionStart || 0;
-  const end = textarea.selectionEnd || 0;
-  const val = textarea.value;
-  const selected = val.substring(start, end) || 'text';
-  textarea.value = val.substring(0, start) + before + selected + after + val.substring(end);
-  textarea.selectionStart = start + before.length;
-  textarea.selectionEnd = start + before.length + selected.length;
-  textarea.focus();
-}
-
-const CATEGORIES = ['Fiction', 'Random Thoughts', 'Shorts', 'Essay', 'Article', 'Reflections'];
-
-function entryFormHTML(e, isNew, idx = '') {
-  let bodyList = Array.isArray(e.body) ? e.body : [];
-  if (e.id && Number(e.price) > 0) {
+  async function copyText(text, okMsg) {
+    const msg = app.querySelector('#copy-msg');
+    const say = (m, ok) => { if (msg) { msg.textContent = m; msg.style.color = ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'; } };
     try {
-      const privateBody = localStorage.getItem(`tvn_paid_${e.id}`);
-      if (privateBody) bodyList = JSON.parse(privateBody);
-    } catch (_) {}
+      await navigator.clipboard.writeText(text);
+      say(okMsg, true);
+    } catch (_) {
+      say("Couldn't copy automatically — select the text and copy it by hand.", false);
+    }
   }
-  const bodyText = bodyList.join('\n\n');
-  const prefix = isNew ? 'new' : `edit-${idx}`;
-  const authorVal = e.author || 'Vic Munala';
-  const priceVal = e.price !== undefined ? e.price : 0;
-  const todayFormatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  const displayDate = isNew ? todayFormatted : (e.date || todayFormatted);
 
-  const previewWordsVal = e.previewWords !== undefined ? e.previewWords : (e.previewCount !== undefined && e.previewCount > 10 ? e.previewCount : 100);
+  function wirePeople() {
+    const { orders = [], subscribers: subs = [] } = store.stats;
+    app.querySelectorAll('[data-order-status]').forEach((select) => {
+      const orderId = select.dataset.orderStatus;
+      const original = orders.find((o) => o.order_id === orderId)?.status;
+      select.addEventListener('change', async () => {
+        const msg = app.querySelector(`[data-order-msg="${CSS.escape(orderId)}"]`);
+        select.disabled = true;
+        if (msg) { msg.style.color = 'var(--text-muted)'; msg.textContent = 'Saving…'; }
+        const r = await setOrderStatusAdmin(orderId, select.value);
+        if (r.status === 401) { handleSessionExpired(app); return; }
+        select.disabled = false;
+        if (r.ok) {
+          const o = orders.find((x) => x.order_id === orderId);
+          if (o) o.status = select.value;
+          if (msg) { msg.style.color = 'hsl(143 55% 28%)'; msg.textContent = 'Saved ✓'; }
+        } else {
+          select.value = original || select.value;
+          if (msg) { msg.style.color = 'hsl(0 60% 42%)'; msg.textContent = r.error || "Couldn't save"; }
+        }
+      });
+    });
+    app.querySelector('#copy-orders-phone')?.addEventListener('click', () =>
+      copyText(orders.map((o) => `${o.name}: ${o.phone}`).join('\n'), 'Customer contacts copied.'));
+    app.querySelector('#copy-emails-btn')?.addEventListener('click', () =>
+      copyText(subs.map((s) => s.email).join(', '), 'Subscriber emails copied.'));
+  }
 
-  return `
-    <div style="display:flex;flex-direction:column;gap:18px;">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:16px;">
-        <div>
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Category</label>
-          <select id="${prefix}-category" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--white);color:var(--text);cursor:pointer;">
-            ${CATEGORIES.map(c => `<option ${e.category===c?'selected':''}>${c}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Publish Date</label>
-          <div style="padding:10px 14px;background:var(--bg-subtle);border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;color:var(--text);font-weight:500;">
-            ${isNew ? `Today (${todayFormatted})` : displayDate}
-          </div>
-          <input type="hidden" id="${prefix}-date" value="${displayDate}" />
-        </div>
-        <div>
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Author</label>
-          <input id="${prefix}-author" value="${authorVal}" placeholder="Vic Munala"
-            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
-        </div>
-        <div>
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Price (KES) — 0 = Free</label>
-          <input id="${prefix}-price" type="number" min="0" value="${priceVal}" placeholder="0"
-            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;"
-            oninput="const w=this.closest('div').querySelector('.price-warn');if(w)w.style.display=Number(this.value)>0?'block':'none';" />
-          <div class="price-warn" style="display:${priceVal > 0 ? 'block' : 'none'};margin-top:6px;padding:7px 10px;background:#FFF3CD;border:1px solid #FFC107;border-radius:6px;font-size:0.75rem;color:#7A5000;font-weight:500;">
-            ⚠️ Any price above 0 locks this article behind an M-Pesa paywall. Set to 0 to make it free.
-          </div>
-        </div>
-        <div>
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Free Preview (Words)</label>
-          <input id="${prefix}-preview-count" type="number" min="10" step="10" value="${previewWordsVal}" placeholder="100" title="How many words readers see before the paywall"
-            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
-        </div>
-      </div>
+  // ── Comments moderation ────────────────────────────────────────────────────
+  function renderCommentsSection(list) {
+    const titleOf = (id) => (store.entries || []).find((e) => e.id === id)?.title || 'Unknown entry';
+    return `
       <div>
-        <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Title</label>
-        <input id="${prefix}-title" value="${e.title||''}" placeholder="Entry title"
-          style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;box-sizing:border-box;" />
-      </div>
+        <div style="margin-bottom:28px;">
+          <p style="${EYEBROW_CSS}">Moderation</p>
+          <h2 style="${H2_CSS}">Comments (${list.length})</h2>
+        </div>
+        <div style="${CARD_CSS.replace('margin-bottom:32px;', '')}">
+          ${list.length === 0 ? `<p style="color:var(--text-muted);">No comments yet.</p>` : list.map((c) => `
+            <div data-comment-row="${esc(c.id)}" style="padding:16px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:16px;align-items:flex-start;">
+              <div style="min-width:0;">
+                <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:4px;">${esc(c.author)} &middot; ${esc(new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }))} &middot; ${esc(titleOf(c.entry_id))}</div>
+                <div style="font-size:0.95rem;line-height:1.55;overflow-wrap:anywhere;">${esc(c.comment)}</div>
+                <div data-comment-msg="${esc(c.id)}" role="status" style="font-size:0.78rem;margin-top:4px;color:hsl(0 60% 42%);"></div>
+              </div>
+              <button type="button" data-del-comment="${esc(c.id)}" style="padding:6px 14px;border:1.5px solid hsl(0 60% 88%);border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:none;color:hsl(0 60% 45%);flex-shrink:0;">Delete</button>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  async function wireComments() {
+    // Entry titles make the list readable; fetch them quietly if we don't have them yet.
+    if (!store.entries) { await loadEntries(); if (section === 'comments') { app.innerHTML = shell(renderCommentsSection(store.comments)); wireShell(); } }
+    app.querySelectorAll('[data-del-comment]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this comment permanently?')) return;
+        const id = btn.dataset.delComment;
+        const msg = app.querySelector(`[data-comment-msg="${CSS.escape(id)}"]`);
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+        const r = await deleteCommentAdmin(id);
+        if (r.status === 401) { handleSessionExpired(app); return; }
+        if (!r.ok) {
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+          if (msg) msg.textContent = r.error || "Couldn't delete this comment.";
+          return;
+        }
+        store.comments = store.comments.filter((c) => c.id !== id);
+        show('comments');
+      });
+    });
+  }
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  function renderAnalyticsSection() {
+    const box = (label, id, color, sub) => `
+      <div style="padding:16px;background:var(--bg-subtle);border-radius:8px;">
+        <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:6px;">${label}</div>
+        <div id="${id}" style="font-family:var(--font-hand);font-size:1.8rem;font-weight:700;color:${color};line-height:1;">…</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${sub}</div>
+      </div>`;
+    return `
       <div>
-        <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Excerpt (teaser sentence)</label>
-        <input id="${prefix}-excerpt" value="${e.excerpt||''}" placeholder="Short teaser sentence"
-          style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
-      </div>
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-          <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0;">Body (separate paragraphs with a blank line)</label>
-          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-            <button type="button" data-format-bold="${prefix}" title="Bold" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;font-weight:700;color:var(--text);cursor:pointer;">
-              B
-            </button>
-            <button type="button" data-format-italic="${prefix}" title="Italic" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;font-style:italic;font-family:serif;color:var(--text);cursor:pointer;">
-              I
-            </button>
-            <button type="button" data-format-underline="${prefix}" title="Underline" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;text-decoration:underline;color:var(--text);cursor:pointer;">
-              U
-            </button>
-            <button type="button" data-format-quote="${prefix}" title="Quote" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;color:var(--text);cursor:pointer;">
-              “ ” Quote
-            </button>
-            <button type="button" data-format-hr="${prefix}" title="Divider" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;color:var(--text);cursor:pointer;">
-              — Divider
-            </button>
+        <div style="margin-bottom:28px;">
+          <p style="${EYEBROW_CSS}">Readership &amp; Engagement</p>
+          <h2 style="${H2_CSS}">Stats</h2>
+        </div>
+        <div style="${CARD_CSS}">
+          <h3 style="${H3_CSS}margin-bottom:6px;">Where the real readership numbers are</h3>
+          <p style="font-size:0.92rem;line-height:1.6;color:var(--text-muted);">Page views, readers and where they come from are in <strong>Google Analytics</strong> (your Viewer access on the site's property). This page only shows counters that live in the database, so the numbers here are the same for everyone, not just this browser.</p>
+        </div>
+        <div style="${CARD_CSS.replace('margin-bottom:32px;', '')}">
+          <h3 style="${H3_CSS}margin-bottom:4px;">Project &amp; creative engagement</h3>
+          <p id="counter-note" style="font-size:0.75rem;color:var(--text-muted);margin:0 0 18px;">Live counters for Beneath the Surface</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;">
+            ${box('Projects page views', 'stat-play-views', 'var(--text)', 'Unique visitor sessions')}
+            ${box('Trailer plays', 'stat-trailer-plays', 'var(--accent)', 'Clicks to watch trailer')}
+            ${box('Stream intent', 'stat-stream-clicks', 'hsl(143 60% 32%)', 'Clicks on stream checkout')}
           </div>
         </div>
-        <textarea id="${prefix}-body" rows="18" placeholder="First paragraph...&#10;&#10;Second paragraph..."
-          style="width:100%;min-height:380px;padding:16px;border:1.5px solid var(--border);border-radius:8px;
-                 font-size:0.95rem;font-family:var(--font-sans);line-height:1.75;resize:vertical;box-sizing:border-box;">${bodyText}</textarea>
-      </div>
-      <div style="display:flex;gap:12px;">
-        <button data-save="${isNew ? 'new' : idx}"
-          style="padding:10px 24px;background:var(--text);color:var(--white);
-                 border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">
-          ${isNew ? 'Publish Entry' : 'Save Changes'}
-        </button>
-        <button data-cancel="${isNew ? 'new' : idx}"
-          style="padding:10px 20px;border:1.5px solid var(--border);background:none;
-                 border-radius:999px;font-size:0.85rem;color:var(--text-muted);cursor:pointer;">
-          Cancel
-        </button>
-      </div>
-      <div id="${prefix}-form-status" style="display:none;font-size:0.82rem;padding:8px 12px;border-radius:8px;background:var(--bg-subtle);"></div>
-    </div>`;
-}
+      </div>`;
+  }
 
-function wireEntriesEvents(app, entries, render) {
-
-  // Wire text formatting buttons
-  app.querySelectorAll('[data-format-bold]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const p = btn.dataset.formatBold;
-      const ta = app.querySelector(`#${p}-body`);
-      wrapSelection(ta, '**', '**');
+  function wireAnalytics() {
+    getCounters(['play_views', 'trailer_clicks', 'play_watch_clicks']).then((stats) => {
+      const set = (id, v) => { const el = app.querySelector(id); if (el) el.textContent = Number(v ?? 0).toLocaleString(); };
+      set('#stat-play-views', stats.play_views);
+      set('#stat-trailer-plays', stats.trailer_clicks);
+      set('#stat-stream-clicks', stats.play_watch_clicks);
+    }).catch(() => {
+      const n = app.querySelector('#counter-note');
+      if (n) { n.textContent = "Couldn't load the counters right now."; n.style.color = 'hsl(0 60% 42%)'; }
     });
-  });
+  }
 
-  app.querySelectorAll('[data-format-italic]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const p = btn.dataset.formatItalic;
-      const ta = app.querySelector(`#${p}-body`);
-      wrapSelection(ta, '*', '*');
-    });
-  });
+  // ── Entries ────────────────────────────────────────────────────────────────
+  function renderEntriesSection(entries) {
+    return `
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <p style="${EYEBROW_CSS}">Published Works</p>
+            <h2 style="${H2_CSS}">Entries (${entries.length})</h2>
+          </div>
+          <button type="button" id="new-entry-btn" style="padding:10px 22px;background:var(--accent);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:700;cursor:pointer;">+ New Entry</button>
+        </div>
 
-  app.querySelectorAll('[data-format-underline]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const p = btn.dataset.formatUnderline;
-      const ta = app.querySelector(`#${p}-body`);
-      wrapSelection(ta, '<u>', '</u>');
-    });
-  });
+        <div id="new-entry-form" style="display:none;background:var(--white);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:28px;box-sizing:border-box;">
+          ${entryFormHTML({ id: '', category: 'Essay', date: '', title: '', excerpt: '', body: [] }, 'new')}
+        </div>
 
-  app.querySelectorAll('[data-format-quote]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const p = btn.dataset.formatQuote;
-      const ta = app.querySelector(`#${p}-body`);
-      wrapSelection(ta, '> ', '');
-    });
-  });
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          ${entries.map((e) => `
+            <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px 28px;box-sizing:border-box;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:200px;">
+                  <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">${esc(e.category)} · ${esc(e.date)}${Number(e.price) > 0 ? ` · KES ${Number(e.price).toLocaleString()}` : ' · Free'}</div>
+                  <div style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;color:var(--text);line-height:1.25;margin-bottom:8px;">${esc(e.title)}</div>
+                  <p style="font-size:0.88rem;color:var(--text-muted);line-height:1.5;margin:0;">${esc(e.excerpt || '')}</p>
+                </div>
+                <div style="display:flex;gap:8px;flex-shrink:0;">
+                  <button type="button" data-edit="${esc(e.id)}" style="padding:6px 16px;border:1.5px solid var(--border);border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:var(--bg-subtle);color:var(--text);">Edit</button>
+                  <button type="button" data-delete="${esc(e.id)}" style="padding:6px 14px;border:1.5px solid hsl(0 60% 88%);border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:none;color:hsl(0 60% 45%);">Delete</button>
+                </div>
+              </div>
+              <div data-delete-status="${esc(e.id)}" role="status" style="display:none;margin-top:12px;font-size:0.85rem;padding:8px 12px;border-radius:8px;background:var(--bg-subtle);"></div>
+              <div data-edit-form="${esc(e.id)}" style="display:none;margin-top:24px;padding-top:24px;border-top:1px solid var(--border);"></div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
 
-  app.querySelectorAll('[data-format-hr]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const p = btn.dataset.formatHr;
-      const ta = app.querySelector(`#${p}-body`);
-      insertAtCursor(ta, '\n\n---\n\n');
-    });
-  });
+  /** Form markup. `key` is 'new' or the entry id; ids are `f-<key>-<field>` (key is [\w-] only). */
+  function entryFormHTML(e, key, opts = {}) {
+    const todayFormatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const displayDate = key === 'new' ? todayFormatted : (e.date || todayFormatted);
+    const priceVal = e.price !== undefined ? e.price : 0;
+    const previewWordsVal = e.previewWords || 100;
+    const bodyText = (Array.isArray(e.body) ? e.body : []).join('\n\n');
+    const p = `f-${key}`;
+    const btn = (attr, title, css, label) => `<button type="button" ${attr}="${p}" title="${title}" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);font-size:0.8rem;color:var(--text);cursor:pointer;${css}">${label}</button>`;
+    return `
+      <div style="display:flex;flex-direction:column;gap:18px;" data-form="${key}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:16px;">
+          <div>
+            <label for="${p}-category" style="${LABEL_CSS}">Category</label>
+            <select id="${p}-category" style="${FIELD_CSS}cursor:pointer;">${CATEGORIES.map((c) => `<option ${e.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+          </div>
+          <div>
+            <span style="${LABEL_CSS}">Publish Date</span>
+            <div style="padding:10px 14px;background:var(--bg-subtle);border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;font-weight:500;">${key === 'new' ? `Today (${esc(todayFormatted)})` : esc(displayDate)}</div>
+            <input type="hidden" id="${p}-date" value="${esc(displayDate)}" />
+          </div>
+          <div>
+            <label for="${p}-author" style="${LABEL_CSS}">Author</label>
+            <input id="${p}-author" value="${esc(e.author || 'Vic Munala')}" placeholder="Vic Munala" style="${FIELD_CSS}" />
+          </div>
+          <div>
+            <label for="${p}-price" style="${LABEL_CSS}">Price (KES) — 0 = Free</label>
+            <input id="${p}-price" type="number" min="0" value="${esc(priceVal)}" inputmode="numeric" style="${FIELD_CSS}" />
+            <div id="${p}-price-warn" style="display:${priceVal > 0 ? 'block' : 'none'};margin-top:6px;padding:7px 10px;background:#FFF3CD;border:1px solid #FFC107;border-radius:6px;font-size:0.75rem;color:#7A5000;font-weight:500;">⚠️ Any price above 0 locks this article behind an M-Pesa paywall (minimum KES ${MIN_PRICE}). Set to 0 to make it free.</div>
+          </div>
+          <div>
+            <label for="${p}-preview" style="${LABEL_CSS}">Free Preview (Words)</label>
+            <input id="${p}-preview" type="number" min="10" step="10" value="${esc(previewWordsVal)}" style="${FIELD_CSS}" />
+          </div>
+        </div>
+        <div>
+          <label for="${p}-title" style="${LABEL_CSS}">Title</label>
+          <input id="${p}-title" value="${esc(e.title || '')}" placeholder="Entry title" style="${FIELD_CSS}" />
+        </div>
+        <div>
+          <label for="${p}-excerpt" style="${LABEL_CSS}">Excerpt (teaser sentence)</label>
+          <input id="${p}-excerpt" value="${esc(e.excerpt || '')}" placeholder="Short teaser sentence" style="${FIELD_CSS}" />
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <label for="${p}-body" style="${LABEL_CSS}margin:0;">Body (separate paragraphs with a blank line)</label>
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+              ${btn('data-fmt-bold', 'Bold', 'font-weight:700;', 'B')}
+              ${btn('data-fmt-italic', 'Italic', 'font-style:italic;font-family:serif;', 'I')}
+              ${btn('data-fmt-underline', 'Underline', 'text-decoration:underline;', 'U')}
+              ${btn('data-fmt-quote', 'Quote', '', '“ ” Quote')}
+              ${btn('data-fmt-hr', 'Scene break', '', '⁂ Scene break')}
+            </div>
+          </div>
+          <textarea id="${p}-body" rows="18" ${opts.bodyLocked ? 'disabled' : ''} placeholder="First paragraph...&#10;&#10;Second paragraph..." style="${FIELD_CSS}min-height:380px;padding:16px;font-size:0.95rem;line-height:1.75;resize:vertical;">${esc(bodyText)}</textarea>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <button type="button" data-save="${key}" ${opts.bodyLocked ? 'disabled' : ''} style="padding:10px 24px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">${key === 'new' ? 'Publish Entry' : 'Save Changes'}</button>
+          <button type="button" data-cancel="${key}" style="padding:10px 20px;border:1.5px solid var(--border);background:none;border-radius:999px;font-size:0.85rem;color:var(--text-muted);cursor:pointer;">Cancel</button>
+          <span data-draft-note="${key}" style="font-size:0.75rem;color:var(--text-muted);"></span>
+        </div>
+        <div id="${p}-status" role="status" aria-live="polite" style="display:none;font-size:0.85rem;padding:8px 12px;border-radius:8px;background:var(--bg-subtle);"></div>
+      </div>`;
+  }
 
-  app.querySelector('#new-entry-btn')?.addEventListener('click', () => {
-    const form = app.querySelector('#new-entry-form');
-    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
-  });
+  function readForm(key) {
+    const g = (f) => app.querySelector(`#f-${key}-${f}`);
+    const bodyRaw = g('body')?.value?.trim() ?? '';
+    return {
+      category: g('category')?.value ?? 'Essay',
+      date: g('date')?.value?.trim() ?? '',
+      author: g('author')?.value?.trim() || 'Vic Munala',
+      price: Number(g('price')?.value) || 0,
+      previewWords: Math.max(10, parseInt(g('preview')?.value || '100', 10) || 100),
+      title: g('title')?.value?.trim() ?? '',
+      excerpt: g('excerpt')?.value?.trim() ?? '',
+      body: bodyRaw.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean),
+      bodyRaw: g('body')?.value ?? '',
+    };
+  }
 
-  // Export entries.js — generates a deployable file with paid fullBody embedded
-  app.querySelector('#export-entries-btn')?.addEventListener('click', () => {
-    // Build the export list: for paid entries, include fullBody from localStorage
-    const exportList = entries.map(e => {
-      const isPaid = Number(e.price) > 0;
-      if (isPaid) {
-        let fullBody = [];
-        try {
-          const raw = localStorage.getItem(`tvn_paid_${e.id}`);
-          if (raw) fullBody = JSON.parse(raw);
-        } catch (_) {}
-        if (!Array.isArray(fullBody) || fullBody.length === 0) fullBody = Array.isArray(e.body) ? e.body : [];
-        const previewWords = Number(e.previewWords) > 0 ? Number(e.previewWords) : 100;
-        const previewBody = getPreviewParagraphsByWords(fullBody, previewWords);
-        return { ...e, body: previewBody, fullBody };
+  function setStatus(key, type, msg) {
+    const el = app.querySelector(`#f-${key}-status`);
+    if (!el) return;
+    if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.style.display = 'block';
+    el.style.color = type === 'error' ? 'hsl(0 60% 38%)' : type === 'success' ? 'hsl(143 55% 28%)' : 'var(--text-muted)';
+    el.textContent = msg;
+  }
+
+  function previewByWords(paragraphs, maxWords) {
+    const out = [];
+    let count = 0;
+    for (const para of paragraphs) {
+      if (count >= maxWords) break;
+      const words = para.trim().split(/\s+/).filter(Boolean);
+      if (count + words.length <= maxWords) { out.push(para); count += words.length; }
+      else {
+        const rest = maxWords - count;
+        if (rest > 0) out.push(words.slice(0, rest).join(' '));
+        break;
       }
-      // Free article — no fullBody field needed
-      const out = { ...e };
-      delete out.fullBody;
-      return out;
+    }
+    return out.length ? out : [paragraphs[0]];
+  }
+
+  function wrapSelection(ta, before, after) {
+    if (!ta) return;
+    const s = ta.selectionStart || 0, e = ta.selectionEnd || 0;
+    const sel = ta.value.substring(s, e) || 'text';
+    ta.value = ta.value.substring(0, s) + before + sel + after + ta.value.substring(e);
+    ta.selectionStart = s + before.length;
+    ta.selectionEnd = s + before.length + sel.length;
+    ta.focus();
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  /** Wire formatting buttons, price warning and autosave for the form with this key. */
+  function wireFormCommon(key, draftId) {
+    const p = `f-${key}`;
+    const ta = app.querySelector(`#${p}-body`);
+    const fmt = (attr, before, after, insert) => app.querySelector(`[${attr}="${p}"]`)?.addEventListener('click', () => {
+      if (insert) {
+        const s = ta.selectionStart || 0;
+        ta.value = ta.value.slice(0, s) + insert + ta.value.slice(ta.selectionEnd || s);
+        ta.selectionStart = ta.selectionEnd = s + insert.length;
+        ta.focus();
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+      } else wrapSelection(ta, before, after);
+    });
+    fmt('data-fmt-bold', '**', '**');
+    fmt('data-fmt-italic', '*', '*');
+    fmt('data-fmt-underline', '<u>', '</u>');
+    fmt('data-fmt-quote', '> ', '');
+    fmt('data-fmt-hr', '', '', '\n\n---\n\n');
+
+    const priceEl = app.querySelector(`#${p}-price`);
+    priceEl?.addEventListener('input', () => {
+      const warn = app.querySelector(`#${p}-price-warn`);
+      if (warn) warn.style.display = Number(priceEl.value) > 0 ? 'block' : 'none';
     });
 
-    const serialise = (v) => {
-      if (typeof v === 'string') return JSON.stringify(v);
-      if (typeof v === 'number') return String(v);
-      if (typeof v === 'boolean') return String(v);
-      if (v === null || v === undefined) return 'null';
-      if (Array.isArray(v)) return '[\n' + v.map(i => '      ' + serialise(i)).join(',\n') + '\n    ]';
-      if (typeof v === 'object') {
-        const pairs = Object.entries(v)
-          .filter(([, val]) => val !== undefined)
-          .map(([k, val]) => `    ${k}: ${serialise(val)}`);
-        return '{\n' + pairs.join(',\n') + '\n  }';
-      }
-      return String(v);
+    // Autosave: 600ms after the last keystroke, kept until the entry is actually saved.
+    let t = null;
+    const note = app.querySelector(`[data-draft-note="${key}"]`);
+    const form = app.querySelector(`[data-form="${key}"]`);
+    form?.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        saveDraft(draftId, readForm(key));
+        if (note) note.textContent = 'Draft autosaved on this device';
+      }, 600);
+    });
+  }
+
+  function hydrateFromDraft(key, draft) {
+    const set = (f, v) => { const el = app.querySelector(`#f-${key}-${f}`); if (el) el.value = v ?? ''; };
+    set('category', draft.category); set('author', draft.author); set('price', draft.price);
+    set('preview', draft.previewWords); set('title', draft.title); set('excerpt', draft.excerpt);
+    set('body', draft.bodyRaw ?? (draft.body || []).join('\n\n'));
+    app.querySelector(`#f-${key}-price`)?.dispatchEvent(new Event('input'));
+    const note = app.querySelector(`[data-draft-note="${key}"]`);
+    if (note) note.textContent = 'Restored your unsaved draft';
+  }
+
+  async function save(key, entryOrNull) {
+    const btn = app.querySelector(`[data-save="${key}"]`);
+    if (!btn || btn.disabled) return;
+    const f = readForm(key);
+    if (!f.title) { setStatus(key, 'error', 'Give the entry a title first.'); return; }
+    if (f.body.length === 0) { setStatus(key, 'error', 'The body is empty.'); return; }
+    if (f.price > 0 && f.price < MIN_PRICE) { setStatus(key, 'error', `The lowest price M-Pesa can charge is KES ${MIN_PRICE}. Use 0 for free.`); return; }
+
+    const isPaid = f.price > 0;
+    const id = entryOrNull ? entryOrNull.id : String(Date.now());
+    const entry = {
+      ...(entryOrNull || {}),
+      id, slug: entryOrNull ? entryOrNull.slug : id,
+      category: f.category, date: f.date || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      author: f.author, price: f.price, previewWords: f.previewWords, title: f.title, excerpt: f.excerpt,
+      // Paid entries publish only the preview; the full text goes to full_body IN THE SAME REQUEST.
+      body: isPaid ? previewByWords(f.body, f.previewWords) : f.body,
     };
 
-    const lines = exportList.map(e => '  ' + serialise(e));
-    const fileContent = `// Shared entry data — auto-exported from admin panel on ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}\n// Paid entries include a fullBody field (preview in body, full content in fullBody)\nexport const ENTRIES = [\n${lines.join(',\n')},\n];\n`;
-
-    const blob = new Blob([fileContent], { type: 'text/javascript' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'entries.js';
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-
-
-  app.querySelector('[data-save="new"]')?.addEventListener('click', async () => {
-    const btn = app.querySelector('[data-save="new"]');
-    const e = readEntryForm(app, 'new');
-    if (!e.title) return;
-    const newId = String(Date.now());
-    const words = Number(e.previewWords) > 0 ? Number(e.previewWords) : 100;
-
-    let bodyToStore = e.body;
-    const fullBodyParagraphs = e.body; // always preserve the full body
-    if (e.price > 0) {
-      // Paid entry: save only preview to Supabase body column
-      bodyToStore = getPreviewParagraphsByWords(e.body, words);
-    }
-
-    const newEntry = { ...e, id: newId, slug: newId, previewWords: words, body: bodyToStore };
-
     btn.disabled = true;
-    const originalLabel = btn.textContent;
-    btn.textContent = 'Publishing…';
-    setFormStatus(app, 'new', null, null);
+    const label = btn.textContent;
+    btn.textContent = key === 'new' ? 'Publishing…' : 'Saving…';
+    setStatus(key, 'info', 'Saving…');
 
-    // Save the entry metadata + preview body
-    const saveRes = await upsertEntryToDB(newEntry);
-    if (saveRes.status === 401) {
-      handleSessionExpired(app, { prefix: 'new', ...e });
-      return;
-    }
-    if (!saveRes.ok) {
-      setFormStatus(app, 'new', 'error', saveRes.error || 'Could not save this entry. Please try again.');
+    const r = await upsertEntryToDB(entry, isPaid ? f.body : undefined);
+    if (r.status === 401) { handleSessionExpired(app); return; }
+    if (!r.ok) {
+      setStatus(key, 'error', `${r.error || "Couldn't save."} Nothing was lost — your text is still here and autosaved. Try again.`);
       btn.disabled = false;
-      btn.textContent = originalLabel;
+      btn.textContent = label;
       return;
     }
-    if (e.price > 0) {
-      // Save full body separately to full_body column — only accessible via server-side /api/get-content
-      const bodyRes = await upsertEntryFullBodyToDB(newId, fullBodyParagraphs);
-      if (bodyRes.status === 401) {
-        handleSessionExpired(app, { prefix: 'new', ...e });
-        return;
-      }
-      if (!bodyRes.ok) {
-        setFormStatus(app, 'new', 'error', 'Entry saved, but the paid full text failed to save. Click Publish Entry again to retry.');
-        btn.disabled = false;
-        btn.textContent = originalLabel;
-        return;
-      }
+    clearDraft(key === 'new' ? 'new' : id);
+    openForms.delete(key);
+    invalidateEntryList();
+    setStatus(key, 'success', key === 'new' ? '✓ Published.' : '✓ Saved.');
+    store.entries = null;
+    setTimeout(() => show('entries', { force: true }), 600);
+  }
+
+  function wireEntries() {
+    const entries = store.entries;
+    const newForm = app.querySelector('#new-entry-form');
+
+    function openNew() {
+      newForm.style.display = 'block';
+      openForms.add('new');
     }
-    setFormStatus(app, 'new', 'success', '✓ Published.');
-    setTimeout(() => render(), 700);
-  });
+    wireFormCommon('new', 'new');
+    const nd = loadDraft('new');
+    if (nd || openForms.has('new')) { openNew(); if (nd) hydrateFromDraft('new', nd); }
 
-
-  app.querySelector('[data-cancel="new"]')?.addEventListener('click', () => {
-    const form = app.querySelector('#new-entry-form');
-    if (form) form.style.display = 'none';
-  });
-
-  entries.forEach((entry, i) => {
-    app.querySelector(`[data-edit="${i}"]`)?.addEventListener('click', async () => {
-      const form = app.querySelector(`#edit-form-${i}`);
-      if (!form) return;
-      const opening = form.style.display === 'none';
-      form.style.display = opening ? 'block' : 'none';
-      if (!opening) return;
-
-      // The textarea defaults to the trimmed preview text. Fetch the entry's
-      // real saved full_body from the server and use that instead of trusting
-      // this browser's localStorage cache (tvn_paid_<id>), which is
-      // per-device and stale — relying on it is what let an entry get
-      // silently re-saved with only its preview paragraphs as the full text.
-      const prefix = `edit-${i}`;
-      const res = await getEntryFullBodyFromDB(entry.id);
-      if (res.status === 401) { handleSessionExpired(app); return; }
-      if (res.ok && Array.isArray(res.data?.fullBody) && res.data.fullBody.length > 0) {
-        const bodyEl = app.querySelector(`#${prefix}-body`);
-        if (bodyEl) bodyEl.value = res.data.fullBody.join('\n\n');
-        if (Number(entry.price) <= 0) {
-          setFormStatus(app, prefix, 'info',
-            'This entry is set to Free, but the server still has a longer saved version (likely from when it was paid). ' +
-            'The full text has been loaded below — check it and Save to publish it.');
-        }
-      }
+    app.querySelector('#new-entry-btn')?.addEventListener('click', () => {
+      if (newForm.style.display === 'none') openNew();
+      else { newForm.style.display = 'none'; openForms.delete('new'); }
+    });
+    app.querySelector('[data-save="new"]')?.addEventListener('click', () => save('new', null));
+    app.querySelector('[data-cancel="new"]')?.addEventListener('click', () => {
+      if (loadDraft('new') && !confirm('Discard this unsaved entry?')) return;
+      clearDraft('new');
+      newForm.style.display = 'none';
+      openForms.delete('new');
     });
 
-    app.querySelector(`[data-delete="${i}"]`)?.addEventListener('click', async () => {
-      if (!confirm(`Delete "${entries[i].title}"?`)) return;
-      const btn = app.querySelector(`[data-delete="${i}"]`);
-      const statusEl = app.querySelector(`#delete-status-${i}`);
-      const showStatus = (color, msg) => {
-        if (!statusEl) return;
-        statusEl.style.display = 'block';
-        statusEl.style.color = color;
-        statusEl.textContent = msg;
-      };
+    entries.forEach((entry) => {
+      const host = app.querySelector(`[data-edit-form="${CSS.escape(entry.id)}"]`);
+      if (!host) return;
+      const key = entry.id;
+      let loaded = false;
 
-      btn.disabled = true;
-      const originalLabel = btn.textContent;
-      btn.textContent = 'Deleting…';
+      async function openEdit() {
+        host.style.display = 'block';
+        openForms.add(key);
+        if (loaded) return;
+        // Locked until the TRUE saved text has loaded, so the preview can never be saved over the full article.
+        host.innerHTML = entryFormHTML(entry, key, { bodyLocked: true });
+        wireFormCommon(key, key);
+        wireEditButtons();
+        setStatus(key, 'info', 'Loading the full saved text…');
 
-      const res = await deleteEntryFromDB(entries[i].id);
-      if (res.status === 401) {
-        handleSessionExpired(app);
-        return;
-      }
-      if (!res.ok) {
-        showStatus('hsl(0 60% 45%)', res.error || 'Could not delete this entry. Please try again.');
-        btn.disabled = false;
-        btn.textContent = originalLabel;
-        return;
-      }
-      // Only clear the cached paid body once the delete actually succeeded.
-      localStorage.removeItem(`tvn_paid_${entries[i].id}`);
-      btn.textContent = 'Deleted ✓';
-      showStatus('hsl(143 55% 32%)', 'Deleted.');
-      setTimeout(() => render(), 500);
-    });
-
-    app.querySelector(`[data-save="${i}"]`)?.addEventListener('click', async () => {
-      const prefix = `edit-${i}`;
-      const btn = app.querySelector(`[data-save="${i}"]`);
-      const updated = readEntryForm(app, prefix);
-      const entryId = entries[i].id;
-      const words = Number(updated.previewWords) > 0 ? Number(updated.previewWords) : 100;
-
-      let bodyToStore = updated.body;
-      const fullBodyParagraphs = updated.body; // preserve full body before trimming
-      if (updated.price > 0) {
-        // Paid entry: save only preview to body column, full body to full_body column
-        bodyToStore = getPreviewParagraphsByWords(updated.body, words);
-      }
-
-      const updatedEntry = { ...entries[i], ...updated, previewWords: words, body: bodyToStore };
-
-      btn.disabled = true;
-      const originalLabel = btn.textContent;
-      btn.textContent = 'Saving…';
-      setFormStatus(app, prefix, null, null);
-
-      const saveRes = await upsertEntryToDB(updatedEntry);
-      if (saveRes.status === 401) {
-        handleSessionExpired(app, { prefix: 'edit', entryId, ...updated });
-        return;
-      }
-      if (!saveRes.ok) {
-        setFormStatus(app, prefix, 'error', saveRes.error || 'Could not save this entry. Please try again.');
-        btn.disabled = false;
-        btn.textContent = originalLabel;
-        return;
-      }
-      if (updated.price > 0) {
-        // Save full body to full_body column — server-side only, never exposed to browser
-        const bodyRes = await upsertEntryFullBodyToDB(entryId, fullBodyParagraphs);
-        if (bodyRes.status === 401) {
-          handleSessionExpired(app, { prefix: 'edit', entryId, ...updated });
+        const res = await getEntryFullBodyFromDB(entry.id);
+        if (res.status === 401) { handleSessionExpired(app); return; }
+        const bodyEl = app.querySelector(`#f-${key}-body`);
+        if (!res.ok) {
+          setStatus(key, 'error', `${res.error || "Couldn't load the full text."} Editing is locked so nothing gets overwritten.`);
+          const retry = document.createElement('button');
+          retry.type = 'button';
+          retry.textContent = 'Try again';
+          retry.style.cssText = 'margin-left:10px;padding:4px 12px;border:1.5px solid var(--border);border-radius:999px;font-weight:600;cursor:pointer;';
+          retry.addEventListener('click', () => { loaded = false; openEdit(); });
+          app.querySelector(`#f-${key}-status`)?.appendChild(retry);
           return;
         }
-        if (!bodyRes.ok) {
-          setFormStatus(app, prefix, 'error', 'Changes saved, but the paid full text failed to save. Click Save Changes again to retry.');
+        const full = Array.isArray(res.data?.fullBody) ? res.data.fullBody : [];
+        // The real text: the server's full_body when there is one, otherwise the public body.
+        const realBody = full.length > 0 ? full : entry.body;
+        if (bodyEl) bodyEl.value = realBody.join('\n\n');
+        const draft = loadDraft(key);
+        if (draft) hydrateFromDraft(key, draft);
+        if (bodyEl) bodyEl.disabled = false;
+        const saveBtn = app.querySelector(`[data-save="${CSS.escape(key)}"]`);
+        if (saveBtn) saveBtn.disabled = false;
+        loaded = true;
+        if (Number(entry.price) <= 0 && full.length > 0 && !draft) {
+          setStatus(key, 'info', 'This entry is Free, but the server has a longer saved version (likely from when it was paid). It has been loaded below — check it, then Save to publish it.');
+        } else {
+          setStatus(key, null, null);
+        }
+      }
+
+      function wireEditButtons() {
+        app.querySelector(`[data-save="${CSS.escape(key)}"]`)?.addEventListener('click', () => save(key, entry));
+        app.querySelector(`[data-cancel="${CSS.escape(key)}"]`)?.addEventListener('click', () => {
+          if (loadDraft(key) && !confirm('Discard your unsaved changes to this entry?')) return;
+          clearDraft(key);
+          host.style.display = 'none';
+          host.innerHTML = '';
+          loaded = false;
+          openForms.delete(key);
+        });
+      }
+
+      app.querySelector(`[data-edit="${CSS.escape(key)}"]`)?.addEventListener('click', () => {
+        if (host.style.display === 'block') { host.style.display = 'none'; openForms.delete(key); return; }
+        openEdit();
+      });
+      // A saved draft or an open form survives tab switches: reopen it.
+      if (openForms.has(key) || loadDraft(key)) openEdit();
+
+      app.querySelector(`[data-delete="${CSS.escape(key)}"]`)?.addEventListener('click', async (ev) => {
+        if (!confirm(`Delete "${entry.title}"?\n\nThis removes it, including any paid full text, and can't be undone.`)) return;
+        const btn = ev.currentTarget;
+        const statusEl = app.querySelector(`[data-delete-status="${CSS.escape(key)}"]`);
+        const say = (color, m) => { if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = color; statusEl.textContent = m; } };
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+        const r = await deleteEntryFromDB(entry.id);
+        if (r.status === 401) { handleSessionExpired(app); return; }
+        if (!r.ok) {
+          say('hsl(0 60% 38%)', r.error || "Couldn't delete this entry. Please try again.");
           btn.disabled = false;
-          btn.textContent = originalLabel;
+          btn.textContent = 'Delete';
           return;
         }
-      }
-      setFormStatus(app, prefix, 'success', '✓ Saved.');
-      setTimeout(() => render(), 700);
+        clearDraft(entry.id);
+        invalidateEntryList();
+        say('hsl(143 55% 28%)', 'Deleted.');
+        store.entries = null;
+        setTimeout(() => show('entries', { force: true }), 400);
+      });
     });
-
-
-    app.querySelector(`[data-cancel="${i}"]`)?.addEventListener('click', () => {
-      const form = app.querySelector(`#edit-form-${i}`);
-      if (form) form.style.display = 'none';
-    });
-  });
-}
-
-function readEntryForm(app, prefix) {
-  const cat          = app.querySelector(`#${prefix}-category`)?.value ?? 'Essay';
-  const rawDate      = app.querySelector(`#${prefix}-date`)?.value?.trim() ?? '';
-  let date = '';
-  if (rawDate) {
-    if (rawDate.includes('-')) {
-      const [y, m, d] = rawDate.split('-').map(Number);
-      const dateObj = new Date(y, m - 1, d);
-      date = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    } else {
-      date = rawDate;
-    }
   }
-  const author       = app.querySelector(`#${prefix}-author`)?.value?.trim() || 'Vic Munala';
-  const price        = Number(app.querySelector(`#${prefix}-price`)?.value) || 0;
-  const previewWords = Math.max(10, parseInt(app.querySelector(`#${prefix}-preview-count`)?.value || '100', 10));
-  const title        = app.querySelector(`#${prefix}-title`)?.value?.trim() ?? '';
-  const excerpt      = app.querySelector(`#${prefix}-excerpt`)?.value?.trim() ?? '';
-  const bodyRaw      = app.querySelector(`#${prefix}-body`)?.value?.trim() ?? '';
-  const body         = bodyRaw.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  const meta         = `${cat} · ${date} · ${author}`;
-  return { meta, category: cat, date, author, price, previewWords, title, excerpt, body };
-}
 
-function toDateInputValue(dateStr) {
-  if (!dateStr) return new Date().toISOString().split('T')[0];
-  const parsed = new Date(dateStr);
-  if (!isNaN(parsed.getTime())) {
-    return parsed.toISOString().split('T')[0];
-  }
-  return new Date().toISOString().split('T')[0];
-}
-
-// ── Book section ─────────────────────────────────────────────────────────────
-function renderBookSection(book) {
-  const b = book ?? { price: 1500, description: 'A novel about losing yourself and trying to find your way back home.', excerpt: '' };
-  return `
-    <div>
-      <div style="margin-bottom:28px;">
-        <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Under the Mango Tree</p>
-        <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Book &amp; Order Settings</h2>
-      </div>
-
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;box-sizing:border-box;">
-        <div style="display:flex;flex-direction:column;gap:20px;">
-          <div>
-            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Price (KES)</label>
-            <input id="book-price" type="number" value="${b.price}"
-              style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;box-sizing:border-box;" />
-          </div>
-          <div>
-            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Description</label>
-            <textarea id="book-desc" rows="3"
-              style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;font-family:var(--font-sans);line-height:1.6;resize:vertical;box-sizing:border-box;">${b.description}</textarea>
-          </div>
-          <div>
-            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Chapter 1 Excerpt (paste here when ready — leave blank to hide)</label>
-            <textarea id="book-excerpt" rows="6" placeholder="Paste the opening of Chapter 1 here..."
-              style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;font-family:var(--font-sans);line-height:1.8;resize:vertical;box-sizing:border-box;">${b.excerpt||''}</textarea>
-          </div>
-          <button id="save-book"
-            style="align-self:flex-start;padding:10px 24px;background:var(--text);color:var(--white);
-                   border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">
-            Save Book Settings
-          </button>
-          <p id="book-saved" style="display:none;font-size:0.85rem;font-weight:500;color:hsl(130 50% 40%);">✓ Changes saved successfully.</p>
-        </div>
-      </div>
-    </div>`;
-}
-
-function wireBookEvents(app, data, render) {
-  app.querySelector('#save-book')?.addEventListener('click', () => {
-    const price   = parseInt(app.querySelector('#book-price')?.value ?? '1500');
-    const description = app.querySelector('#book-desc')?.value?.trim() ?? '';
-    const excerpt = app.querySelector('#book-excerpt')?.value?.trim() ?? '';
-    saveData({ ...data, book: { price, description, excerpt } });
-    const msg = app.querySelector('#book-saved');
-    if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2000); }
-  });
-}
-
-// ── Settings Section ─────────────────────────────────────────────────────────
-function renderSettingsSection() {
-  return `
-    <div>
-      <div style="margin-bottom:28px;">
-        <p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;">Security &amp; Account</p>
-        <h2 style="font-family:var(--font-hand);font-size:2.4rem;font-weight:600;line-height:1;">Admin Settings</h2>
-      </div>
-
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:540px;box-sizing:border-box;">
-        <h3 style="font-family:var(--font-hand);font-size:1.6rem;font-weight:600;margin-bottom:8px;">Change Password</h3>
-        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:20px;line-height:1.5;">
-          Set a new private password for entering the Author Admin dashboard.
-        </p>
-
-        <form id="change-pass-form" style="display:flex;flex-direction:column;gap:16px;">
-          <div>
-            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Current Password</label>
-            <input type="password" id="curr-pass" placeholder="Enter current password" required
-              style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
-          </div>
-          <div>
-            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">New Password</label>
-            <input type="password" id="new-pass" placeholder="Enter new password" required minlength="4"
-              style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
-          </div>
-          <div>
-            <label style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;">Confirm New Password</label>
-            <input type="password" id="confirm-pass" placeholder="Confirm new password" required minlength="4"
-              style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;" />
-          </div>
-
-          <button type="submit" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;align-self:flex-start;margin-top:6px;">
-            Update Password
-          </button>
-          <div id="pass-change-msg" style="font-size:0.85rem;display:none;margin-top:8px;"></div>
-        </form>
-      </div>
-    </div>`;
-}
-
-function wireSettingsEvents(app, render) {
-  app.querySelector('#change-pass-form')?.addEventListener('submit', e => {
-    e.preventDefault();
-    const curr = app.querySelector('#curr-pass')?.value || '';
-    const next = app.querySelector('#new-pass')?.value || '';
-    const conf = app.querySelector('#confirm-pass')?.value || '';
-    const msg = app.querySelector('#pass-change-msg');
-    if (!msg) return;
-
-    if (curr !== getAdminPass()) {
-      msg.style.display = 'block';
-      msg.style.color = 'hsl(0 60% 50%)';
-      msg.textContent = '❌ Current password is incorrect.';
-      return;
-    }
-
-    if (next !== conf) {
-      msg.style.display = 'block';
-      msg.style.color = 'hsl(0 60% 50%)';
-      msg.textContent = '❌ New passwords do not match.';
-      return;
-    }
-
-    setAdminPass(next);
-    msg.style.display = 'block';
-    msg.style.color = 'hsl(143 60% 40%)';
-    msg.textContent = '✅ Password updated successfully! Your new password is now active.';
-    app.querySelector('#change-pass-form').reset();
-  });
+  show(section);
 }

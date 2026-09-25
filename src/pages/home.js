@@ -1,9 +1,12 @@
-import { getEntries } from './admin.js';
+import { getEntryList } from '../lib/store.js';
+import { esc } from '../lib/html.js';
 import { footerHTML } from '../components/footer.js';
 
 export async function renderHome(app) {
-  const entries = await getEntries();
-  const LATEST = entries.slice(0, 4);
+  const nav = app.dataset.nav;
+  const entries = await getEntryList();
+  if (app.dataset.nav !== nav) return;
+  const LATEST = (entries || []).slice(0, 4);
 
   app.innerHTML = `
     <!-- HERO: centered squeezed quote -->
@@ -33,6 +36,7 @@ export async function renderHome(app) {
             ALL ENTRIES
           </a>
         </div>
+        ${entries === null ? '<p style="color:var(--muted-foreground);">Entries could not be loaded right now. Please refresh in a moment.</p>' : ''}
         <ul style="list-style:none;padding:0;margin:0;">
           ${LATEST.map(e => {
             const metaParts = [];
@@ -42,10 +46,10 @@ export async function renderHome(app) {
 
             return `
               <li style="border-top:1px solid var(--rule);padding:1.5rem 0;">
-                <a href="#/entries/${e.id}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
-                  <div class="label" style="margin-bottom:0.5rem;">${metaText}</div>
-                  <h3 style="font-size:clamp(1.4rem, 4vw, 1.75rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--foreground)'">${e.title}</h3>
-                  <p style="margin-top:0.4rem;max-width:60ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;">${e.excerpt || ''}</p>
+                <a href="#/entries/${encodeURIComponent(e.slug || e.id)}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
+                  <div class="label" style="margin-bottom:0.5rem;">${esc(metaText)}</div>
+                  <h3 style="font-size:clamp(1.4rem, 4vw, 1.75rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--foreground)'">${esc(e.title)}</h3>
+                  <p style="margin-top:0.4rem;max-width:60ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;">${esc(e.excerpt || '')}</p>
                 </a>
               </li>
             `;

@@ -1,7 +1,8 @@
 import { renderSodaTip } from '../components/soda-tip.js';
 import { renderContact } from '../components/contact.js';
 import { footerHTML } from '../components/footer.js';
-import { addOrder, getBookData } from './admin.js';
+import { cleanPhone, pollInvoice } from '../lib/pay.js';
+import { postJson } from '../lib/net.js';
 import { incrementCounter } from '../lib/supabase.js';
 
 const PROJECTS = [
@@ -32,8 +33,7 @@ const PROJECTS = [
 ];
 
 export function renderProjects(app) {
-  const savedBook = getBookData();
-  const bookPrice = savedBook?.price ?? 1500;
+  const bookPrice = 1500;
 
   // Fire page-view counter (once per browser session)
   incrementCounter('play_views');
@@ -279,69 +279,37 @@ async function handleBookInlineStkPush(price) {
     return;
   }
 
+  const label = `PAY KES ${price.toLocaleString()} VIA M-PESA`;
   btn.disabled = true;
   btn.textContent = 'Sending prompt…';
-  setProjectStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
+  setProjectStatus(status, 'pending', 'Sending the payment prompt…');
 
-  // Track order in admin
-  addOrder({ name, phone: cleaned, address, amount: price, signed });
-
-  try {
-    const res = await fetch('/api/stk-push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        phone: cleaned,
-        name,
-        address,
-        amount: price,
-        purpose: 'book',
-        narrative: `Book: Under the Mango Tree - ${name}`,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
-
-    const invoiceId = data.invoice_id || data.CheckoutRequestID;
-    pollBookInlineStkStatus(invoiceId, price, status, btn);
-  } catch (err) {
-    setProjectStatus(status, 'error', `${err.message || 'Could not initiate STK push'}. Please try again.`);
+  const push = await postJson('/api/stk-push', {
+    phone: cleaned, name, address, signed, amount: price,
+    purpose: 'book', narrative: `Book: Under the Mango Tree - ${name}`,
+  }, 20000);
+  if (!push.ok || push.data.error) {
+    setProjectStatus(status, 'error', `${push.network ? 'No connection. Check your network' : (push.data.error || 'Could not start the payment')}. Please try again.`);
     btn.disabled = false;
-    btn.textContent = `PAY KES ${price.toLocaleString()} VIA M-PESA`;
+    btn.textContent = label;
+    return;
   }
-}
 
-async function pollBookInlineStkStatus(invoiceId, price, statusEl, btn) {
-  let attempts = 0;
-  const max = 15;
-  const interval = setInterval(async () => {
-    attempts++;
-    try {
-      const res = await fetch('/api/stk-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoice_id: invoiceId, CheckoutRequestID: invoiceId }),
-      });
-      const data = await res.json();
-      if (data.ResultCode === '0' || data.state === 'COMPLETE' || data.state === 'SUCCESSFUL') {
-        clearInterval(interval);
-        setProjectStatus(statusEl, 'success', '✅ Payment received! Your copy will be dispatched shortly. Thank you!');
-        btn.textContent = 'Order Confirmed ✓';
-      } else if (data.ResultCode === '1' || data.state === 'FAILED' || data.state === 'CANCELLED') {
-        clearInterval(interval);
-        setProjectStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Declined'}. Please try again.`);
-        btn.disabled = false;
-        btn.textContent = `PAY KES ${price.toLocaleString()} VIA M-PESA`;
-      }
-    } catch (_) {}
-
-    if (attempts >= max) {
-      clearInterval(interval);
-      setProjectStatus(statusEl, 'error', 'Payment confirmation in progress. If you entered your PIN, your order is recorded and confirmed.');
-      btn.disabled = false;
-      btn.textContent = `PAY KES ${price.toLocaleString()} VIA M-PESA`;
-    }
-  }, 3000);
+  setProjectStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
+  const { promise } = pollInvoice(push.data.invoice_id || push.data.CheckoutRequestID, { maxMs: 150000 });
+  const result = await promise;
+  if (result.state === 'COMPLETE') {
+    setProjectStatus(status, 'success', '✅ Payment received! Your copy will be dispatched shortly. Thank you!');
+    btn.textContent = 'Order Confirmed ✓';
+  } else if (result.state === 'FAILED') {
+    setProjectStatus(status, 'error', `Payment declined${result.desc ? `: ${result.desc}` : ''}. You haven't been charged. Please try again.`);
+    btn.disabled = false;
+    btn.textContent = label;
+  } else {
+    setProjectStatus(status, 'error', 'We have not heard back from M-Pesa yet. If you entered your PIN, your order details are saved and Vic will confirm with you.');
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 async function handlePlayStkPush() {
@@ -371,70 +339,33 @@ async function handlePlayStkPush() {
 
   btn.disabled = true;
   btn.textContent = 'Sending prompt…';
+  setProjectStatus(status, 'pending', 'Sending the payment prompt…');
+
+  const push = await postJson('/api/stk-push', {
+    phone: cleaned, name: `Play - ${email}`, address: email, amount: 1000, purpose: 'play',
+  }, 20000);
+  if (!push.ok || push.data.error) {
+    setProjectStatus(status, 'error', `${push.network ? 'No connection. Check your network' : (push.data.error || 'Could not initiate payment')}. Please try again.`);
+    btn.disabled = false;
+    btn.textContent = 'PAY KES 1,000';
+    return;
+  }
+
   setProjectStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
-
-  // Track order in admin
-  addOrder({
-    name: `Play Recording: ${email}`,
-    phone: cleaned,
-    address: `Private Link Email: ${email}`,
-    amount: 1000,
-    signed: false,
-  });
-
-  try {
-    const res = await fetch('/api/stk-push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleaned, name: `Play - ${email}`, address: email, amount: 1000, purpose: 'play' }),
-    });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || 'STK push failed');
-    pollPlayStkStatus(data.CheckoutRequestID, status, btn);
-  } catch (err) {
-    setProjectStatus(status, 'error', `${err.message || 'Could not initiate payment'}. Please try again.`);
+  const { promise } = pollInvoice(push.data.invoice_id || push.data.CheckoutRequestID, { maxMs: 150000 });
+  const result = await promise;
+  if (result.state === 'COMPLETE') {
+    setProjectStatus(status, 'success', '✅ Payment received! Vic will send the private viewing link to your email shortly. Thank you!');
+    btn.textContent = 'Payment Received ✓';
+  } else if (result.state === 'FAILED') {
+    setProjectStatus(status, 'error', `Payment declined${result.desc ? `: ${result.desc}` : ''}. You haven't been charged. Please try again.`);
+    btn.disabled = false;
+    btn.textContent = 'PAY KES 1,000';
+  } else {
+    setProjectStatus(status, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages or contact Vic directly.');
     btn.disabled = false;
     btn.textContent = 'PAY KES 1,000';
   }
-}
-
-async function pollPlayStkStatus(checkoutRequestID, statusEl, btn) {
-  let attempts = 0;
-  const max = 10;
-  const interval = setInterval(async () => {
-    attempts++;
-    try {
-      const res  = await fetch('/api/stk-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ CheckoutRequestID: checkoutRequestID }),
-      });
-      const data = await res.json();
-      if (data.ResultCode === '0') {
-        clearInterval(interval);
-        setProjectStatus(statusEl, 'success', '✅ Payment received! The private viewing link has been sent to your email. Thank you!');
-        btn.textContent = 'Link Sent ✓';
-      } else if (data.ResultCode && data.ResultCode !== '1032') {
-        clearInterval(interval);
-        setProjectStatus(statusEl, 'error', `Payment declined: ${data.ResultDesc || 'Unknown error'}. Please try again.`);
-        btn.disabled = false;
-        btn.textContent = 'PAY KES 1,000';
-      }
-    } catch (_) {}
-    if (attempts >= max) {
-      clearInterval(interval);
-      setProjectStatus(statusEl, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages or contact Vic directly.');
-      btn.disabled = false;
-      btn.textContent = 'PAY KES 1,000';
-    }
-  }, 3000);
-}
-
-function cleanPhone(raw) {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.startsWith('254') && digits.length === 12) return digits;
-  if ((digits.startsWith('07') || digits.startsWith('01')) && digits.length === 10) return '254' + digits.slice(1);
-  return null;
 }
 
 function setProjectStatus(el, type, msg) {

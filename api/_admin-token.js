@@ -8,8 +8,10 @@ const TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 // The signing secret must come from the environment. There is deliberately no
 // hardcoded fallback: this repository is public, so any literal here is exposed.
 function getSecret() {
-  const secret = process.env.ADMIN_TOKEN_SECRET || process.env.ADMIN_PASSWORD;
-  if (!secret) throw new Error('ADMIN_TOKEN_SECRET or ADMIN_PASSWORD is not set');
+  // Deliberately NOT falling back to ADMIN_PASSWORD: a token signed with the
+  // password as key would let anyone holding one token brute-force it offline.
+  const secret = process.env.ADMIN_TOKEN_SECRET;
+  if (!secret) throw new Error('ADMIN_TOKEN_SECRET is not set');
   return secret;
 }
 
