@@ -15,35 +15,62 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Valid email required' });
   }
 
-  const formId = process.env.FORMSPREE_FORM_ID;
-  const formUrl = process.env.FORMSPREE_URL || (formId ? `https://formspree.io/f/${formId}` : null);
+  const formId = process.env.FORMSPREE_FORM_ID || 'xwlpqzle';
+  const formUrl = `https://formspree.io/f/${formId}`;
 
-  if (formUrl) {
-    try {
-      const response = await fetch(formUrl, {
+  // Supabase (Service Role Key for backend insertion bypassing RLS)
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let already = false;
+
+  try {
+    // 1. Alert via Formspree
+    const fsRes = await fetch(formUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        _subject: `New Newsletter Subscriber: ${email}`,
+        message: `New reader subscribed to The Villager's Notes:\n\nEmail: ${email}\nDate: ${new Date().toLocaleString('en-GB')}`,
+        _replyto: email,
+      }),
+    });
+
+    if (!fsRes.ok) {
+      console.error('[subscribe] Formspree error:', await fsRes.text());
+    }
+
+    // 2. Save to Supabase for Admin Dashboard
+    if (supabaseUrl && supabaseKey) {
+      const dbRes = await fetch(`${supabaseUrl}/rest/v1/subscribers?on_conflict=email`, {
         method: 'POST',
         headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Prefer: 'resolution=ignore-duplicates,return=minimal'
         },
-        body: JSON.stringify({
-          email,
-          _subject: `New Newsletter Subscriber: ${email}`,
-          message: `New reader subscribed to The Villager's Notes:\n\nEmail: ${email}\nDate: ${new Date().toLocaleString('en-GB')}`,
-          _replyto: email,
-        }),
+        body: JSON.stringify({ email })
       });
 
-      if (response.ok) {
-        return res.status(200).json({ ok: true });
+      if (!dbRes.ok) {
+        const err = await dbRes.text();
+        if (err.includes('duplicate key') || dbRes.status === 409) {
+          already = true;
+        } else {
+          console.error('[subscribe] Supabase error:', err);
+        }
       }
-    } catch (err) {
-      console.error('[Newsletter/Formspree] Error:', err);
     }
-  }
 
-  // Graceful fallback during local dev or before Formspree form ID is set
-  console.log('[Newsletter] Subscribed:', email, '(Alert target: vikmunala@gmail.com)');
-  return res.status(200).json({ ok: true, dev: !formUrl });
+    return res.status(200).json({ ok: true, already });
+
+  } catch (err) {
+    console.error('[subscribe] Error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
