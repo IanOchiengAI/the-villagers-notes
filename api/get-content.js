@@ -75,7 +75,7 @@ export default async function handler(req, res) {
     const statusHeaders = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (secretKey) statusHeaders['Authorization'] = `Bearer ${secretKey}`;
 
-    const statusRes = await fetch('https://payment.intasend.com/api/v1/payment/mpesa-stk-push-status/', {
+    const statusRes = await fetch('https://payment.intasend.com/api/v1/payment/status/', {
       method: 'POST',
       headers: statusHeaders,
       body: JSON.stringify({ public_key: publicKey, invoice_id }),

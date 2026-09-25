@@ -455,8 +455,10 @@ export async function renderEntry(app, id) {
     shareBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = shareDropdown.style.display === 'flex';
-      // Build URLs fresh at click time
-      const url = encodeURIComponent(window.location.href);
+      // Build canonical URLs fresh at click time (path-based URL gives proper previews & avoids Safari hash stripping)
+      const slug = entry.slug || entry.id;
+      const canonicalUrl = `${window.location.origin}/entries/${encodeURIComponent(slug)}`;
+      const url = encodeURIComponent(canonicalUrl);
       const title = encodeURIComponent(entry.title);
       if (shareTwitter) shareTwitter.href = `https://twitter.com/intent/tweet?text=${title}&url=${url}`;
       if (shareFacebook) shareFacebook.href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
@@ -469,7 +471,9 @@ export async function renderEntry(app, id) {
       shareCopyBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         try {
-          await navigator.clipboard.writeText(window.location.href);
+          const slug = entry.slug || entry.id;
+          const canonicalUrl = `${window.location.origin}/entries/${encodeURIComponent(slug)}`;
+          await navigator.clipboard.writeText(canonicalUrl);
           shareDropdown.style.display = 'none';
           if (shareFeedback) {
             shareFeedback.style.display = 'inline';

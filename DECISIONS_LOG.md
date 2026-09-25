@@ -75,6 +75,11 @@
 - **IntaSend account migration complete:** Received Vic's live IntaSend keys. Set `INTASEND_PUBLISHABLE_KEY` and `INTASEND_SECRET_KEY` in Vercel for Production and Preview environments. Merged `feat/intasend-vic-account` → `main` (`0dbd342`). All M-Pesa payments on the live site now route to Vic's IntaSend account.
 - **Admin password security fixed:** Set `ADMIN_PASSWORD` and `ADMIN_TOKEN_SECRET` in Vercel (Production + Preview) with cryptographically random values. Merged `security/remove-admin-password-fallback` → `main` (`75c5368`). The hardcoded `Villager@2026!` fallback is gone from the running code. Old password must be treated as permanently compromised — never reuse. **Next step for Ian:** send Vic the new password over WhatsApp/Signal (not email).
 - **Still pending (manual, needs a phone):** KES 10 soda-tip live payment test; paid-entry unlock test; mismatched-invoice rejection test. See plan artifact for exact steps.
+- **Per-entry link previews & Safari link fix:**
+  - Added `api/entry-meta.js`: serverless function that catches `/entries/:slug`, fetches the entry's title and excerpt from Supabase, and serves customized OG tags (`og:title`, `og:description`, `og:image`) for bots (WhatsApp, Twitter/X, iMessage), while instantly redirecting browsers to `/#/entries/:slug`.
+  - Added Vercel rewrite in `vercel.json` for `/entries/:slug` -> `/api/entry-meta?slug=:slug`.
+  - Updated `src/pages/entry.js` social share buttons and copy-link button to output the canonical path URL (`/entries/slug`), resolving Safari/iOS hash-stripping where opening shared links routed users to the homepage.
+  - Fixed stale IntaSend status URL in `api/get-content.js` from `mpesa-stk-push-status` (which returned 404) to `/api/v1/payment/status/`, ensuring paid entry unlocks succeed after payment.
 
 ### 2026-09-24
 - **Vic's feedback (forwarded by Ian):**
