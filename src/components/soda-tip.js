@@ -1,4 +1,4 @@
-import { addTip } from '../pages/admin.js';
+// Tip recording is done server-side via /api/record-tip after payment COMPLETE
 
 const AMOUNTS = [50, 100, 500];
 
@@ -94,7 +94,6 @@ export function renderSodaTip(container) {
         payBtn.disabled = true;
         payBtn.textContent = 'SENDING PROMPT…';
         setStatus(statusEl, 'pending', '📲 Prompt sent — enter your M-Pesa PIN on your phone.');
-        addTip({ phone, amount: selected });
 
         try {
           const res = await fetch('/api/stk-push', {
@@ -125,6 +124,12 @@ export function renderSodaTip(container) {
               clearInterval(iv);
               setStatus(statusEl, 'success', '✅ Thank you for the soda! ❤️');
               payBtn.textContent = 'SENT ✓';
+              // Record the confirmed tip to Supabase (fire-and-forget)
+              fetch('/api/record-tip', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, amount: selected }),
+              }).catch(() => {}); // silent fail — payment already succeeded
             } else if (s.ResultCode === '1' || s.state === 'FAILED' || s.state === 'CANCELLED') {
               clearInterval(iv);
               setStatus(statusEl, 'error', '❌ Payment declined or timed out.');

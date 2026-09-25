@@ -331,9 +331,29 @@ async function renderDashboard(app) {
   async function render() {
     const data = loadData() || { entries: [...DEFAULT_ENTRIES], projects: null, book: null };
     const entries = await getEntries();
-    const orders = getOrders();
-    const subs = getSubscribers();
-    const tips = getTips();
+
+    // Load people stats from Supabase via the admin API (falls back to localStorage on error)
+    let orders = getOrders();
+    let subs = getSubscribers();
+    let tips = getTips();
+    try {
+      const token = sessionStorage.getItem('tvn_auth_token');
+      if (token) {
+        const statsRes = await fetch('/api/get-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        if (statsRes.ok) {
+          const stats = await statsRes.json();
+          orders = stats.orders?.length > 0 ? stats.orders : orders;
+          subs   = stats.subscribers?.length > 0 ? stats.subscribers : subs;
+          tips   = stats.tips?.length > 0 ? stats.tips : tips;
+        }
+      }
+    } catch (_) {
+      // Network error — silently fall back to localStorage values above
+    }
 
     app.innerHTML = `
       <div style="min-height:100vh;background:var(--bg-subtle);">
