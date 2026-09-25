@@ -1,6 +1,6 @@
 import { addTip } from '../pages/admin.js';
 
-const AMOUNTS = [10, 50, 100];
+const AMOUNTS = [50, 100, 500];
 
 export function renderSodaTip(container) {
   let selected = 100;
