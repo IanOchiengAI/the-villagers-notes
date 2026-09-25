@@ -226,7 +226,24 @@ function renderDashboard(app) {
 
   // ── People ─────────────────────────────────────────────────────────────────
   function renderPeople(stats) {
-    const { orders = [], subscribers: subs = [], tips = [] } = stats;
+    const { orders = [], subscribers: subs = [], tips = [], playLink = null } = stats;
+    const EMAIL_RE = /^[^\s@<>"'(),;:\\]+@[^\s@<>"'(),;:\\]+\.[A-Za-z]{2,}$/;
+    // A paid play-recording order: give Vic a one-click way to send the private link.
+    const playLinkHTML = (o) => {
+      if (!String(o.name).startsWith('Play - ') || o.status === 'Awaiting payment') return '';
+      const email = String(o.address || '').trim();
+      if (!EMAIL_RE.test(email)) return `<div style="margin-top:8px;font-size:0.8rem;color:hsl(0 60% 42%);">No valid email on this order — contact the buyer on WhatsApp.</div>`;
+      if (!playLink) return `<div style="margin-top:8px;font-size:0.8rem;color:var(--text-muted);">One-click sending is not switched on yet. Ask Kasuku Studio to add the private link to the site settings.</div>`;
+      const subject = 'Your private link to Beneath the Surface';
+      const body = `Hi,\n\nThank you for supporting Beneath the Surface. Here is your private link to the full recording:\n\n${playLink}\n\nPlease keep it to yourself.\n\nVic`;
+      const href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      return `
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <a href="${esc(href)}" style="padding:6px 14px;border-radius:999px;background:var(--text);color:var(--white);font-size:0.75rem;font-weight:600;text-decoration:none;">Email the private link</a>
+          <button type="button" data-copy-playlink style="padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;font-weight:500;color:var(--text-muted);cursor:pointer;">Copy link</button>
+          <span style="font-size:0.75rem;color:var(--text-muted);">Then set the status to Delivered.</span>
+        </div>`;
+    };
     const paidOrders = orders.filter((o) => o.status !== 'Awaiting payment');
     const totalRevenue = paidOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
     const totalTips = tips.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -272,6 +289,7 @@ function renderDashboard(app) {
                       ${esc(o.address)}<br/>
                       <a href="https://wa.me/${esc(String(o.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;font-weight:600;">${esc(o.phone)}</a> &middot; ${esc(o.date)} &middot; KES ${Number(o.amount).toLocaleString()}
                     </div>
+                    ${playLinkHTML(o)}
                   </div>
                   <div>
                     <select data-order-status="${esc(o.order_id)}" aria-label="Order status" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.8rem;font-weight:600;cursor:pointer;background:${bg};color:${fg};">
@@ -345,6 +363,8 @@ function renderDashboard(app) {
         }
       });
     });
+    app.querySelectorAll('[data-copy-playlink]').forEach((btn) =>
+      btn.addEventListener('click', () => copyText(store.stats.playLink || '', 'Private link copied.')));
     app.querySelector('#copy-orders-phone')?.addEventListener('click', () =>
       copyText(orders.map((o) => `${o.name}: ${o.phone}`).join('\n'), 'Customer contacts copied.'));
     app.querySelector('#copy-emails-btn')?.addEventListener('click', () =>

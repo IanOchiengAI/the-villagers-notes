@@ -81,6 +81,7 @@
 - [x] **Ran the audit migration** (`tips.invoice_id`, comment length checks) — Ian ran it, verified present 2026-09-25.
 - [ ] **Add Vercel Firewall rate-limit rules** (in-code best-effort limits are already in the branch; the agent's Vercel connection lacked access to this team) on `/api/stk-push`, `/api/admin-auth`, `/api/subscribe`, `/api/record-tip` (dashboard setting; consider BotID on stk-push/subscribe).
 - [x] History-API routing + server-rendered entry pages, CSP without inline scripts, shared likes (code), unlock code — built 2026-09-25 on branch `routing-csp-likes-2026-09-25` (see DECISIONS_LOG 2026-09-25). **Not merged.**
+- [ ] **Set `PLAY_PRIVATE_LINK` in Vercel (Production + Preview)** to the private play-recording URL (Ian has it; do NOT commit it anywhere). Until set, the admin shows "one-click sending is not switched on yet" on paid play orders. Consider moving the video to Vic's own YouTube channel (it is currently unlisted on a third party's).
 - [ ] **Run `supabase/migrations/20260925_shared_likes.sql`** in the Supabase SQL editor (shared likes stay per-device until then).
 - [ ] After merging: confirm on the live site that `/entries/<slug>` shows the story text with JS disabled (`curl`), that a shared link previews the right story, and that GA4 Realtime still shows page views (CSP changed). Then re-submit `https://thevillagersnotes.com/sitemap.xml` in Google Search Console.
 - [ ] Confirm the reflected-XSS fix on the deployed site with a harmless slug such as `/entries/'-console.log(1)-'` (should redirect to /entries).

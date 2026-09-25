@@ -47,7 +47,14 @@ export default async function handler(req, res) {
         ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
         : '';
 
+    // The private link to the paid play recording lives ONLY in the hosting settings
+    // (PLAY_PRIVATE_LINK) so it never appears in the public repo or the public site.
+    // It is returned here to a verified admin token, and nowhere else.
+    const rawLink = process.env.PLAY_PRIVATE_LINK || '';
+    const playLink = /^https:\/\/[^\s"'<>]+$/.test(rawLink) ? rawLink : null;
+
     return res.status(200).json({
+      playLink,
       tips: tips.map((t) => ({ phone: t.phone, amount: t.amount, date: fmt(t.created_at) })),
       orders: orders.map((o) => ({ ...o, id: o.order_id, date: fmt(o.created_at) })),
       subscribers: subscribers.map((s) => ({ email: s.email, date: fmt(s.created_at) })),

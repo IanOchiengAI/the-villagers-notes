@@ -55,8 +55,9 @@
 - **Origin:** `d0566cb` (2026-09-23). The edit form previously only recovered an entry's full text from `localStorage.getItem('tvn_paid_<id>')`, which is per-device. Editing a paid (or once-paid) entry from a different browser/session and saving silently overwrote its real content with just the ~100-word preview. **This already happened** to the live, public, free entry "What it Means When a Man Falls From the Sky" (id `1789164489380`): its public `body` has only 3 preview paragraphs while the real 32-paragraph text sits unused in `full_body` — readers currently see a stub. Not yet corrected (needs Ian/Vic's OK to touch live content, see `state.md`); the code fix prevents it recurring and will surface the real text next time that entry is opened for edit.
 
 ### 1.6 Client documents are never committed
-- **Rule:** Proposals and briefs stay out of git. `.gitignore` excludes `*proposal*`, `*Brief*`, `*brief*`, `*.pdf` and `scripts/build_proposal.py`. Keep it that way; this repo is public.
-- **Origin:** `c055cc0` (2026-08-27).
+- **Rule:** Proposals and briefs stay out of git. `.gitignore` excludes `*proposal*`, `*Brief*`, `*brief*`, `*.pdf` and `scripts/build_proposal.py`. Keep it that way; this repo is public. `handover-*.html` is also ignored (it holds pricing).
+- **The private link to the paid play recording is never written into the repo, the public bundle, or any public page.** It is the product buyers pay KES 1,000 for. It lives only in the Vercel environment variable `PLAY_PRIVATE_LINK` and reaches the browser only through `api/get-stats.js`, which requires a valid admin token; the admin People tab uses it for the "Email the private link" button on paid play orders. Do not embed it as a public "trailer".
+- **Origin:** `c055cc0` (2026-08-27); play link rule 2026-09-25.
 
 ### 1.7 Deployment Safeguards
 *Re-checked 2026-09-23 against `vercel.json`, `index.html` and a live request to `thevillagersnotes.com`.*
@@ -92,6 +93,7 @@
 - **Shared likes:** `api/like.js` (validated, rate-limited per IP and per IP+entry) calls the DB function `adjust_likes` (`supabase/migrations/20260925_shared_likes.sql`, **not yet applied — Ian must run it**; until then likes keep working per device and the API answers 503). The admin save no longer writes `likes` (`ENTRY_COLUMNS`), so it can't overwrite the live count.
 - **Unlock code** (see 1.1): opt-in reopen of a paid entry on another device.
 - **Handover document** (`handover-vic-munala.html`, untracked): now gitignored (`handover-*.html`) because it contains pricing and the repo is public (rule 1.6). Review notes were given to Ian; the file itself was not edited.
+- **Play recording link (Ian, 2026-09-25: "here is a link to the show… its the full recording"):** the link is the full 77-minute recording (an unlisted YouTube upload on a third party's channel), i.e. the paid product, so it was **not** added to the public Projects page and is **not** in the repo. Added instead: admin People tab shows "Email the private link" (prefilled `mailto:`) and "Copy link" on paid play orders (`Play - <email>`), fed by `PLAY_PRIVATE_LINK` via `api/get-stats.js` (admin-only, https-only). The public trailer box still says "The trailer isn't up yet…"; a public trailer would need a short separate clip. Risk noted: the video sits on someone else's channel and is unlisted, so if that owner removes or privatises it, every buyer's link breaks — worth re-uploading to Vic's own channel.
 - **Tests:** `vite build`; 16 offline API test groups (SSR escaping, paid preview only, 404 vs outage, likes validation/rate limit/fallback, sitemap, admin whitelist); real-browser run with the strict CSP: direct entry URL, in-app navigation without reload, Back, legacy `#/` upgrade, unlock-code error path. **Not tested:** any live payment, the deployed function bundle (`includeFiles`), the logged-in admin.
 
 ### 2026-09-25 (audit hardening pass, uncommitted at time of writing)
