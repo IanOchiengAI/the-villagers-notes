@@ -32,7 +32,7 @@ export async function renderHome(app) {
       <div class="container">
         <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;">
           <h2 style="font-size:clamp(1.75rem, 4.5vw, 2.25rem);font-family:var(--font-hand);font-weight:400;margin:0;">Latest entries</h2>
-          <a href="#/entries" class="label" style="text-decoration:none;transition:color 0.15s ease;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted-foreground)'">
+          <a href="/entries" class="label hv-accent" style="text-decoration:none;transition:color 0.15s ease;">
             ALL ENTRIES
           </a>
         </div>
@@ -46,9 +46,9 @@ export async function renderHome(app) {
 
             return `
               <li style="border-top:1px solid var(--rule);padding:1.5rem 0;">
-                <a href="#/entries/${encodeURIComponent(e.slug || e.id)}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
+                <a href="/entries/${encodeURIComponent(e.slug || e.id)}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
                   <div class="label" style="margin-bottom:0.5rem;">${esc(metaText)}</div>
-                  <h3 style="font-size:clamp(1.4rem, 4vw, 1.75rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--foreground)'">${esc(e.title)}</h3>
+                  <h3 class="hv-accent" style="font-size:clamp(1.4rem, 4vw, 1.75rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);">${esc(e.title)}</h3>
                   <p style="margin-top:0.4rem;max-width:60ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;">${esc(e.excerpt || '')}</p>
                 </a>
               </li>

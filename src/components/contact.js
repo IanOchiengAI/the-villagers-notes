@@ -22,10 +22,8 @@ export function renderContact(container) {
               <textarea id="contact-msg" rows="4" required
                         style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding-bottom:0.5rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);resize:vertical;"></textarea>
             </div>
-            <button class="label" type="submit" id="contact-submit"
-                    style="align-self:flex-start;border:1px solid var(--foreground);background:transparent;padding:0.625rem 1.25rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;"
-                    onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
-                    onmouseout="this.style.borderColor='var(--foreground)';this.style.color='var(--foreground)';">
+            <button class="label hv-accent-border" type="submit" id="contact-submit"
+                    style="align-self:flex-start;border:1px solid var(--foreground);background:transparent;padding:0.625rem 1.25rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;">
               Send it
             </button>
             <p id="contact-status" style="display:none;font-family:var(--font-hand);font-size:1.5rem;color:var(--foreground);margin-top:1rem;"></p>

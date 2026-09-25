@@ -7,16 +7,12 @@ export function renderNewsletter(container, { variant = 'entry' } = {}) {
       <form class="newsletter__form" id="nl-form-${variant}" novalidate style="max-width:28rem;display:flex;flex-direction:column;gap:1.5rem;">
         <div>
           <label class="label" for="nl-email-${variant}" style="display:block;margin-bottom:0.6rem;font-size:0.6875rem;letter-spacing:0.16em;">EMAIL</label>
-          <input class="form-input-underlined" type="email" id="nl-email-${variant}"
+          <input class="form-input-underlined nl-input" type="email" id="nl-email-${variant}"
                  placeholder="you@somewhere" required autocomplete="email"
-                 style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding:0.4rem 0 0.6rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);border-radius:0;"
-                 onfocus="this.style.borderBottomColor='var(--foreground)'"
-                 onblur="this.style.borderBottomColor='var(--rule)'" />
+                 style="width:100%;border:none;border-bottom:1px solid var(--rule);background:transparent;padding:0.4rem 0 0.6rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);border-radius:0;" />
         </div>
-        <button class="label" type="submit"
-                style="align-self:flex-start;border:1px solid var(--foreground);background:transparent;padding:0.65rem 1.4rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;margin-top:0.5rem;font-size:0.6875rem;letter-spacing:0.16em;text-transform:uppercase;border-radius:0;"
-                onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
-                onmouseout="this.style.borderColor='var(--foreground)';this.style.color='var(--foreground)';">
+        <button class="label hv-accent-border" type="submit"
+                style="align-self:flex-start;border:1px solid var(--foreground);background:transparent;padding:0.65rem 1.4rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;margin-top:0.5rem;font-size:0.6875rem;letter-spacing:0.16em;text-transform:uppercase;border-radius:0;">
           PUT ME ON THE LIST
         </button>
       </form>

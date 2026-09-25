@@ -44,7 +44,7 @@ export function pollInvoice(invoiceId, { maxMs = 120000, onTick, cancelOnNavigat
   }
 
   timer = setTimeout(step, 2500);
-  if (cancelOnNavigate) window.addEventListener('hashchange', () => { cancelled = true; clearTimeout(timer); finish({ state: 'CANCELLED' }); }, { once: true });
+  if (cancelOnNavigate) window.addEventListener('routechange', () => { cancelled = true; clearTimeout(timer); finish({ state: 'CANCELLED' }); }, { once: true });
   return {
     promise,
     cancel() {

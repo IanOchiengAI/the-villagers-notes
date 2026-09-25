@@ -15,7 +15,7 @@
 
 ### 1.1 Paid articles are never sent to the browser without server-side payment verification
 - **Rule:** The full body of a paid entry stays on the server. The browser only receives the preview until payment is verified.
-- **Implementation:** Supabase `entries.full_body` (JSONB) holds the full text. `api/get-content.js` verifies the M-Pesa payment before returning it; `src/pages/entry.js` and `src/lib/supabase.js` call it. The full body is cached in `sessionStorage` for the session, and the `invoice_id` is kept in `localStorage` for re-verification on refresh. A different browser must pay again. Table writes and paywall data were locked down in `6499fb4`.
+- **Implementation:** Supabase `entries.full_body` (JSONB) holds the full text. `api/get-content.js` verifies the M-Pesa payment before returning it; `src/pages/entry.js` and `src/lib/supabase.js` call it. The full body is cached in `sessionStorage` for the session, and the `invoice_id` is kept in `localStorage` for re-verification on refresh. A different browser must pay again **unless the reader opts in to their unlock code** (added 2026-09-25 at Ian's instruction: the receipt id of their own payment, shown on request after unlocking and accepted on the paywall card under "Paid on another phone or browser?"; the server still verifies it is a completed payment for this exact entry and amount). Table writes and paywall data were locked down in `6499fb4`.
 - **Origin:** `dae410c` (2026-08-27), `6499fb4` (2026-09-13), `state.md` 2026-08-27.
 - **Rationale:** A client-side-only paywall can be bypassed from the browser dev tools.
 
@@ -62,9 +62,9 @@
 *Re-checked 2026-09-23 against `vercel.json`, `index.html` and a live request to `thevillagersnotes.com`.*
 - Vercel project: `the-villagers-notes`. Live domain: `thevillagersnotes.com` (HTTP 200); switched in `158997d`.
 - Build: `vite build` (`npm run build`), a Vite single-page app plus serverless functions in `api/`.
-- `vercel.json` sets security headers including a Content-Security-Policy. `connect-src` allows only `self`, `*.supabase.co`, `payment.intasend.com`, `www.google-analytics.com` and `formspree.io`. `script-src` still allows `unpkg.com` **pending merge** of `feat/intasend-vic-account`, which removes it along with the client-side IntaSend SDK fallback. **Any new external service must be added to the CSP or the browser will block it.**
+- `vercel.json` sets security headers including a Content-Security-Policy. `connect-src` allows only `self`, `*.supabase.co`, `payment.intasend.com`, `www.google-analytics.com` and `formspree.io`. `script-src` is `'self'` plus Google Tag Manager / Analytics only: **no `'unsafe-inline'` and no `unpkg.com`** (2026-09-25). That means: never add inline `<script>` blocks or inline event attributes (`onclick=`, `onmouseover=`…) — use classes in `enhancements.css` and listeners in JS; the analytics init lives in `public/ga-init.js`. `style-src` still allows inline styles. `object-src 'none'` and `base-uri 'self'` were added. **Any new external service must be added to the CSP or the browser will block it.**
 - The footer credit "SITE BY KASUKU STUDIO" (`fd0dca6`, 2026-09-14) is a studio decision: keep it subtle.
-- Link previews (`og:image`/`twitter:image`) use `public/images/og-vn.png` (the VN logo on the site's paper background, 1200×630) — changed from the UTMT book cover per Vic's request 2026-09-23 (`0e6e99c`). The site is hash-routed, so this one static image is what **every** shared link shows (home, an entry, anything) — there's no per-page preview. Keep `book-cover.png` for the book page's own imagery.
+- Link previews (`og:image`/`twitter:image`) use `public/images/og-vn.png` (the VN logo on the site's paper background, 1200×630) — changed from the UTMT book cover per Vic's request 2026-09-23 (`0e6e99c`). Since 2026-09-25 the site uses real URLs (`/entries/<slug>`, `/projects`, `/book`, `/admin`); each entry link previews its own title and excerpt (rendered by `api/entry-meta.js`) but the image is still this one static VN logo, because `entries` has no `image_url` column. Old `/#/…` links still work (upgraded in `src/router.js`). Keep `book-cover.png` for the book page's own imagery.
 - GA4 (`G-8YH7V59JKQ`) sends its own `page_view` on every hash-route change (`d63f2d7`, 2026-09-23) instead of relying on the single automatic one `gtag('config', ...)` would otherwise fire per visit. **Unconfirmed:** whether hits are actually reaching Google — see open item in `state.md`.
 
 ### 1.8 Nothing a visitor can send is trusted or rendered raw
@@ -85,6 +85,14 @@
 ---
 
 ## 2. Chronological Decision & Feedback History
+
+### 2026-09-25 (Ian: "do the rest of the recommendations" — on branch `routing-csp-likes-2026-09-25`, not yet merged)
+- **Real URLs + server-rendered entry pages:** `src/router.js` now uses the History API. `/entries/<slug>` is served by `api/entry-meta.js`, which returns the built app shell (`dist/index.html`, shipped with the function via `vercel.json` `functions.includeFiles`) with that entry's title, description, canonical URL, link-preview tags, Article JSON-LD and its **public** text already inside `<main id="app" data-ssr="1">`; the app then takes over in place. Paid entries expose only their preview (`isAccessibleForFree:false`); `full_body` is never selected there. Unknown slug = real 404; a database outage = plain app (never a false 404). Sitemap and `llms.txt` use the real URLs. Same-site link clicks are intercepted (no reload); Back/Forward work; `/#/…` links are upgraded with `replaceState`.
+- **CSP without `'unsafe-inline'` scripts:** all inline event handlers became classes (`hv-accent`, `hv-accent-border`, `hv-credit`, `nl-input` in `enhancements.css`); the GA4 init moved to `public/ga-init.js`; the footer's dead `logo.svg` `<img>` (file never existed) was removed. Verified in a browser with the header enforced: zero violations.
+- **Shared likes:** `api/like.js` (validated, rate-limited per IP and per IP+entry) calls the DB function `adjust_likes` (`supabase/migrations/20260925_shared_likes.sql`, **not yet applied — Ian must run it**; until then likes keep working per device and the API answers 503). The admin save no longer writes `likes` (`ENTRY_COLUMNS`), so it can't overwrite the live count.
+- **Unlock code** (see 1.1): opt-in reopen of a paid entry on another device.
+- **Handover document** (`handover-vic-munala.html`, untracked): now gitignored (`handover-*.html`) because it contains pricing and the repo is public (rule 1.6). Review notes were given to Ian; the file itself was not edited.
+- **Tests:** `vite build`; 16 offline API test groups (SSR escaping, paid preview only, 404 vs outage, likes validation/rate limit/fallback, sitemap, admin whitelist); real-browser run with the strict CSP: direct entry URL, in-app navigation without reload, Back, legacy `#/` upgrade, unlock-code error path. **Not tested:** any live payment, the deployed function bundle (`includeFiles`), the logged-in admin.
 
 ### 2026-09-25 (audit hardening pass, uncommitted at time of writing)
 - **Request (Ian):** a read-only audit of the codebase, then "fix everything".

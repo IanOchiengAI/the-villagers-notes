@@ -21,6 +21,6 @@ function observeRevealEls() {
   document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
 }
 
-window.addEventListener('hashchange', () => setTimeout(observeRevealEls, 60));
+window.addEventListener('routechange', () => setTimeout(observeRevealEls, 60));
 setTimeout(observeRevealEls, 60);
 

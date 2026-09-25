@@ -93,7 +93,7 @@ export async function renderEntry(app, id) {
     app.innerHTML = `
       <div class="container" style="padding:var(--space-24) 0;text-align:center;">
         <p style="color:var(--muted-foreground)">Entry not found.</p>
-        <a href="#/entries" class="label" style="margin-top:var(--space-6);display:inline-flex;text-decoration:none;">← Back to Entries</a>
+        <a href="/entries" class="label" style="margin-top:var(--space-6);display:inline-flex;text-decoration:none;">← Back to Entries</a>
       </div>`;
     return;
   }
@@ -139,20 +139,22 @@ export async function renderEntry(app, id) {
 
   // Likes (personal, this-device only)
   const likedKey = `tvn_liked_${entryId}`;
+  const syncedKey = `tvn_like_synced_${entryId}`; // set once the server has counted this device's like
   const isLiked = !!lsGet(likedKey);
-  let currentLikes = (typeof entry.likes === 'number' ? entry.likes : 0) + (isLiked ? 1 : 0);
+  // The count is shared: entry.likes already includes this device's like once the server recorded it.
+  let currentLikes = (typeof entry.likes === 'number' ? entry.likes : 0) + (isLiked && !lsGet(syncedKey) ? 1 : 0);
 
   document.title = `${entry.title} — The Villager's Notes`;
 
   const slug = entry.slug || entry.id;
-  const linkFor = (e) => `#/entries/${encodeURIComponent(e.slug || e.id)}`;
+  const linkFor = (e) => `/entries/${encodeURIComponent(e.slug || e.id)}`;
 
   app.innerHTML = `
     <article class="entry-page" data-cat="${esc(entry.category)}">
       <div class="container">
 
         <div>
-          <a href="#/entries" class="label back-link">← ENTRIES</a>
+          <a href="/entries" class="label back-link">← ENTRIES</a>
         </div>
 
         <div class="label entry-meta">${metaText}</div>
@@ -180,9 +182,20 @@ export async function renderEntry(app, id) {
                   <button class="label paywall-btn paywall-btn--quiet" id="paywall-check-btn" type="button" style="${storedInvoice ? '' : 'display:none;'}">I've already paid — check</button>
                 </div>
                 <div id="paywall-status" role="status" aria-live="polite" style="font-size:0.9rem;line-height:1.5;"></div>
+                <details class="paywall-code">
+                  <summary class="label">Paid on another phone or browser? Use your unlock code</summary>
+                  <div class="paywall-code__row">
+                    <input type="text" id="paywall-code" class="paywall-input" placeholder="Your unlock code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="100" aria-label="Unlock code" />
+                    <button class="label paywall-btn paywall-btn--quiet" id="paywall-code-btn" type="button">Unlock</button>
+                  </div>
+                </details>
               </div>
             </div>
-          ` : bodyParagraphs.map(formatParagraph).join('')}
+          ` : `${bodyParagraphs.map(formatParagraph).join('')}${isPaid && lsGet(invoiceKey(entryId)) ? `
+            <p class="unlock-code-note">
+              <button type="button" id="show-code-btn" class="label hv-accent">Read this on another device? Show my unlock code</button>
+              <span id="unlock-code" class="unlock-code" hidden>${esc(lsGet(invoiceKey(entryId)))}</span>
+            </p>` : ''}`}
         </div>
 
         <!-- Likes & Share -->
@@ -352,14 +365,24 @@ export async function renderEntry(app, id) {
   const likeBtn = document.getElementById('like-btn');
   const likeIcon = document.getElementById('like-icon');
   const likeCountEl = document.getElementById('like-count');
-  likeBtn?.addEventListener('click', () => {
+  const paintLikes = () => { likeCountEl.textContent = `${currentLikes} ${currentLikes === 1 ? 'like' : 'likes'}`; };
+  likeBtn?.addEventListener('click', async () => {
     const already = !!lsGet(likedKey);
+    const delta = already ? -1 : 1;
+    // Optimistic: the heart and count respond instantly, then the shared count is confirmed by the server.
     if (already) { lsDel(likedKey); currentLikes = Math.max(0, currentLikes - 1); }
     else { lsSet(likedKey, 'true'); currentLikes += 1; }
     likeIcon.textContent = already ? '♡' : '♥';
     likeBtn.style.color = already ? 'inherit' : 'var(--accent)';
     likeBtn.setAttribute('aria-pressed', String(!already));
-    likeCountEl.textContent = `${currentLikes} ${currentLikes === 1 ? 'like' : 'likes'}`;
+    paintLikes();
+
+    const r = await postJson('/api/like', { entry_id: entryId, delta }, 10000);
+    if (r.ok && typeof r.data.likes === 'number') {
+      if (delta > 0) lsSet(syncedKey, '1'); else lsDel(syncedKey);
+      if (stillHere()) { currentLikes = r.data.likes; paintLikes(); }
+    }
+    // If the server couldn't record it (offline, or not set up yet) the like still shows on this device.
   });
 
   // ── Share ──────────────────────────────────────────────────────────────────
@@ -405,6 +428,13 @@ export async function renderEntry(app, id) {
     document.removeEventListener('click', outsideClick);
     if (activePoll) activePoll.cancel();
   };
+
+  document.getElementById('show-code-btn')?.addEventListener('click', (e) => {
+    const codeEl = document.getElementById('unlock-code');
+    if (!codeEl) return;
+    codeEl.hidden = !codeEl.hidden;
+    e.currentTarget.textContent = codeEl.hidden ? 'Read this on another device? Show my unlock code' : 'Hide unlock code';
+  });
 
   const unlockBtn = document.getElementById('paywall-unlock-btn');
   const checkBtn = document.getElementById('paywall-check-btn');
@@ -464,6 +494,28 @@ export async function renderEntry(app, id) {
       say('info', 'Checking your payment…');
       await verifyAndUnlock(inv);
       checkBtn.disabled = false;
+    });
+
+    // "Unlock code": the receipt of an earlier payment for THIS entry, typed in on a new device.
+    // The server still checks it is a completed payment for this exact entry and amount.
+    const codeInput = document.getElementById('paywall-code');
+    const codeBtn = document.getElementById('paywall-code-btn');
+    codeBtn?.addEventListener('click', async () => {
+      const code = codeInput.value.trim();
+      if (!code) { say('error', 'Type the unlock code you were given.'); codeInput.focus(); return; }
+      codeBtn.disabled = true;
+      say('info', 'Checking your code…');
+      const r = await unlockWithInvoice(entryId, code);
+      codeBtn.disabled = false;
+      if (r.unlocked) {
+        try { sessionStorage.setItem(contentKey(entryId), JSON.stringify(r.body)); } catch (_) {}
+        lsSet(invoiceKey(entryId), code);
+        say('ok', '✅ Unlocked! Loading the story…');
+        setTimeout(() => { if (stillHere()) renderEntry(app, id); }, 500);
+      } else {
+        const notValid = r.definitive || !r.state || r.state === 'UNKNOWN';
+        say('error', notValid ? "That code isn't valid for this entry." : `${r.message} Try again in a moment.`);
+      }
     });
 
     unlockBtn.addEventListener('click', async () => {

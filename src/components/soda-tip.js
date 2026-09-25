@@ -34,10 +34,8 @@ export function renderSodaTip(container) {
                    style="width:100%;border:none;border-bottom:1px solid var(--foreground);background:transparent;padding-bottom:0.5rem;font-size:1.125rem;font-family:var(--font-body);outline:none;color:var(--foreground);" />
           </div>
 
-          <button class="label" id="soda-pay" type="button"
-                  style="border:1px solid var(--foreground);background:transparent;padding:0.625rem 1.25rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;margin-bottom:0.75rem;"
-                  onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
-                  onmouseout="this.style.borderColor='var(--foreground)';this.style.color='var(--foreground)';">
+          <button class="label hv-accent-border" id="soda-pay" type="button"
+                  style="border:1px solid var(--foreground);background:transparent;padding:0.625rem 1.25rem;color:var(--foreground);cursor:pointer;transition:all 0.15s ease;margin-bottom:0.75rem;">
             Send the soda
           </button>
 

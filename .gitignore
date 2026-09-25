@@ -33,3 +33,6 @@ Thumbs.db
 *.pdf
 scripts/build_proposal.py
 
+
+# Client handover documents (contain pricing / account details)
+handover-*.html

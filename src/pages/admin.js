@@ -43,7 +43,7 @@ function bindBeforeUnload() {
   if (beforeUnloadBound) return;
   beforeUnloadBound = true;
   window.addEventListener('beforeunload', (e) => {
-    if (checkAuth() && location.hash.replace(/^#\/?/, '') === 'admin' && anyDraft()) {
+    if (checkAuth() && location.pathname.replace(/^\/+|\/+$/g, '') === 'admin' && anyDraft()) {
       e.preventDefault();
       e.returnValue = '';
     }
@@ -140,7 +140,7 @@ function renderDashboard(app) {
       <div style="min-height:100vh;background:var(--bg-subtle);">
         <div style="background:var(--background);border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:999;gap:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
           <div style="display:flex;align-items:center;gap:10px;overflow-x:auto;flex-shrink:1;min-width:0;">
-            <a href="#/" class="label" style="text-decoration:none;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;padding:4px 10px;border:1px solid var(--border);border-radius:999px;">← View Site</a>
+            <a href="/" class="label" style="text-decoration:none;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;padding:4px 10px;border:1px solid var(--border);border-radius:999px;">← View Site</a>
             ${TABS.map((t) => `
               <button type="button" data-tab="${t.id}" style="padding:6px 10px;border-radius:999px;border:none;cursor:pointer;font-size:0.72rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap;flex-shrink:0;background:${section === t.id ? 'var(--text)' : 'transparent'};color:${section === t.id ? 'var(--white)' : 'var(--text-muted)'};">${t.label}</button>`).join('')}
           </div>
@@ -215,7 +215,8 @@ function renderDashboard(app) {
       btn.addEventListener('click', () => {
         if (btn.dataset.tab === 'logout') {
           clearAuth();
-          window.location.hash = '#/';
+          history.pushState(null, '', '/');
+          window.dispatchEvent(new PopStateEvent('popstate'));
           return;
         }
         show(btn.dataset.tab);

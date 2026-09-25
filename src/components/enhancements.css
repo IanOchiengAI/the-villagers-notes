@@ -339,6 +339,20 @@ html.is-loading::before {
 [data-retry] { transition: color 0.15s ease, border-color 0.15s ease; }
 [data-retry]:hover { color: var(--accent); border-color: var(--accent); }
 
+/* Unlock code (opt-in way to reopen a paid entry on another device) */
+.paywall-code { margin-top: 0.25rem; }
+.paywall-code summary { cursor: pointer; color: var(--muted-foreground); padding: 0.4rem 0; }
+.paywall-code[open] summary { color: var(--foreground); }
+.paywall-code__row { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-top: 0.5rem; }
+.paywall-code__row .paywall-input { flex: 1 1 12rem; }
+.unlock-code-note { margin-top: 2.5rem; font-size: 0.9rem; }
+.unlock-code-note button { text-align: left; }
+.unlock-code {
+  display: inline-block; margin-top: 0.6rem; padding: 0.35rem 0.7rem;
+  border: 1px dashed var(--rule); font-family: var(--font-mono); font-size: 0.95rem; letter-spacing: 0.08em;
+  user-select: all; overflow-wrap: anywhere;
+}
+
 @media (max-width: 680px) {
   .entry-page { padding: 2.5rem 0; }
   .entry-nav-grid { grid-template-columns: 1fr; }
@@ -351,3 +365,14 @@ html.is-loading::before {
   #app.route-enter > *, html.is-loading::before { animation: none; }
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+
+/* ============================================
+   HOVER/FOCUS states (replace inline onmouseover/onfocus handlers so the CSP can forbid inline scripts)
+   ============================================ */
+.hv-accent { transition: color 0.15s ease; }
+.hv-accent:hover { color: var(--accent) !important; }
+.hv-accent-border { transition: color 0.15s ease, border-color 0.15s ease; }
+.hv-accent-border:hover:not(:disabled) { color: var(--accent) !important; border-color: var(--accent) !important; }
+.hv-credit { transition: opacity 0.15s ease, color 0.15s ease; }
+.hv-credit:hover { opacity: 1 !important; color: var(--accent) !important; }
+.nl-input:focus { border-bottom-color: var(--foreground) !important; }

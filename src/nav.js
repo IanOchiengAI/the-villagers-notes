@@ -1,6 +1,6 @@
 const LINKS = [
-  { label: 'Entries',  href: '#/entries', page: 'entries' },
-  { label: 'Projects', href: '#/projects', page: 'projects' },
+  { label: 'Entries',  href: '/entries', page: 'entries' },
+  { label: 'Projects', href: '/projects', page: 'projects' },
 ];
 
 export function initNav() {
@@ -11,7 +11,7 @@ export function initNav() {
     <nav class="nav" id="site-nav">
       <div class="container">
         <div class="nav__inner">
-          <a href="#/" class="nav__logo">The Villager's Notes</a>
+          <a href="/" class="nav__logo">The Villager's Notes</a>
           <ul class="nav__links">
             ${LINKS.map(l => `<li><a href="${l.href}" data-page="${l.page}">${l.label}</a></li>`).join('')}
           </ul>
@@ -41,13 +41,13 @@ export function initNav() {
     });
   });
 
-  window.addEventListener('hashchange', highlightActive);
+  window.addEventListener('routechange', highlightActive);
+  window.addEventListener('popstate', highlightActive);
   highlightActive();
 }
 
 function highlightActive() {
-  const hash = location.hash.replace('#/', '') || '';
-  const page = hash.split('/')[0];
+  const page = location.pathname.replace(/^\/+/, '').split('/')[0];
   document.querySelectorAll('.nav__links a').forEach(a => {
     const isMatch = a.dataset.page === page || (page.startsWith('entry') && a.dataset.page === 'entries');
     a.classList.toggle('active', isMatch);

@@ -7,9 +7,11 @@
 import { verifyToken } from './_admin-token.js';
 import { fetchT, safeJson } from './_util.js';
 
+// `likes` is deliberately NOT here: readers change it (via /api/like), so an admin save must never
+// overwrite the live count with the stale number the admin page loaded.
 const ENTRY_COLUMNS = [
   'id', 'slug', 'title', 'excerpt', 'category', 'entry_date', 'author',
-  'price', 'preview_words', 'likes', 'body', 'sort_order',
+  'price', 'preview_words', 'body', 'sort_order',
 ];
 const ORDER_STATUSES = ['Awaiting payment', 'Paid', 'Dispatched', 'Delivered'];
 

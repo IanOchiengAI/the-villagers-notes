@@ -8,10 +8,11 @@ Vic Munala is a Kenyan novelist and playwright based in Nairobi, Kenya.
 - **The Villager's Notes** — An ongoing digital collection of essays, reflections, fiction, and cultural commentary.
 
 ## Website & Reading
-- URL: https://the-villagers-notes.vercel.app/
-- Entries & Essays: https://the-villagers-notes.vercel.app/#/entries
-- Projects & Plays: https://the-villagers-notes.vercel.app/#/projects
-- Order Novel: https://the-villagers-notes.vercel.app/#/book
+- URL: https://thevillagersnotes.com/
+- Entries & Essays: https://thevillagersnotes.com/entries
+- Projects & Plays: https://thevillagersnotes.com/projects
+- Order Novel: https://thevillagersnotes.com/book
+- Sitemap: https://thevillagersnotes.com/sitemap.xml
 
 ## Author Contact
 - Author: Vic Munala
