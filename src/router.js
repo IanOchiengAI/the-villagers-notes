@@ -10,6 +10,7 @@ const routes = {
   'projects': { load: () => import('./pages/projects.js').then(m => m.renderProjects), title: "Projects — The Villager's Notes",              desc: 'Under the Mango Tree (Novel) and Beneath the Surface (Play) by Vic Munala.' },
   'works':    { load: () => import('./pages/projects.js').then(m => m.renderProjects), title: "Projects — The Villager's Notes",              desc: 'Under the Mango Tree (Novel) and Beneath the Surface (Play) by Vic Munala.' },
   'book':     { load: () => import('./pages/book.js').then(m => m.renderBook),         title: "Get the Book — Under the Mango Tree",          desc: 'Order Under the Mango Tree by Vic Munala directly via M-Pesa. Nairobi delivery available.' },
+  'privacy':  { load: () => import('./pages/privacy.js').then(m => m.renderPrivacy),   title: "Privacy — The Villager's Notes",               desc: 'What The Villager\'s Notes collects, why, who handles it, and how to ask for your information to be corrected or deleted.' },
   'admin':    { load: () => import('./pages/admin.js').then(m => m.renderAdmin),       title: "Admin — The Villager's Notes",                desc: '' },
 };
 

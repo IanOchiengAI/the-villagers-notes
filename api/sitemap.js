@@ -29,6 +29,7 @@ export default async function handler(req, res) {
     { loc: `${SITE}/entries`, freq: 'weekly', pri: '0.9' },
     { loc: `${SITE}/projects`, freq: 'monthly', pri: '0.8' },
     { loc: `${SITE}/book`, freq: 'monthly', pri: '0.8' },
+    { loc: `${SITE}/privacy`, freq: 'yearly', pri: '0.3' },
   ];
   const entryUrls = (Array.isArray(rows) ? rows : [])
     .map((e) => ({ slug: e.slug || e.id, at: e.created_at }))

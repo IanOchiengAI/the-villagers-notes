@@ -3,7 +3,8 @@
 // phone, references) is deliberately NOT passed through.
 
 import { intasendKeys, keysMissingResponse } from './_intasend.js';
-import { fetchInvoice, fetchT } from './_util.js';
+import { fetchInvoice } from './_util.js';
+import { markOrderPaid } from './_payments.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -30,23 +31,7 @@ export default async function handler(req, res) {
 
   // A confirmed book payment flips the order saved by /api/stk-push to "Paid".
   if (ResultCode === '0' && /^(book|play):/.test(String(invoice.api_ref || ''))) {
-    const url = process.env.VITE_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (url && key) {
-      try {
-        await fetchT(
-          `${url}/rest/v1/orders?order_id=eq.${encodeURIComponent(id)}&status=eq.${encodeURIComponent('Awaiting payment')}`,
-          {
-            method: 'PATCH',
-            headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-            body: JSON.stringify({ status: 'Paid' }),
-          },
-          5000
-        );
-      } catch (e) {
-        console.error('[stk-status] order status update failed:', e);
-      }
-    }
+    await markOrderPaid(id);
   }
 
   return res.status(200).json({

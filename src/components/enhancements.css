@@ -353,6 +353,13 @@ html.is-loading::before {
   user-select: all; overflow-wrap: anywhere;
 }
 
+/* Privacy page */
+.privacy-body { font-size: 1.1rem; }
+.privacy-body h2 { font-size: 1.6rem; margin: 2.25rem 0 0.75rem; }
+.privacy-body ul { margin: 0.75rem 0 1rem 1.25rem; }
+.privacy-body li { margin-bottom: 0.6rem; }
+.privacy-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
 @media (max-width: 680px) {
   .entry-page { padding: 2.5rem 0; }
   .entry-nav-grid { grid-template-columns: 1fr; }

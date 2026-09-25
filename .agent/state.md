@@ -76,6 +76,10 @@
 - [x] **Supabase RLS** — confirmed. Manual API testing proved the anon key cannot select `full_body` directly from `entries` table (returns 42501 permission denied).
 
 ### Audit follow-ups (2026-09-25)
+- [ ] **Merge branch `privacy-webhook-2026-09-25`** (privacy page + IntaSend callback + handover fixes), then in the **IntaSend dashboard → Settings → Webhooks** add `https://thevillagersnotes.com/api/intasend-webhook` with a challenge string, and set the same string in Vercel as `INTASEND_WEBHOOK_CHALLENGE` (Production + Preview) and redeploy. Test with a KES 50 tip: it should appear in People → Soda Tips even if you close the page right after paying.
+- [ ] Have a lawyer read `/privacy`; decide about a cookie/consent notice for GA4; confirm whether Vic must register with the ODPC.
+- [ ] Confirm the Formspree plan (handover no longer claims "free"); confirm domain registrar + renewal date; decide the KES 20,000 handover card wording.
+- [ ] Vercel Hobby function limit: `api/` now has exactly 12 functions.
 - [x] Audit branch `audit/hardening-2026-09-25` **merged to `main` and live** (`50a59e4`, then link-preview fix `daef1ac` and decision restores `f953c3e`).
 - [ ] **Live checks still needed after that merge (need a phone / the admin password):** KES 50 tip lands in Vic's IntaSend and shows in People; a paid-entry unlock; a book order shows in the admin as Awaiting payment then Paid; admin login/edit/save/delete; comment delete.
 - [x] **Ran the audit migration** (`tips.invoice_id`, comment length checks) — Ian ran it, verified present 2026-09-25.
