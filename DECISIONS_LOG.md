@@ -41,7 +41,7 @@
 ### 1.5 Admin authentication is checked on the server
 - **Rule:** The admin password is verified by the `/api/admin-auth` serverless function, never in browser code.
 - **Origin:** `c055cc0` (2026-08-27).
-- **Security gap found 2026-09-23, not yet fixed:** `ADMIN_PASSWORD` and `ADMIN_TOKEN_SECRET` are **not set** in Vercel production (confirmed via `vercel env ls production`). Both `api/admin-auth.js` and `api/_admin-token.js` fall back to a password hardcoded in this **public** repo (`Villager@2026!`). Anyone who reads the repo can currently log into Vic's admin and edit or delete anything. Fix: set both to strong random values in Vercel (Production + Preview) — do this before anything else in this file. See open items in `state.md`.
+- **Security gap fixed 2026-09-25:** `ADMIN_PASSWORD` and `ADMIN_TOKEN_SECRET` set in Vercel (Production + Preview) with cryptographically random values. `security/remove-admin-password-fallback` (`6f53f08`) merged → `main` (`75c5368`) and deployed. The hardcoded `Villager@2026!` fallback no longer exists in the running code. The old literal is still in git history and must be treated as permanently compromised — do not reuse it.
 
 ### 1.5a Admin writes must show a visible error on failure, never fail silently
 - **Rule:** Every save/delete call to `/api/admin-entries` must surface its real outcome to the admin — a visible inline success or error message — and never just quietly no-op.
@@ -72,7 +72,9 @@
 ## 2. Chronological Decision & Feedback History
 
 ### 2026-09-25
-- **IntaSend account migration complete:** Received Vic's live IntaSend keys. Set `INTASEND_PUBLISHABLE_KEY` and `INTASEND_SECRET_KEY` in Vercel for Production and Preview environments. Merged `feat/intasend-vic-account` → `main` (`0dbd342`). Vercel deploy triggered. All M-Pesa payments on the live site (`thevillagersnotes.com`) now route to Vic's IntaSend account, not the studio's. **Pending confirmation:** live KES 10 soda-tip test + paid-entry unlock test with a real invoice.
+- **IntaSend account migration complete:** Received Vic's live IntaSend keys. Set `INTASEND_PUBLISHABLE_KEY` and `INTASEND_SECRET_KEY` in Vercel for Production and Preview environments. Merged `feat/intasend-vic-account` → `main` (`0dbd342`). All M-Pesa payments on the live site now route to Vic's IntaSend account.
+- **Admin password security fixed:** Set `ADMIN_PASSWORD` and `ADMIN_TOKEN_SECRET` in Vercel (Production + Preview) with cryptographically random values. Merged `security/remove-admin-password-fallback` → `main` (`75c5368`). The hardcoded `Villager@2026!` fallback is gone from the running code. Old password must be treated as permanently compromised — never reuse. **Next step for Ian:** send Vic the new password over WhatsApp/Signal (not email).
+- **Still pending (manual, needs a phone):** KES 10 soda-tip live payment test; paid-entry unlock test; mismatched-invoice rejection test. See plan artifact for exact steps.
 
 ### 2026-09-24
 - **Vic's feedback (forwarded by Ian):**
