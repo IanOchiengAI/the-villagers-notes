@@ -76,9 +76,9 @@
 - [x] **Supabase RLS** — confirmed. Manual API testing proved the anon key cannot select `full_body` directly from `entries` table (returns 42501 permission denied).
 
 ### Audit follow-ups (2026-09-25)
-- [ ] **Review and commit the uncommitted audit changes** (nothing is deployed yet). Test on a Vercel preview first: KES 50 tip, a paid-entry unlock, a book order (check it appears in the admin People tab as Awaiting payment then Paid), admin login/edit/save/delete, comment delete.
-- [ ] **Run `supabase/migrations/20260925_audit_invoice_ids_and_comment_limits.sql`** in the Supabase SQL editor (adds `tips.invoice_id`, comment length limits).
-- [ ] **Add Vercel Firewall rate-limit rules** on `/api/stk-push`, `/api/admin-auth`, `/api/subscribe`, `/api/record-tip` (dashboard setting; consider BotID on stk-push/subscribe).
+- [ ] **Review and merge branch `audit/hardening-2026-09-25` (commit `f4a463d`, Vercel preview built OK).** Not merged to `main`. Test on a Vercel preview first: KES 50 tip, a paid-entry unlock, a book order (check it appears in the admin People tab as Awaiting payment then Paid), admin login/edit/save/delete, comment delete.
+- [x] **Ran the audit migration** (`tips.invoice_id`, comment length checks) — Ian ran it, verified present 2026-09-25.
+- [ ] **Add Vercel Firewall rate-limit rules** (in-code best-effort limits are already in the branch; the agent's Vercel connection lacked access to this team) on `/api/stk-push`, `/api/admin-auth`, `/api/subscribe`, `/api/record-tip` (dashboard setting; consider BotID on stk-push/subscribe).
 - [ ] **Decide with Ian/Vic:** History-API routing + server-rendered entry pages (real SEO); real shared likes; a "restore my purchase by phone number" flow for readers who change browser (current invariant: a different browser must pay again).
 - [ ] Confirm the reflected-XSS fix on the deployed site with a harmless slug such as `/entries/'-console.log(1)-'` (should redirect to /#/entries).
 - [ ] Tell Vic the admin Book and Settings tabs were removed (they never changed anything for readers) and that Comments is new.
