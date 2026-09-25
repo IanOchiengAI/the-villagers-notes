@@ -17,7 +17,7 @@ export default async function handler(req, res) {
     // Prefer the secret key for server-to-server verification when it's configured.
     if (secretKey) headers['Authorization'] = `Bearer ${secretKey}`;
 
-    const response = await fetch('https://payment.intasend.com/api/v1/payment/mpesa-stk-push-status/', {
+    const response = await fetch('https://payment.intasend.com/api/v1/payment/status/', {
       method: 'POST',
       headers,
       body: JSON.stringify({
