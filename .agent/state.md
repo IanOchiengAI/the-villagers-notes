@@ -39,7 +39,7 @@
 
 ## Open Items
 
-- [ ] **Apply `supabase/migrations/20260926_lock_entries_public_view.sql`** in the Supabase SQL editor, then re-run the security advisor (expect the ERROR on `entries_public` to clear) and merge branch `security/sweep-2026-09-26`. _(security sweep 2026-09-27)_
+- [x] **Apply `supabase/migrations/20260926_lock_entries_public_view.sql`** in the Supabase SQL editor, then re-run the security advisor (expect the ERROR on `entries_public` to clear) and merge branch `security/sweep-2026-09-26`. _(security sweep 2026-09-27)_ (applied to production 2026-09-27)
 - [ ] Add a Vercel Firewall rate-limit rule on `/api/admin-auth` (the in-memory limiter resets per instance). _(security sweep 2026-09-27)_
 ### Urgent — security
 - [x] **Set `ADMIN_PASSWORD` and `ADMIN_TOKEN_SECRET` in Vercel (Production + Preview)** — done 2026-09-25. Both set with cryptographically random values.
@@ -123,3 +123,4 @@
 | 2026-09-27 | Handover finalised for sending: fee section rebuilt as standard rate / friends discount / total / balance + Pochi steps (Daré Renhanga format), untrue webhook claim removed, date updated. Research of the 2026-09-25 review list confirmed it was already fixed. |
 | 2026-09-27 (later) | Handover PDF: fixed smudged text (variable Google Fonts → static font files; no Type3 fonts left), full-page cover, fee section on its own page. Lesson added to studio KNOWLEDGE.md. Final file: `Handover-Villagers-Notes-Kasuku-Studio.pdf` (gitignored). |
 | 2026-09-27 | Security sweep: wrote migration revoking public writes on `entries_public` (commit 9add595, branch security/sweep-2026-09-26); not yet applied to the DB. |
+| 2026-09-27 (later) | Security sweep follow-up: Security fix applied live: entries_public locked to read-only and switched to invoker rights (advisor ERROR cleared); PR #1 opened. |
