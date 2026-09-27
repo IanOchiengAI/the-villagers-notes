@@ -83,9 +83,18 @@
 - **Implementation:** `src/pages/admin.js` (`openEdit`, `save`, autosave), `api/admin-entries.js` `upsert` accepts `fullBody` and whitelists columns.
 - **Origin:** audit 2026-09-25 (race/failure path re-created the 1.5b data-loss bug).
 
+
+### 1.S Security: public database roles never write through views (2026-09-27)
+- `anon`/`authenticated` must not hold INSERT/UPDATE/DELETE on `entries_public` or any new view. Views are created with `security_invoker = true` or have writes revoked (SECURITY.md Rule 2.10). Run the Supabase security advisor after every schema change.
+
 ---
 
 ## 2. Chronological Decision & Feedback History
+
+### 2026-09-27 (security sweep)
+- Security sweep 2026-09-26/27. Studio rulebook: F:\Work\.studio\security\SECURITY.md. Gate: node F:\Work\.studio\security\ship-check.mjs "<project>" --audit. Nothing was deployed or pushed: production deploys and database changes were blocked by the session's safety check, so every change below is local and waits for the owner's go-live steps.
+- **C2 fixed in code: `entries_public` view no longer writable by the public.** The Supabase security advisor flagged `public.entries_public` (SECURITY DEFINER, auto-updatable) and `anon`/`authenticated` held INSERT/UPDATE/DELETE on it, so anyone with the public anon key could rewrite or delete entries past RLS. Nothing in the site writes through the view (reads use `entries`; admin writes go through `/api/admin-entries`). New migration `supabase/migrations/20260926_lock_entries_public_view.sql` revokes write privileges on the view and TRUNCATE/TRIGGER/REFERENCES on the public tables. Commit `9add595` on branch `security/sweep-2026-09-26`. **Not yet applied to the database** (the session's safety check blocked the production migration); run the file in the Supabase SQL editor.
+- Reviewed and kept: admin auth (HMAC tokens, timing-safe compare, rate limit), IntaSend webhook re-verification, full security headers, 0 dependency advisories. Vic's `vercel.json` headers block is now the studio template (SECURITY.md §4).
 
 ### 2026-09-27 (handover finalised for sending; untracked file, no commit)
 - **Handover fee section rewritten** (`handover-vic-munala.html`, gitignored): now shows a struck-through standard rate, a friends discount and the agreed total, a received / balance table, and M-Pesa Pochi payment steps, in the same shape as the Daré Renhanga proposal (`_Showcases/Sankofa/Updated_Proposal_Michelle_v2.html`). Ian: "it's going to be [the agreed fee] for this one because he's a friend" (amount omitted per rule 1.6). Standard rate is anchored to the studio's published "Authority" package. Figures live only in the handover, never in this repo (rule 1.6).

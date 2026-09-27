@@ -39,6 +39,8 @@
 
 ## Open Items
 
+- [ ] **Apply `supabase/migrations/20260926_lock_entries_public_view.sql`** in the Supabase SQL editor, then re-run the security advisor (expect the ERROR on `entries_public` to clear) and merge branch `security/sweep-2026-09-26`. _(security sweep 2026-09-27)_
+- [ ] Add a Vercel Firewall rate-limit rule on `/api/admin-auth` (the in-memory limiter resets per instance). _(security sweep 2026-09-27)_
 ### Urgent — security
 - [x] **Set `ADMIN_PASSWORD` and `ADMIN_TOKEN_SECRET` in Vercel (Production + Preview)** — done 2026-09-25. Both set with cryptographically random values.
 - [x] **Merge `security/remove-admin-password-fallback`** — done 2026-09-25 (`75c5368`). Hardcoded fallback removed from running code. Admin password sent to Vic on Signal (Ian confirmed 2026-09-27).
@@ -119,3 +121,4 @@
 | 2026-09-25 (audit) | Ruthless audit, then a full hardening pass (uncommitted): closed filter-injection + reflected XSS in entry-meta, stored XSS into admin, fake-tip acceptance; paywall no longer loses paid readers' invoices; book/play orders now saved server-side; admin rewritten (real data, autosave, comment moderation, atomic save); reader pages lazy-loaded; CSS/typography/SEO fixes. See DECISIONS_LOG 1.8-1.10 and the 2026-09-25 audit entry. |
 | 2026-09-25 (evening) | Real URLs + server-rendered entry pages, CSP without inline scripts, shared likes (needs migration), opt-in unlock code, sitemap/llms.txt on real URLs; handover doc gitignored and reviewed. Merged to main (`07931ed`) and verified live. Admin play-order "Email the private link" added (needs `PLAY_PRIVATE_LINK` env var). |
 | 2026-09-27 | Handover finalised for sending: fee section rebuilt as standard rate / friends discount / total / balance + Pochi steps (Daré Renhanga format), untrue webhook claim removed, date updated. Research of the 2026-09-25 review list confirmed it was already fixed. |
+| 2026-09-27 | Security sweep: wrote migration revoking public writes on `entries_public` (commit 9add595, branch security/sweep-2026-09-26); not yet applied to the DB. |
