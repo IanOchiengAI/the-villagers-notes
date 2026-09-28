@@ -81,6 +81,9 @@ function rowToEntry(row) {
     body: Array.isArray(row.body) ? row.body : [],
     meta: `${row.category || 'Essay'} · ${row.entry_date || ''}`,
     sort_order: Number(row.sort_order) || 0,
+    imageUrl: row.image_url || '',
+    audioUrl: row.audio_url || '',
+    videoUrl: row.video_url || '',
   };
 }
 
@@ -104,10 +107,14 @@ function entryToRow(entry, sortOrder) {
     likes: Number(entry.likes) || 0,
     body: Array.isArray(entry.body) ? entry.body : [],
     sort_order: sortOrder,
+    // Empty string = "no media"; the server stores it as null.
+    image_url: entry.imageUrl || null,
+    audio_url: entry.audioUrl || null,
+    video_url: entry.videoUrl || null,
   };
 }
 
-const LIST_COLS = 'id,slug,title,excerpt,category,entry_date,author,price,preview_words,likes,sort_order,created_at';
+const LIST_COLS = 'id,slug,title,excerpt,category,entry_date,author,price,preview_words,likes,sort_order,created_at,image_url,audio_url,video_url';
 const FULL_COLS = LIST_COLS + ',body';
 
 /**
@@ -161,7 +168,7 @@ export async function getEntriesFromDB() {
     const { data, error } = await supabase
       .from('entries')
       // Explicit column list — full_body deliberately excluded
-      .select('id,slug,title,excerpt,category,entry_date,author,price,preview_words,likes,body,sort_order,created_at')
+      .select(FULL_COLS)
       .order('sort_order', { ascending: false })
       .order('created_at', { ascending: false });
     if (error || !data) return null;
@@ -331,6 +338,52 @@ export async function addCommentToDB(entryId, author, commentText) {
 export const listCommentsAdmin = () => callAdminEntries({ action: 'list_comments' });
 export const deleteCommentAdmin = (commentId) => callAdminEntries({ action: 'delete_comment', commentId });
 export const setOrderStatusAdmin = (orderId, status) => callAdminEntries({ action: 'set_order_status', orderId, status });
+
+// ── Admin: media, prices, private play link, paid-entry access (2026-09-28) ────
+// Contract with api/admin-entries.js; see .agent/plans/2026-09-28-media-prices-access.md.
+/** data = { path, token, publicUrl }; upload the file with uploadEntryMedia(). */
+export const createMediaUploadAdmin = (kind, filename, contentType, size) =>
+  callAdminEntries({ action: 'create_media_upload', kind, filename, contentType, size });
+/** data = { settings: { play_price, book_price }, playLink } */
+export const getSettingsAdmin = () => callAdminEntries({ action: 'get_settings' });
+/** prices: { play_price?, book_price? } integers 50..50000 */
+export const setPricesAdmin = (prices) => callAdminEntries({ action: 'set_prices', prices });
+/** link: https URL, or '' to clear (falls back to the PLAY_PRIVATE_LINK env var) */
+export const setPlayLinkAdmin = (link) => callAdminEntries({ action: 'set_play_link', link });
+/** data = { purchases: [{ invoice_id, entry_id, phone, amount, status, created_at, paid_at, devices, open_grants }] } */
+export const listPurchasesAdmin = () => callAdminEntries({ action: 'list_purchases' });
+/** data = { url, expiresAt }. entryId is only needed for an invoice not yet in entry_purchases. */
+export const grantAccessAdmin = (invoiceId, entryId) => callAdminEntries({ action: 'grant_access', invoiceId, ...(entryId ? { entryId } : {}) });
+/** Revokes every device key and unused link for this purchase. data = { revoked } */
+export const revokeAccessAdmin = (invoiceId) => callAdminEntries({ action: 'revoke_access', invoiceId });
+
+/** PUT a file to a signed upload URL from createMediaUploadAdmin(). Returns { ok, error? }. */
+export async function uploadEntryMedia(path, token, file) {
+  if (!supabase) return { ok: false, error: 'Storage is not configured.' };
+  try {
+    const { error } = await supabase.storage.from('entry-media').uploadToSignedUrl(path, token, file, { contentType: file.type });
+    return error ? { ok: false, error: error.message || 'Upload failed' } : { ok: true };
+  } catch (e) {
+    return { ok: false, error: 'Upload failed. Check your connection and try again.' };
+  }
+}
+
+// ── Public: prices for the Projects page ─────────────────────────────────────
+export const DEFAULT_PRICES = { play_price: 1000, book_price: 1500 };
+/** { play_price, book_price } as integers; falls back to DEFAULT_PRICES per key on any failure. */
+export async function getPublicPrices() {
+  const out = { ...DEFAULT_PRICES };
+  if (!supabase) return out;
+  try {
+    const { data, error } = await supabase.from('site_settings').select('key,value').in('key', Object.keys(DEFAULT_PRICES));
+    if (error || !Array.isArray(data)) return out;
+    for (const r of data) {
+      const n = Math.round(Number(r.value));
+      if (Number.isFinite(n) && n >= 50) out[r.key] = n;
+    }
+  } catch { /* defaults */ }
+  return out;
+}
 
 /** @returns {Promise<AdminWriteResult>} data = { tips, orders, subscribers } */
 export async function getStatsAdmin() {

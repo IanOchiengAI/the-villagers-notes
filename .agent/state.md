@@ -124,3 +124,4 @@
 | 2026-09-27 (later) | Handover PDF: fixed smudged text (variable Google Fonts → static font files; no Type3 fonts left), full-page cover, fee section on its own page. Lesson added to studio KNOWLEDGE.md. Final file: `Handover-Villagers-Notes-Kasuku-Studio.pdf` (gitignored). |
 | 2026-09-27 | Security sweep: wrote migration revoking public writes on `entries_public` (commit 9add595, branch security/sweep-2026-09-26); not yet applied to the DB. |
 | 2026-09-27 (later) | Security sweep follow-up: Security fix applied live: entries_public locked to read-only and switched to invoker rights (advisor ERROR cleared); PR #1 opened. |
+| 2026-09-27 (deploy) | Security sweep deploy: PR #1 merged and deployed; live check passed. |
