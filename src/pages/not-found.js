@@ -16,24 +16,24 @@ export async function renderNotFound(app, { kind = 'page' } = {}) {
   const latest = Array.isArray(list) ? list.slice(0, 3) : [];
 
   const lead = kind === 'entry'
-    ? "This story isn't here. It may have been renamed or taken down, or the link lost a letter on its way to you."
-    : "The page you were looking for isn't here. It may have moved, or the link lost a letter on its way to you.";
+    ? "This story left the village without telling anyone. It was renamed, it's hiding, or the link dropped a letter somewhere on the matatu."
+    : "You've walked past the last house in the village, and out here there's only a goat and a broken link. The page has moved, gone to shags, or never existed.";
 
   app.innerHTML = `
     <section class="nf-page">
       <div class="container">
         <div class="label nf-code">404 · ${kind === 'entry' ? 'Entry' : 'Page'} not found</div>
-        <h1 class="nf-title">This path doesn't lead anywhere.</h1>
+        <h1 class="nf-title">Eh. Hapa ni wapi?</h1>
         <p class="nf-lead">${lead}</p>
-        <p class="nf-motto">You can wander off the path, but the village is still here.</p>
+        <p class="nf-motto">Relax. Nobody stays lost in a village. Someone always walks you home.</p>
         <div class="nf-actions">
-          <a href="/" class="btn--sharp">← Back home</a>
-          <a href="/entries" class="btn--sharp">Read the entries →</a>
+          <a href="/" class="btn--sharp">← Walk me home</a>
+          <a href="/entries" class="btn--sharp">Show me the stories →</a>
         </div>
 
         ${latest.length ? `
           <div class="nf-latest">
-            <h2 class="nf-latest-title">Or start with one of these</h2>
+            <h2 class="nf-latest-title">Since you came all this way, have a story</h2>
             <ul class="nf-list">
               ${latest.map((e) => {
                 const meta = [e.category, e.date].filter(Boolean).map((s) => String(s).toUpperCase()).join(' · ');

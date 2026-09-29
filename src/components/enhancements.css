@@ -378,7 +378,7 @@ html.is-loading::before {
 .nf-code { color: var(--accent); letter-spacing: 0.18em; }
 .nf-title {
   margin-top: 1rem;
-  max-width: 18ch;
+  max-width: 24ch;
   font-family: var(--font-hand);
   font-weight: 400;
   font-size: clamp(2.5rem, 8vw, 4.25rem);
