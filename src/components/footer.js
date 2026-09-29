@@ -6,7 +6,7 @@ export function footerHTML() {
           <div class="footer__brand" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span>THE VILLAGER'S NOTES — © ${new Date().getFullYear()}</span>
             <span style="opacity:0.5;">·</span>
-            <a class="hv-credit" href="https://kasuku-studios.web.app" target="_blank" rel="noopener noreferrer" style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:var(--text-muted);opacity:0.65;transition:opacity 0.15s ease,color 0.15s ease;">Site by Kasuku Studio</a>
+            <a class="hv-credit" href="https://kasukustudio.com" target="_blank" rel="noopener noreferrer" style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:var(--text-muted);opacity:0.65;transition:opacity 0.15s ease,color 0.15s ease;">Site by Kasuku Studio</a>
           </div>
           <div class="footer__socials" style="display:flex;align-items:center;gap:1.25rem;">
             <a href="https://www.instagram.com/thevillagersnotes?igsh=MWthNzR1YW03Nmc3Mg==" target="_blank" rel="noopener noreferrer" aria-label="Instagram" class="footer__social-icon hv-accent" style="display:inline-flex;align-items:center;color:var(--muted-foreground);transition:color 0.15s ease;">
