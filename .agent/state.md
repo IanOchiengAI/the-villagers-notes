@@ -34,6 +34,7 @@
 | 2026-09-23 | Admin edit form now loads an entry's true full text from the server (`get_full_body` action) instead of a per-device localStorage cache | The old approach let an entry's real full text get silently overwritten by its ~100-word preview when edited from a different browser — found already live on one published entry |
 | 2026-09-23 | Router sends its own `page_view` to GA4 on every hash-route change | The hash-routed SPA meant the automatic `gtag('config', ...)` page_view could only ever fire once per visit |
 | 2026-09-24 | Inverted prev/next entry pointers; fixed soda amount buttons & contact mailto UX | Aligned entry navigation with chronological order (array is newest-first), fixed missing class on soda preset buttons, and isolated contact mailto from SPA navigation |
+| 2026-09-28 | Posts back to pre-audit typography; entry image/audio/YouTube; Vic sets play and book prices and the private play link in admin; reader unlock code replaced by admin-only single-use links | Ian/Vic requests (DECISIONS_LOG 2026-09-28/29, rules 1.1, 1.6) |
 
 ---
 
@@ -125,3 +126,4 @@
 | 2026-09-27 | Security sweep: wrote migration revoking public writes on `entries_public` (commit 9add595, branch security/sweep-2026-09-26); not yet applied to the DB. |
 | 2026-09-27 (later) | Security sweep follow-up: Security fix applied live: entries_public locked to read-only and switched to invoker rights (advisor ERROR cleared); PR #1 opened. |
 | 2026-09-27 (deploy) | Security sweep deploy: PR #1 merged and deployed; live check passed. |
+| 2026-09-28/29 | Planned and built (3 Sonnet agents + lead review) typography revert, entry media, admin prices/play link, admin-only paid access. Commits `4e91fb0`, `c9bc76a` on `feat/media-prices-access`; 99 offline tests, ship-check pass. Not deployed; migration pending. |
