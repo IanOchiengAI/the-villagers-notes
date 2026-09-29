@@ -370,3 +370,37 @@ html.is-loading::before {
 .hv-credit { transition: opacity 0.15s ease, color 0.15s ease; }
 .hv-credit:hover { opacity: 1 !important; color: var(--accent) !important; }
 .nl-input:focus { border-bottom-color: var(--foreground) !important; }
+
+/* ============================================
+   404 PAGE (src/pages/not-found.js)
+   ============================================ */
+.nf-page { padding: 5rem 0 3rem; }
+.nf-code { color: var(--accent); letter-spacing: 0.18em; }
+.nf-title {
+  margin-top: 1rem;
+  max-width: 18ch;
+  font-family: var(--font-hand);
+  font-weight: 400;
+  font-size: clamp(2.5rem, 8vw, 4.25rem);
+  line-height: 1.05;
+}
+.nf-lead {
+  margin-top: 1.5rem;
+  max-width: 54ch;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  line-height: 1.65;
+}
+.nf-motto {
+  margin-top: 1rem;
+  font-family: var(--font-hand);
+  font-size: clamp(1.25rem, 3.5vw, 1.6rem);
+  color: var(--muted-foreground);
+}
+.nf-actions { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2.25rem; }
+.nf-actions .btn--sharp { text-decoration: none; }
+.nf-latest { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--rule); max-width: 62ch; }
+.nf-latest-title { font-family: var(--font-hand); font-weight: 400; font-size: clamp(1.5rem, 4vw, 2rem); margin: 0 0 0.5rem; }
+.nf-list { list-style: none; padding: 0; margin: 0; }
+.nf-list li { border-top: 1px solid var(--rule); padding: 1.1rem 0; }
+.nf-list li:first-child { border-top: none; }

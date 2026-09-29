@@ -139,11 +139,8 @@ export async function renderEntry(app, id) {
     return;
   }
   if (!entry) {
-    app.innerHTML = `
-      <div class="container" style="padding:var(--space-24) 0;text-align:center;">
-        <p style="color:var(--muted-foreground)">Entry not found.</p>
-        <a href="/entries" class="label" style="margin-top:var(--space-6);display:inline-flex;text-decoration:none;">← Back to Entries</a>
-      </div>`;
+    const { renderNotFound } = await import('./not-found.js');
+    await renderNotFound(app, { kind: 'entry' });
     return;
   }
 

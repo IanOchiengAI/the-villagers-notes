@@ -132,3 +132,4 @@
 | 2026-09-27 (later) | Security sweep follow-up: Security fix applied live: entries_public locked to read-only and switched to invoker rights (advisor ERROR cleared); PR #1 opened. |
 | 2026-09-27 (deploy) | Security sweep deploy: PR #1 merged and deployed; live check passed. |
 | 2026-09-28/29 | Planned and built (3 Sonnet agents + lead review) typography revert, entry media, admin prices/play link, admin-only paid access. Commits `4e91fb0`, `c9bc76a` on `feat/media-prices-access`; 99 offline tests, ship-check pass. Not deployed; migration pending. |
+| 2026-09-29 (404) | Built a themed 404 page with a real 404 status (branch `feat/404-page`, PR). |
