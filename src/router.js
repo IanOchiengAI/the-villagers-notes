@@ -91,14 +91,7 @@ export function initRouter() {
         setMeta(page.title, page.desc);
         render = await page.load();
       } else {
-        render = async (a) => {
-          document.title = "Page not found — The Villager's Notes";
-          a.innerHTML = `
-            <div class="container" style="padding:6rem 0;text-align:center;">
-              <p style="color:var(--muted-foreground);font-size:1.1rem;">That page doesn't exist.</p>
-              <a href="/" class="label" style="margin-top:1.5rem;display:inline-flex;text-decoration:none;">← Back home</a>
-            </div>`;
-        };
+        render = await import('./pages/not-found.js').then(x => x.renderNotFound);
       }
       if (myNav !== navId) return;
       await render(app, arg);
