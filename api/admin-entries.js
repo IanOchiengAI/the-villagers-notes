@@ -236,7 +236,7 @@ export default async function handler(req, res) {
     // ── Prices + private play link (Parts 3-4) ──────────────────────────────
     if (action === 'get_settings') {
       const [settingsRes, playRes] = await Promise.all([
-        fetchT(`${supabaseUrl}/rest/v1/site_settings?key=in.(play_price,book_price)&select=key,value`, { headers }, T),
+        fetchT(`${supabaseUrl}/rest/v1/site_settings?key=in.(play_price,book_price,play_trailer_url)&select=key,value`, { headers }, T),
         fetchT(`${supabaseUrl}/rest/v1/private_settings?key=eq.play_private_link&select=value`, { headers }, T),
       ]);
       if (!settingsRes.ok || !playRes.ok) {
@@ -245,7 +245,9 @@ export default async function handler(req, res) {
       }
       const settingsRows = (await safeJson(settingsRes)) || [];
       const settings = { play_price: 1000, book_price: 1500 };
+      let trailerUrl = '';
       for (const r of settingsRows) {
+        if (r.key === 'play_trailer_url') { trailerUrl = normaliseYouTubeUrl(r.value) || ''; continue; }
         const n = Math.round(Number(r.value));
         if (Number.isFinite(n) && n >= 50) settings[r.key] = n;
       }
@@ -254,7 +256,7 @@ export default async function handler(req, res) {
       const envLink = process.env.PLAY_PRIVATE_LINK || '';
       const validLink = (s) => PLAY_LINK_RE.test(s) && s.length <= 500;
       const playLink = validLink(dbLink) ? dbLink : (validLink(envLink) ? envLink : null);
-      return res.status(200).json({ ok: true, settings, playLink });
+      return res.status(200).json({ ok: true, settings, playLink, trailerUrl });
     }
 
     if (action === 'set_prices') {
@@ -279,6 +281,28 @@ export default async function handler(req, res) {
         return res.status(502).json({ error: 'Failed to save prices' });
       }
       return res.status(200).json({ ok: true });
+    }
+
+    // Public play trailer (a YouTube link shown on /projects). Stored in site_settings, which
+    // the public can read, so this must never be the paid recording (DECISIONS_LOG 1.6).
+    if (action === 'set_trailer') {
+      if (link === '' || link === undefined || link === null) {
+        const r = await fetchT(`${supabaseUrl}/rest/v1/site_settings?key=eq.play_trailer_url`, { method: 'DELETE', headers }, T);
+        if (!r.ok) return res.status(502).json({ error: 'Failed to remove the trailer' });
+        return res.status(200).json({ ok: true, trailerUrl: '' });
+      }
+      const normalised = typeof link === 'string' ? normaliseYouTubeUrl(link) : null;
+      if (!normalised) return res.status(400).json({ error: "That doesn't look like a YouTube link." });
+      const r = await fetchT(`${supabaseUrl}/rest/v1/site_settings?on_conflict=key`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ key: 'play_trailer_url', value: normalised, updated_at: new Date().toISOString() }),
+      }, T);
+      if (!r.ok) {
+        console.error('[admin-entries] set_trailer error:', await r.text());
+        return res.status(502).json({ error: 'Failed to save the trailer' });
+      }
+      return res.status(200).json({ ok: true, trailerUrl: normalised });
     }
 
     if (action === 'set_play_link') {

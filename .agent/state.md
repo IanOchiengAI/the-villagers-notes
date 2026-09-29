@@ -135,3 +135,6 @@
 | 2026-09-29 (deploy) | Migrations applied (plus column-grant fix found in verification), PR #2 merged and live; live checks passed. Remaining checks need admin password / phone. |
 | 2026-09-29 (404) | Themed 404 page with a real 404 status (PR #4); its deploy failed on an invalid Vercel route pattern (production unaffected), fixed in PR #5; restored the 404 log entry lost in the PR #3 merge. |
 | 2026-09-29 (studio link) | Footer credit now links to kasukustudio.com. |
+| 2026-09-29 (links) | Dead-link audit: removed X icon and trailer placeholder, filled email subjects, share links real on load, privacy pronoun. |
+- [x] Footer X icon → x.com/Ofuyo_ (2026-09-29). - [ ] Vic to add the play trailer (admin Settings → Play trailer).
+| 2026-09-29 (trailer + media UI) | Trailer kept and made admin-editable; admin media section redesigned. |

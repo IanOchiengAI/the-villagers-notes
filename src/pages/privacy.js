@@ -28,12 +28,12 @@ export function renderPrivacy(app) {
             <li><strong>Newsletter:</strong> your email address, to send you updates. You can ask to be removed at any time.</li>
             <li><strong>Comments:</strong> the name you type (it doesn't have to be your real one) and your comment. Comments are shown publicly under the story.</li>
             <li><strong>Likes:</strong> only a count. Your own device remembers that you liked a story.</li>
-            <li><strong>Unlocking a paid entry on a new phone or browser:</strong> we keep the phone number used to pay for a paid entry, so if you change devices you can message Vic on WhatsApp and she can restore your access without you paying again.</li>
+            <li><strong>Unlocking a paid entry on a new phone or browser:</strong> we keep the phone number used to pay for a paid entry, so if you change devices you can message Vic on WhatsApp to have your access restored without you paying again.</li>
             <li><strong>Visits:</strong> Google Analytics counts visits (pages viewed, type of device, and roughly where in the world). Vic sees totals, not names.</li>
           </ul>
 
           <h2>What stays on your own device</h2>
-          <p>Your browser keeps a few small notes so the site works properly: a key that keeps a paid story unlocked on this device, the name you last used to comment, and which stories you liked. These are stored in your browser, not sent to us, and you can clear them any time in your browser settings. Clearing them means a paid story will ask you to unlock it again — if that happens, message Vic on WhatsApp with the number you paid from and she can restore it.</p>
+          <p>Your browser keeps a few small notes so the site works properly: a key that keeps a paid story unlocked on this device, the name you last used to comment, and which stories you liked. These are stored in your browser, not sent to us, and you can clear them any time in your browser settings. Clearing them means a paid story will ask you to unlock it again — if that happens, message Vic on WhatsApp with the number you paid from to have it restored.</p>
 
           <h2>Who else handles your information</h2>
           <p>We use these services to run the site. Each of them only receives what it needs for its job.</p>
@@ -54,7 +54,7 @@ export function renderPrivacy(app) {
           <p>Order and payment records are kept for as long as they are needed for delivery, accounts and any dispute. Newsletter addresses are kept until you ask to be removed. Comments stay until you ask for one to be removed or Vic deletes it.</p>
 
           <h2>Your rights</h2>
-          <p>Under Kenya's Data Protection Act, 2019, you can ask what we hold about you, ask us to correct it, or ask us to delete it. Email <a href="mailto:${CONTACT}">${CONTACT}</a> and we will reply. If you are unhappy with the answer, you can complain to the Office of the Data Protection Commissioner.</p>
+          <p>Under Kenya's Data Protection Act, 2019, you can ask what we hold about you, ask us to correct it, or ask us to delete it. Email <a href="mailto:${CONTACT}?subject=${encodeURIComponent('Privacy request')}">${CONTACT}</a> and we will reply. If you are unhappy with the answer, you can complain to the Office of the Data Protection Commissioner.</p>
 
           <h2>Security</h2>
           <p>The site is served over an encrypted connection. Orders and subscriber lists can only be read from the private dashboard. The full text of paid stories is not sent to your browser until payment has been confirmed.</p>

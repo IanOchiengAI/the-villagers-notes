@@ -3,7 +3,7 @@ import { renderContact } from '../components/contact.js';
 import { footerHTML } from '../components/footer.js';
 import { cleanPhone, pollInvoice } from '../lib/pay.js';
 import { postJson } from '../lib/net.js';
-import { incrementCounter, getPublicPrices } from '../lib/supabase.js';
+import { incrementCounter, getPublicPrices, getPlayTrailerUrl } from '../lib/supabase.js';
 
 // Prices come from the admin (site_settings via getPublicPrices()) so metaDetails
 // omits the price here — it's injected at render time once the live price is known.
@@ -36,7 +36,8 @@ const PROJECTS = [
 export async function renderProjects(app) {
   // Server ignores the browser's amount for play/book purchases anyway, but these prices
   // drive every price mention on the page and the amount sent to /api/stk-push.
-  const { play_price: playPrice, book_price: bookPrice } = await getPublicPrices();
+  const [{ play_price: playPrice, book_price: bookPrice }, trailerUrl] = await Promise.all([getPublicPrices(), getPlayTrailerUrl()]);
+  const trailerId = (String(trailerUrl).match(/[?&]v=([A-Za-z0-9_-]{11})/) || [])[1] || '';
 
   // Fire page-view counter (once per browser session)
   incrementCounter('play_views');
@@ -153,9 +154,14 @@ export async function renderProjects(app) {
                 <div class="stk-status" id="play-stk-status"></div>
               </div>
 
-              <!-- Trailer Placeholder Box -->
+              <!-- Trailer: a public YouTube clip Vic sets in admin Settings (never the paid recording,
+                   DECISIONS_LOG 1.6). Until then the box says it's on its way. -->
               <div class="trailer-placeholder-box" id="trailer-box" style="display:none;">
-                <p>The trailer isn't up yet. Send me the YouTube or Vimeo link and it plays right here.</p>
+                ${trailerId ? `
+                  <div class="entry-video"><iframe data-src="https://www.youtube-nocookie.com/embed/${trailerId}" title="Beneath the Surface trailer" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+                ` : `
+                  <p>The trailer is on its way. Check back soon.</p>
+                `}
               </div>
             `}
           </div>
@@ -216,6 +222,9 @@ export async function renderProjects(app) {
     trailerBtn.addEventListener('click', () => {
       incrementCounter('trailer_clicks', false);
       const isHidden = trailerBox.style.display === 'none';
+      // Load the video only when opened, and stop it when closed.
+      const frame = trailerBox.querySelector('iframe[data-src]');
+      if (frame) frame.src = isHidden ? frame.dataset.src : 'about:blank';
       trailerBox.style.display = isHidden ? 'block' : 'none';
       trailerBtn.setAttribute('aria-expanded', String(isHidden));
       trailerBtn.textContent = isHidden ? 'HIDE THE TRAILER ↑' : 'WATCH THE TRAILER →';

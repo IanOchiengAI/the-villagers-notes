@@ -1,7 +1,8 @@
+import '../components/admin-media.css';
 import {
   getEntriesFromDB, upsertEntryToDB, deleteEntryFromDB, getEntryFullBodyFromDB,
   listCommentsAdmin, deleteCommentAdmin, setOrderStatusAdmin, getStatsAdmin, getCounters,
-  createMediaUploadAdmin, uploadEntryMedia, getSettingsAdmin, setPricesAdmin, setPlayLinkAdmin,
+  createMediaUploadAdmin, uploadEntryMedia, getSettingsAdmin, setPricesAdmin, setPlayLinkAdmin, setTrailerAdmin,
   listPurchasesAdmin, grantAccessAdmin, revokeAccessAdmin,
 } from '../lib/supabase.js';
 import { invalidateEntryList } from '../lib/store.js';
@@ -456,6 +457,7 @@ function renderDashboard(app) {
     const playPrice = data?.settings?.play_price ?? 1000;
     const bookPrice = data?.settings?.book_price ?? 1500;
     const playLink = data?.playLink || '';
+    const trailerUrl = data?.trailerUrl || '';
     return `
       <div>
         <div style="margin-bottom:28px;">
@@ -477,6 +479,17 @@ function renderDashboard(app) {
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <button type="button" id="save-prices-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Save prices</button>
             <span id="prices-status" role="status" style="font-size:0.85rem;"></span>
+          </div>
+        </div>
+        <div style="${CARD_CSS}">
+          <h3 style="${H3_CSS}margin-bottom:8px;">Play trailer</h3>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;line-height:1.5;">A YouTube link to a short public clip. It plays when readers tap "Watch the trailer" on the Projects page. Never paste the full recording here: everyone can see this one.</p>
+          <label for="settings-trailer" style="${LABEL_CSS}">YouTube link</label>
+          <input id="settings-trailer" type="url" value="${esc(trailerUrl)}" placeholder="https://www.youtube.com/watch?v=…" style="${FIELD_CSS}margin-bottom:14px;" />
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <button type="button" id="save-trailer-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Save trailer</button>
+            <button type="button" id="remove-trailer-btn" style="padding:10px 18px;border:1.5px solid var(--border);background:none;border-radius:999px;font-size:0.85rem;color:var(--text-muted);cursor:pointer;">Remove</button>
+            <span id="trailer-status" role="status" style="font-size:0.85rem;"></span>
           </div>
         </div>
         <div style="${CARD_CSS.replace('margin-bottom:32px;', '')}">
@@ -519,6 +532,34 @@ function renderDashboard(app) {
       } else {
         sayPrices(r.error || "Couldn't save.", false);
       }
+    });
+
+    const trailerStatus = app.querySelector('#trailer-status');
+    const sayTrailer = (m, ok) => { if (trailerStatus) { trailerStatus.style.color = ok === undefined ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'); trailerStatus.textContent = m; } };
+    async function saveTrailer(val, btn) {
+      btn.disabled = true;
+      sayTrailer(val ? 'Saving…' : 'Removing…');
+      const r = await setTrailerAdmin(val);
+      if (r.status === 401) { handleSessionExpired(app); return; }
+      btn.disabled = false;
+      if (r.ok) {
+        const saved = r.data?.trailerUrl || '';
+        if (store.settings) store.settings.trailerUrl = saved;
+        const input = app.querySelector('#settings-trailer');
+        if (input) input.value = saved;
+        sayTrailer(val ? 'Saved ✓' : 'Removed ✓', true);
+      } else {
+        sayTrailer(r.error || "Couldn't save.", false);
+      }
+    }
+    app.querySelector('#save-trailer-btn')?.addEventListener('click', (e) => {
+      const val = app.querySelector('#settings-trailer')?.value.trim() || '';
+      if (!val) { sayTrailer('Paste a YouTube link first, or use Remove.', false); return; }
+      saveTrailer(val, e.currentTarget);
+    });
+    app.querySelector('#remove-trailer-btn')?.addEventListener('click', (e) => {
+      if (!confirm('Remove the trailer? The Projects page will say it is coming soon.')) return;
+      saveTrailer('', e.currentTarget);
     });
 
     const linkStatus = app.querySelector('#playlink-status');
@@ -873,34 +914,68 @@ function renderDashboard(app) {
           <label for="${p}-excerpt" style="${LABEL_CSS}">Excerpt (teaser sentence)</label>
           <input id="${p}-excerpt" value="${esc(e.excerpt || '')}" placeholder="Short teaser sentence" style="${FIELD_CSS}" />
         </div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;background:var(--bg-subtle);">
-          <p style="${LABEL_CSS}margin-bottom:14px;">Media (optional)</p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:20px;">
-            <div>
-              <span style="${LABEL_CSS}">Cover image (JPEG/PNG/WebP, up to 5 MB)</span>
+        <div class="media-section">
+          <div class="media-section__head">
+            <p class="media-section__title">Media</p>
+            <span class="media-section__pill">Optional</span>
+          </div>
+          <p class="media-section__sub">Shown to every reader, even on paid entries. The cover image is also what people see when the link is shared.</p>
+          <div class="media-grid">
+            <div class="media-tile" data-media-tile="${p}-image">
+              <div class="media-tile__head">
+                <span class="media-tile__icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span>
+                <div><div class="media-tile__title">Cover image</div><div class="media-tile__hint">JPG, PNG or WebP · up to 5 MB</div></div>
+              </div>
               <input type="hidden" id="${p}-imageUrl" value="${esc(e.imageUrl || '')}" />
-              <div data-media-preview="${p}-image" style="margin-bottom:8px;${e.imageUrl ? '' : 'display:none;'}">
-                <img ${e.imageUrl ? `src="${esc(e.imageUrl)}"` : ''} alt="" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);display:block;margin-bottom:6px;" />
-                <button type="button" data-media-remove="${p}-image" style="padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;cursor:pointer;color:hsl(0 60% 45%);">Remove</button>
+              <input type="file" id="${p}-image-file" class="media-file" accept="image/jpeg,image/png,image/webp" />
+              <label for="${p}-image-file" class="media-drop" data-media-drop="${p}-image" style="${e.imageUrl ? 'display:none;' : ''}">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+                <span>Drop an image here or <strong>browse</strong></span>
+              </label>
+              <div class="media-filled" data-media-preview="${p}-image" style="${e.imageUrl ? '' : 'display:none;'}">
+                <img class="media-thumb" ${e.imageUrl ? `src="${esc(e.imageUrl)}"` : ''} alt="Cover image preview" />
+                <div class="media-actions">
+                  <label for="${p}-image-file" class="media-btn">Replace</label>
+                  <button type="button" class="media-btn media-btn--danger" data-media-remove="${p}-image">Remove</button>
+                </div>
               </div>
-              <input type="file" id="${p}-image-file" accept="image/jpeg,image/png,image/webp" style="${e.imageUrl ? 'display:none;' : ''}font-size:0.82rem;max-width:100%;" />
-              <div data-media-status="${p}-image" role="status" style="font-size:0.78rem;margin-top:6px;color:var(--text-muted);"></div>
+              <div class="media-status" data-media-status="${p}-image" role="status"></div>
             </div>
-            <div>
-              <span style="${LABEL_CSS}">Audio (MP3/M4A/AAC/WAV/OGG, up to 25 MB)</span>
+
+            <div class="media-tile" data-media-tile="${p}-audio">
+              <div class="media-tile__head">
+                <span class="media-tile__icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+                <div><div class="media-tile__title">Audio</div><div class="media-tile__hint">MP3, M4A, WAV or OGG · up to 25 MB</div></div>
+              </div>
               <input type="hidden" id="${p}-audioUrl" value="${esc(e.audioUrl || '')}" />
-              <div data-media-preview="${p}-audio" style="margin-bottom:8px;${e.audioUrl ? '' : 'display:none;'}">
-                <audio ${e.audioUrl ? `src="${esc(e.audioUrl)}"` : ''} controls style="width:100%;margin-bottom:6px;"></audio>
-                <button type="button" data-media-remove="${p}-audio" style="padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;cursor:pointer;color:hsl(0 60% 45%);">Remove</button>
+              <input type="file" id="${p}-audio-file" class="media-file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/ogg" />
+              <label for="${p}-audio-file" class="media-drop" data-media-drop="${p}-audio" style="${e.audioUrl ? 'display:none;' : ''}">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+                <span>Drop a recording here or <strong>browse</strong></span>
+              </label>
+              <div class="media-filled" data-media-preview="${p}-audio" style="${e.audioUrl ? '' : 'display:none;'}">
+                <audio ${e.audioUrl ? `src="${esc(e.audioUrl)}"` : ''} controls preload="none"></audio>
+                <div class="media-actions">
+                  <label for="${p}-audio-file" class="media-btn">Replace</label>
+                  <button type="button" class="media-btn media-btn--danger" data-media-remove="${p}-audio">Remove</button>
+                </div>
               </div>
-              <input type="file" id="${p}-audio-file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/ogg" style="${e.audioUrl ? 'display:none;' : ''}font-size:0.82rem;max-width:100%;" />
-              <div data-media-status="${p}-audio" role="status" style="font-size:0.78rem;margin-top:6px;color:var(--text-muted);"></div>
+              <div class="media-status" data-media-status="${p}-audio" role="status"></div>
             </div>
-            <div>
-              <label for="${p}-videoUrl" style="${LABEL_CSS}">YouTube link</label>
-              <input id="${p}-videoUrl" value="${esc(e.videoUrl || '')}" placeholder="https://www.youtube.com/watch?v=…" style="${FIELD_CSS}" />
-              <div data-media-status="${p}-video" role="status" style="font-size:0.78rem;margin-top:6px;"></div>
-              <button type="button" data-media-remove-video="${p}" style="margin-top:8px;padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;cursor:pointer;color:hsl(0 60% 45%);${e.videoUrl ? '' : 'display:none;'}">Remove</button>
+
+            <div class="media-tile" data-media-tile="${p}-video">
+              <div class="media-tile__head">
+                <span class="media-tile__icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/></svg></span>
+                <div><div class="media-tile__title">Video</div><div class="media-tile__hint">Paste a YouTube link</div></div>
+              </div>
+              <input id="${p}-videoUrl" type="url" value="${esc(e.videoUrl || '')}" placeholder="https://youtu.be/…" aria-label="YouTube link" style="${FIELD_CSS}" />
+              <div class="media-filled" data-media-video-preview="${p}" style="display:none;">
+                <img class="media-thumb" alt="Video thumbnail" />
+                <div class="media-actions">
+                  <button type="button" class="media-btn media-btn--danger" data-media-remove-video="${p}">Remove</button>
+                </div>
+              </div>
+              <div class="media-status" data-media-status="${p}-video" role="status"></div>
             </div>
           </div>
         </div>
@@ -912,7 +987,7 @@ function renderDashboard(app) {
               ${btn('data-fmt-italic', 'Italic', 'font-style:italic;font-family:serif;', 'I')}
               ${btn('data-fmt-underline', 'Underline', 'text-decoration:underline;', 'U')}
               ${btn('data-fmt-quote', 'Quote', '', '“ ” Quote')}
-              ${btn('data-fmt-hr', 'Scene break', '', '⁂ Scene break')}
+              ${btn('data-fmt-hr', 'Scene break', '', '— Scene break')}
             </div>
           </div>
           <textarea id="${p}-body" rows="18" ${opts.bodyLocked ? 'disabled' : ''} placeholder="First paragraph...&#10;&#10;Second paragraph..." style="${FIELD_CSS}min-height:380px;padding:16px;font-size:0.95rem;line-height:1.75;resize:vertical;">${esc(bodyText)}</textarea>
@@ -996,7 +1071,9 @@ function renderDashboard(app) {
         preview.style.display = 'none';
       }
     }
-    if (fileInput) fileInput.style.display = url ? 'none' : '';
+    const drop = app.querySelector(`[data-media-drop="${p}-${kind}"]`);
+    if (drop) drop.style.display = url ? 'none' : '';
+    if (fileInput) fileInput.value = '';
   }
 
   /** Wire the cover-image / audio uploads and the YouTube link field for form `key`. */
@@ -1022,22 +1099,35 @@ function renderDashboard(app) {
 
     function wireUpload(kind, opts) {
       const fileInput = app.querySelector(`#${p}-${kind}-file`);
+      const tile = app.querySelector(`[data-media-tile="${p}-${kind}"]`);
+      const drop = app.querySelector(`[data-media-drop="${p}-${kind}"]`);
+      // Drag a file onto the card = choosing it with the picker.
+      drop?.addEventListener('dragover', (ev) => { ev.preventDefault(); drop.classList.add('is-over'); });
+      drop?.addEventListener('dragleave', () => drop.classList.remove('is-over'));
+      drop?.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        drop.classList.remove('is-over');
+        if (!fileInput || !ev.dataTransfer?.files?.length) return;
+        fileInput.files = ev.dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change'));
+      });
       fileInput?.addEventListener('change', async () => {
         const file = fileInput.files?.[0];
         if (!file) return;
         if (!opts.mimes.includes(file.type)) { setMediaStatus(kind, `Must be ${opts.mimeLabel}.`, true); fileInput.value = ''; return; }
         if (file.size > opts.maxBytes) { setMediaStatus(kind, `Too large — max ${opts.maxLabel}.`, true); fileInput.value = ''; return; }
         activeUploads++; updateSaveDisabled();
-        setMediaStatus(kind, 'Uploading…', false);
+        tile?.classList.add('is-busy');
+        setMediaStatus(kind, `Uploading ${file.name}…`, false);
         const up = await createMediaUploadAdmin(kind, file.name, file.type, file.size);
         if (up.status === 401) { handleSessionExpired(app); return; }
-        if (!up.ok) { setMediaStatus(kind, up.error || 'Could not start the upload.', true); fileInput.value = ''; activeUploads--; updateSaveDisabled(); return; }
+        if (!up.ok) { setMediaStatus(kind, up.error || 'Could not start the upload.', true); fileInput.value = ''; activeUploads--; updateSaveDisabled(); tile?.classList.remove('is-busy'); return; }
         const { path, token, publicUrl } = up.data;
         const putRes = await uploadEntryMedia(path, token, file);
-        if (!putRes.ok) { setMediaStatus(kind, putRes.error || 'Upload failed.', true); fileInput.value = ''; activeUploads--; updateSaveDisabled(); return; }
+        if (!putRes.ok) { setMediaStatus(kind, putRes.error || 'Upload failed.', true); fileInput.value = ''; activeUploads--; updateSaveDisabled(); tile?.classList.remove('is-busy'); return; }
         setMediaValue(p, kind, publicUrl);
         setMediaStatus(kind, 'Uploaded ✓', false);
-        activeUploads--; updateSaveDisabled();
+        activeUploads--; updateSaveDisabled(); tile?.classList.remove('is-busy');
         touchDraft();
       });
 
@@ -1055,12 +1145,20 @@ function renderDashboard(app) {
     const videoInput = app.querySelector(`#${p}-videoUrl`);
     const videoStatus = app.querySelector(`[data-media-status="${p}-video"]`);
     const videoRemoveBtn = app.querySelector(`[data-media-remove-video="${p}"]`);
+    const videoPreview = app.querySelector(`[data-media-video-preview="${p}"]`);
     function refreshVideoHint() {
       const val = videoInput?.value.trim() || '';
-      if (!val) { if (videoStatus) videoStatus.textContent = ''; if (videoRemoveBtn) videoRemoveBtn.style.display = 'none'; return; }
       const ok = YT_RE.test(val);
-      if (videoStatus) { videoStatus.style.color = ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'; videoStatus.textContent = ok ? 'Looks good' : 'Not a YouTube link'; }
-      if (videoRemoveBtn) videoRemoveBtn.style.display = '';
+      const id = ok ? (val.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{11})/) || [])[1] : null;
+      if (videoPreview) {
+        videoPreview.style.display = id ? '' : 'none';
+        const img = videoPreview.querySelector('img');
+        if (img && id) img.src = `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+      }
+      if (videoStatus) {
+        videoStatus.style.color = !val ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)');
+        videoStatus.textContent = !val ? '' : (ok ? 'Looks good ✓' : "That isn't a YouTube link");
+      }
     }
     videoInput?.addEventListener('input', refreshVideoHint);
     refreshVideoHint();

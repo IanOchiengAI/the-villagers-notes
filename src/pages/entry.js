@@ -436,14 +436,15 @@ export async function renderEntry(app, id) {
     }
   };
   if (shareBtn && shareDropdown) {
+    // Real share links from the start, so no link ever points at "#".
+    const url = encodeURIComponent(canonicalUrl);
+    const title = encodeURIComponent(entry.title);
+    document.getElementById('share-twitter').href = `https://twitter.com/intent/tweet?text=${title}&url=${url}`;
+    document.getElementById('share-facebook').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+    document.getElementById('share-whatsapp').href = `https://wa.me/?text=${title}%20${url}`;
     shareBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = shareDropdown.style.display === 'flex';
-      const url = encodeURIComponent(canonicalUrl);
-      const title = encodeURIComponent(entry.title);
-      document.getElementById('share-twitter').href = `https://twitter.com/intent/tweet?text=${title}&url=${url}`;
-      document.getElementById('share-facebook').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
-      document.getElementById('share-whatsapp').href = `https://wa.me/?text=${title}%20${url}`;
       shareDropdown.style.display = isOpen ? 'none' : 'flex';
       shareBtn.setAttribute('aria-expanded', String(!isOpen));
     });
