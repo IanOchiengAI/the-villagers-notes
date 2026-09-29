@@ -66,7 +66,7 @@
 - Vercel project: `the-villagers-notes`. Live domain: `thevillagersnotes.com` (HTTP 200); switched in `158997d`.
 - Build: `vite build` (`npm run build`), a Vite single-page app plus serverless functions in `api/`. The build also writes `dist/404.html` (a copy of the shell) for Vercel's real 404s; new top-level routes need a `vercel.json` rewrite (2026-09-29).
 - `vercel.json` sets security headers including a Content-Security-Policy. `connect-src` allows only `self`, `*.supabase.co`, `payment.intasend.com`, `www.google-analytics.com` and `formspree.io`. `script-src` is `'self'` plus Google Tag Manager / Analytics only: **no `'unsafe-inline'` and no `unpkg.com`** (2026-09-25). That means: never add inline `<script>` blocks or inline event attributes (`onclick=`, `onmouseover=`…) — use classes in `enhancements.css` and listeners in JS; the analytics init lives in `public/ga-init.js`. `style-src` still allows inline styles. `object-src 'none'` and `base-uri 'self'` were added. **Any new external service must be added to the CSP or the browser will block it.**
-- The footer credit "SITE BY KASUKU STUDIO" (`fd0dca6`, 2026-09-14) is a studio decision: keep it subtle.
+- The footer credit "SITE BY KASUKU STUDIO" (`fd0dca6`, 2026-09-14) is a studio decision: keep it subtle. It links to `https://kasukustudio.com` (since 2026-09-29; was `kasuku-studios.web.app`).
 - Link previews (`og:image`/`twitter:image`) use `public/images/og-vn.png` (the VN logo on the site's paper background, 1200×630) — changed from the UTMT book cover per Vic's request 2026-09-23 (`0e6e99c`). Since 2026-09-25 the site uses real URLs (`/entries/<slug>`, `/projects`, `/book`, `/admin`); each entry link previews its own title and excerpt (rendered by `api/entry-meta.js`), and since 2026-09-28 the entry's own cover image when it has one (`entries.image_url`, only accepted from our `entry-media` storage bucket); entries without one keep the VN logo. CSP also allows `media-src https://*.supabase.co` (entry audio) and `frame-src https://www.youtube-nocookie.com` (entry videos) since 2026-09-28. Old `/#/…` links still work (upgraded in `src/router.js`). Keep `book-cover.png` for the book page's own imagery.
 - GA4 (`G-8YH7V59JKQ`) sends its own `page_view` on every hash-route change (`d63f2d7`, 2026-09-23) instead of relying on the single automatic one `gtag('config', ...)` would otherwise fire per visit. **Unconfirmed:** whether hits are actually reaching Google — see open item in `state.md`.
 
@@ -92,6 +92,9 @@
 ---
 
 ## 2. Chronological Decision & Feedback History
+
+### 2026-09-29 (studio link)
+- **Ian, 2026-09-29:** "the kasuku websites shown is this https://kasuku-studios.web.app/ can we please change it kasukustudio.com" → footer credit now links to `https://kasukustudio.com` (`src/components/footer.js`). Confirmed the domain answers 200 (www redirects to it).
 
 ### 2026-09-29 (PR #4, fixed by PR #5)
 - **Ian, 2026-09-29:** "Do you have a custom for 404 page? If we don't, can you please make one, still with the theme of the website?" → There was none: unknown addresses showed one grey line and answered HTTP 200 (a soft 404). New `src/pages/not-found.js` (handwritten heading, mono 404 label, both site buttons, the three latest entries), used for unknown paths and for entry slugs that don't exist. **Real 404 status:** `vercel.json` no longer rewrites every path to `index.html`; only the app's routes are rewritten (`/entries|projects|works|book|privacy|admin`, `/entry/:slug`), and a Vite build step copies the shell to `dist/404.html`, which Vercel serves with status 404 for everything else. **Rule:** a new top-level page must be added to the route table in `src/router.js` AND to that rewrite in `vercel.json`, or it will 404 on a direct visit.

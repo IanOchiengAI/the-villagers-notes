@@ -134,3 +134,4 @@
 | 2026-09-28/29 | Planned and built (3 Sonnet agents + lead review) typography revert, entry media, admin prices/play link, admin-only paid access. Commits `4e91fb0`, `c9bc76a` on `feat/media-prices-access`; 99 offline tests, ship-check pass. Not deployed; migration pending. |
 | 2026-09-29 (deploy) | Migrations applied (plus column-grant fix found in verification), PR #2 merged and live; live checks passed. Remaining checks need admin password / phone. |
 | 2026-09-29 (404) | Themed 404 page with a real 404 status (PR #4); its deploy failed on an invalid Vercel route pattern (production unaffected), fixed in PR #5; restored the 404 log entry lost in the PR #3 merge. |
+| 2026-09-29 (studio link) | Footer credit now links to kasukustudio.com. |
