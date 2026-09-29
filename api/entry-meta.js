@@ -10,7 +10,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fetchT, isSafeSlug, escHtml } from './_util.js';
+import { fetchT, isSafeSlug, escHtml, isEntryMediaUrl } from './_util.js';
 
 const SITE = 'https://thevillagersnotes.com';
 const DEFAULT_TITLE = "The Villager's Notes";
@@ -54,7 +54,7 @@ function inline(text) {
 }
 function paragraph(p) {
   const t = String(p).trim();
-  if (t === '---' || t === '***' || t === '___') return '<div class="scene-break" role="separator">⁂</div>';
+  if (t === '---' || t === '***' || t === '___') return '<hr class="divider" />';
   if (t.startsWith('>')) return `<blockquote>${inline(t.replace(/^>\s*/, ''))}</blockquote>`;
   return `<p>${inline(p)}</p>`;
 }
@@ -70,26 +70,33 @@ function previewParagraphs(paragraphs, maxWords) {
   return out.length ? out : paragraphs.slice(0, 1);
 }
 
-function articleHtml(e, isPaid, paragraphs) {
+function articleHtml(e, isPaid, paragraphs, coverImageUrl) {
   const shown = isPaid ? previewParagraphs(paragraphs, Number(e.preview_words) > 0 ? Number(e.preview_words) : 100) : paragraphs;
   const meta = [e.category, e.entry_date].filter(Boolean).map((s) => String(s).toUpperCase()).concat([`BY ${String(e.author || 'Vic Munala').toUpperCase()}`]).join(' · ');
+  const cover = coverImageUrl ? `<img class="entry-cover" src="${escHtml(coverImageUrl)}" alt="" loading="eager" />` : '';
   return `<article class="entry-page" data-cat="${escHtml(e.category || '')}"><div class="container">
 <div><a href="/entries" class="label back-link">← ENTRIES</a></div>
 <div class="label entry-meta">${escHtml(meta)}</div>
 <h1 class="entry-title">${escHtml(e.title)}</h1>
 <p class="entry-standfirst">${escHtml(e.excerpt || '')}</p>
+${cover}
 <div class="prose-note entry-body" id="entry-body">${shown.map(paragraph).join('')}${isPaid ? '<p><em>The rest of this entry is available to read on the site.</em></p>' : ''}</div>
 </div></article>`;
 }
 
 /** Put this entry's tags and content into the built shell. */
-function render(shell, { title, description, canonicalUrl, image, article, ld }) {
+function render(shell, { title, description, canonicalUrl, image, imageIsDefault, article, ld }) {
   let html = shell
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escHtml(title)}</title>`)
     .replace(/<meta\s+name="description"[^>]*>\s*/gi, '')
     .replace(/<meta\s+property="og:[^"]*"[^>]*>\s*/gi, '')
     .replace(/<meta\s+name="twitter:[^"]*"[^>]*>\s*/gi, '')
     .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, '');
+  // The default VN logo is a known 1200x630 asset; a per-entry cover image's real
+  // dimensions aren't known here, so the fixed width/height tags are dropped for it.
+  const dims = imageIsDefault
+    ? '\n  <meta property="og:image:width" content="1200" />\n  <meta property="og:image:height" content="630" />'
+    : '';
   const head = `
   <meta name="description" content="${escHtml(description)}" />
   <link rel="canonical" href="${escHtml(canonicalUrl)}" />
@@ -98,9 +105,7 @@ function render(shell, { title, description, canonicalUrl, image, article, ld })
   <meta property="og:site_name" content="${escHtml(DEFAULT_TITLE)}" />
   <meta property="og:title" content="${escHtml(title)}" />
   <meta property="og:description" content="${escHtml(description)}" />
-  <meta property="og:image" content="${escHtml(image)}" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:image" content="${escHtml(image)}" />${dims}
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escHtml(title)}" />
   <meta name="twitter:description" content="${escHtml(description)}" />
@@ -133,7 +138,7 @@ export default async function handler(req, res) {
       // slug is [A-Za-z0-9_-] only, so it cannot inject filter syntax. Two plain eq lookups.
       const q = async (col) => {
         const r = await fetchT(
-          `${supabaseUrl}/rest/v1/entries?${col}=eq.${slug}&select=id,slug,title,excerpt,category,entry_date,author,price,preview_words,body&limit=1`,
+          `${supabaseUrl}/rest/v1/entries?${col}=eq.${slug}&select=id,slug,title,excerpt,category,entry_date,author,price,preview_words,body,image_url,audio_url,video_url&limit=1`,
           { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, Accept: 'application/json' } },
           6000
         );
@@ -170,7 +175,7 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, s-maxage=60');
     return res.status(404).send(render(shell, {
-      title: `Entry not found — ${DEFAULT_TITLE}`, description: DEFAULT_DESC, canonicalUrl: `${SITE}/entries`, image: DEFAULT_IMAGE, article: '', ld: '',
+      title: `Entry not found — ${DEFAULT_TITLE}`, description: DEFAULT_DESC, canonicalUrl: `${SITE}/entries`, image: DEFAULT_IMAGE, imageIsDefault: true, article: '', ld: '',
     }));
   }
 
@@ -179,7 +184,7 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).send(render(shell, {
-      title: DEFAULT_TITLE, description: DEFAULT_DESC, canonicalUrl, image: DEFAULT_IMAGE, article: '', ld: '',
+      title: DEFAULT_TITLE, description: DEFAULT_DESC, canonicalUrl, image: DEFAULT_IMAGE, imageIsDefault: true, article: '', ld: '',
     }));
   }
 
@@ -187,6 +192,10 @@ export default async function handler(req, res) {
   const paragraphs = Array.isArray(row.body) ? row.body.filter((p) => typeof p === 'string').slice(0, 400) : [];
   const description = row.excerpt || DEFAULT_DESC;
   const title = `${row.title} — ${DEFAULT_TITLE}`;
+  // A per-entry cover image is used for the link preview and JSON-LD only when it passes
+  // the same bucket-prefix check as the admin's own upload validation; otherwise the VN logo.
+  const validImage = typeof row.image_url === 'string' && isEntryMediaUrl(row.image_url, supabaseUrl) ? row.image_url : null;
+  const image = validImage || DEFAULT_IMAGE;
   const ld = JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -194,13 +203,14 @@ export default async function handler(req, res) {
     description,
     author: { '@type': 'Person', name: row.author || 'Vic Munala' },
     mainEntityOfPage: canonicalUrl,
-    image: DEFAULT_IMAGE,
+    image,
     isAccessibleForFree: !isPaid,
   }).replace(/</g, '\\u003c');
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
   return res.status(200).send(render(shell, {
-    title, description, canonicalUrl, image: DEFAULT_IMAGE, article: articleHtml(row, isPaid, paragraphs), ld,
+    title, description, canonicalUrl, image, imageIsDefault: !validImage,
+    article: articleHtml(row, isPaid, paragraphs, validImage), ld,
   }));
 }

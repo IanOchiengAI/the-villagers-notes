@@ -3,15 +3,17 @@ import { renderContact } from '../components/contact.js';
 import { footerHTML } from '../components/footer.js';
 import { cleanPhone, pollInvoice } from '../lib/pay.js';
 import { postJson } from '../lib/net.js';
-import { incrementCounter } from '../lib/supabase.js';
+import { incrementCounter, getPublicPrices } from '../lib/supabase.js';
 
+// Prices come from the admin (site_settings via getPublicPrices()) so metaDetails
+// omits the price here — it's injected at render time once the live price is known.
 const PROJECTS = [
   {
     id: '01',
     num: '01',
     category: 'NOVEL',
     year: '',
-    metaDetails: ['PUBLISHED 2024', 'PAPERBACK', 'KES 1500'],
+    metaDetailsBase: ['PUBLISHED 2024', 'PAPERBACK'],
     title: 'under the Mango Tree',
     synopsis: 'A novel about losing yourself and trying to find your way back home.',
     synopsisFull: `One minute, Esibanda is running as fast as he can because the teacher on duty will work a number on his buttocks because of lateness. The next minute, he is running away, and hiding from his landlord because the rent is due, the rent is always due, and he doesn't have the money.\n\nAfter the simplicity of life in the village with his two friends, Omulindi and Dennis, navigating school, play and mischief, he finds himself on the streets of Nairobi, with its complexities, where he stumbles on a dream, a dream he did not know he had because where he came from dreams like that were not within reach.\n\nDespite the title, no one in the story eats a mango. Neither does a mango fall on anyone's head. Disappointing as that may be, the narrative does well to compensate for that by bringing you into the full range of the human experience, dancing around themes of losing yourself and trying to find your way home. It takes you on a journey about childhood friendship, becoming a man and fatherhood, or lack thereof.`,
@@ -23,17 +25,18 @@ const PROJECTS = [
     num: '02',
     category: 'PLAY',
     year: '',
-    metaDetails: ['77 MINUTES', 'NAIROBI', 'TWO-HANDER', 'KES 1,000'],
+    metaDetailsBase: ['77 MINUTES', 'NAIROBI', 'TWO-HANDER'],
     title: 'Beneath the Surface',
     synopsis: 'A married couple\'s evening unfolds over dinner. The wife demands presence; the husband asks for endurance. With each word uttered, neither realises that the other is afraid of losing the marriage by speaking the truth. You are a fly on the wall listening in on their conversation.',
     images: ['/images/play-scene-2.png', '/images/play-scene-1.png'],
     type: 'play',
-    price: 1000,
   },
 ];
 
-export function renderProjects(app) {
-  const bookPrice = 1500;
+export async function renderProjects(app) {
+  // Server ignores the browser's amount for play/book purchases anyway, but these prices
+  // drive every price mention on the page and the amount sent to /api/stk-push.
+  const { play_price: playPrice, book_price: bookPrice } = await getPublicPrices();
 
   // Fire page-view counter (once per browser session)
   incrementCounter('play_views');
@@ -46,7 +49,10 @@ export function renderProjects(app) {
     </section>
 
     <div class="container">
-      ${PROJECTS.map(p => `
+      ${PROJECTS.map(p => {
+        const priceLabel = `KES ${(p.type === 'novel' ? bookPrice : playPrice).toLocaleString()}`;
+        const metaDetails = [...p.metaDetailsBase, priceLabel];
+        return `
         <div class="project-row" id="project-${p.id}">
           <!-- Left metadata column -->
           <div class="project-meta-col">
@@ -54,7 +60,7 @@ export function renderProjects(app) {
             <div class="proj-cat">${p.category}</div>
             ${p.year ? `<div>${p.year}</div>` : ''}
             <div class="proj-details">
-              ${p.metaDetails.map(d => `<div>${d}</div>`).join('')}
+              ${metaDetails.map(d => `<div>${d}</div>`).join('')}
             </div>
           </div>
 
@@ -124,14 +130,14 @@ export function renderProjects(app) {
                   WATCH THE TRAILER →
                 </button>
                 <button class="btn--sharp" id="toggle-play-pay-btn" aria-expanded="false">
-                  WATCH THE PLAY — KES 1,000 →
+                  WATCH THE PLAY — KES ${playPrice.toLocaleString()} →
                 </button>
               </div>
 
               <!-- Play Payment Box -->
               <div class="play-pay-box" id="play-pay-box" style="display:none;">
                 <p class="play-pay-desc">
-                  A recording of the full 77 minutes. KES 1,000 gets you a private link, sent once, to your email.
+                  A recording of the full 77 minutes. KES ${playPrice.toLocaleString()} gets you a private link, sent once, to your email.
                 </p>
                 <div class="form-group">
                   <label class="form-label-underlined" for="play-mpesa-phone">M-Pesa Number</label>
@@ -142,7 +148,7 @@ export function renderProjects(app) {
                   <input type="email" id="play-email" class="form-input-underlined" placeholder="you@somewhere" />
                 </div>
                 <button class="btn--sharp" id="pay-play-btn" style="margin-top:var(--space-2);">
-                  PAY KES 1,000
+                  PAY KES ${playPrice.toLocaleString()}
                 </button>
                 <div class="stk-status" id="play-stk-status"></div>
               </div>
@@ -154,7 +160,8 @@ export function renderProjects(app) {
             `}
           </div>
         </div>
-      `).join('')}
+      `;
+      }).join('')}
 
       <!-- Buy me soda madiaba -->
       <div id="soda-container"></div>
@@ -228,7 +235,7 @@ export function renderProjects(app) {
         playPayBtn.textContent = 'CLOSE ↑';
         playPayBtn.className = 'btn--sharp-close';
       } else {
-        playPayBtn.textContent = 'WATCH THE PLAY — KES 1,000 →';
+        playPayBtn.textContent = `WATCH THE PLAY — KES ${playPrice.toLocaleString()} →`;
         playPayBtn.className = 'btn--sharp';
       }
     });
@@ -237,7 +244,7 @@ export function renderProjects(app) {
   // Wire Play Payment Action
   const payBtn = app.querySelector('#pay-play-btn');
   if (payBtn) {
-    payBtn.addEventListener('click', handlePlayStkPush);
+    payBtn.addEventListener('click', () => handlePlayStkPush(playPrice));
   }
 
   // Render Soda tip
@@ -312,7 +319,7 @@ async function handleBookInlineStkPush(price) {
   }
 }
 
-async function handlePlayStkPush() {
+async function handlePlayStkPush(price) {
   const phoneInput = document.getElementById('play-mpesa-phone');
   const emailInput = document.getElementById('play-email');
   const status     = document.getElementById('play-stk-status');
@@ -322,6 +329,7 @@ async function handlePlayStkPush() {
 
   const phone = phoneInput.value.trim().replace(/\s/g, '');
   const email = emailInput.value.trim();
+  const label = `PAY KES ${price.toLocaleString()}`;
 
   if (!phone || !email) {
     setProjectStatus(status, 'error', 'Please fill in both your phone number and email.');
@@ -341,13 +349,15 @@ async function handlePlayStkPush() {
   btn.textContent = 'Sending prompt…';
   setProjectStatus(status, 'pending', 'Sending the payment prompt…');
 
+  // The server ignores this amount for purpose 'play' and charges its own stored price —
+  // sent anyway so a stale price never looks silently accepted.
   const push = await postJson('/api/stk-push', {
-    phone: cleaned, name: `Play - ${email}`, address: email, amount: 1000, purpose: 'play',
+    phone: cleaned, name: `Play - ${email}`, address: email, amount: price, purpose: 'play',
   }, 20000);
   if (!push.ok || push.data.error) {
     setProjectStatus(status, 'error', `${push.network ? 'No connection. Check your network' : (push.data.error || 'Could not initiate payment')}. Please try again.`);
     btn.disabled = false;
-    btn.textContent = 'PAY KES 1,000';
+    btn.textContent = label;
     return;
   }
 
@@ -360,11 +370,11 @@ async function handlePlayStkPush() {
   } else if (result.state === 'FAILED') {
     setProjectStatus(status, 'error', `Payment declined${result.desc ? `: ${result.desc}` : ''}. You haven't been charged. Please try again.`);
     btn.disabled = false;
-    btn.textContent = 'PAY KES 1,000';
+    btn.textContent = label;
   } else {
     setProjectStatus(status, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages or contact Vic directly.');
     btn.disabled = false;
-    btn.textContent = 'PAY KES 1,000';
+    btn.textContent = label;
   }
 }
 

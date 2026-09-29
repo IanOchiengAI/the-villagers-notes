@@ -44,12 +44,20 @@ export async function renderHome(app) {
             if (e.date) metaParts.push(e.date.toUpperCase());
             const metaText = metaParts.length > 0 ? metaParts.join(' · ') : (e.meta?.toUpperCase() || 'ESSAY');
 
+            const body = `
+                  <div class="label" style="margin-bottom:0.5rem;">${esc(metaText)}</div>
+                  <h3 class="hv-accent" style="font-size:clamp(1.4rem, 4vw, 1.75rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);">${esc(e.title)}</h3>
+                  <p style="margin-top:0.4rem;max-width:60ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;">${esc(e.excerpt || '')}</p>`;
+            // Only entries with a cover image get the thumbnail row — entries without one keep
+            // the exact original markup so their layout never changes.
+            const content = e.imageUrl
+              ? `<div class="entry-thumb-row"><img class="entry-list-thumb" src="${esc(e.imageUrl)}" alt="" loading="lazy" /><div class="entry-list-body">${body}</div></div>`
+              : body;
+
             return `
               <li style="border-top:1px solid var(--rule);padding:1.5rem 0;">
                 <a href="/entries/${encodeURIComponent(e.slug || e.id)}" style="display:block;text-decoration:none;color:inherit;" class="entry-link-group">
-                  <div class="label" style="margin-bottom:0.5rem;">${esc(metaText)}</div>
-                  <h3 class="hv-accent" style="font-size:clamp(1.4rem, 4vw, 1.75rem);font-family:var(--font-hand);font-weight:400;margin:0;transition:color 0.15s ease;color:var(--foreground);">${esc(e.title)}</h3>
-                  <p style="margin-top:0.4rem;max-width:60ch;color:var(--muted-foreground);font-family:var(--font-body);font-size:1.0625rem;line-height:1.6;">${esc(e.excerpt || '')}</p>
+                  ${content}
                 </a>
               </li>
             `;

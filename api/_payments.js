@@ -30,6 +30,54 @@ export async function markOrderPaid(invoiceId) {
 }
 
 /**
+ * Flip a paid-entry purchase (`entry_purchases`) to "Paid" (idempotent). Creates the row if
+ * it doesn't exist yet (buyers from before this feature shipped have none). Deliberately
+ * never touches `device_minted_at` — that column is claimed separately, exactly once, by
+ * /api/get-content so a purchase can still mint its first device key after this runs.
+ */
+export async function markEntryPurchasePaid(invoiceId, entryId, amount) {
+  const { url, key } = db();
+  if (!url || !key) return false;
+  const headers = { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+  const paidAt = new Date().toISOString();
+  try {
+    // Try to update an existing row first — this is the common case (stk-push already
+    // inserted an "Awaiting payment" row) and it's the only path guaranteed not to touch
+    // device_minted_at.
+    const patchRes = await fetchT(
+      `${url}/rest/v1/entry_purchases?invoice_id=eq.${encodeURIComponent(invoiceId)}`,
+      {
+        method: 'PATCH',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({ status: 'Paid', paid_at: paidAt }),
+      },
+      6000
+    );
+    if (!patchRes.ok) {
+      console.error('[payments] markEntryPurchasePaid patch failed:', patchRes.status);
+      return false;
+    }
+    const rows = await safeJson(patchRes);
+    if (Array.isArray(rows) && rows.length > 0) return true;
+
+    // No existing row: create it directly as Paid. device_minted_at stays null.
+    const postRes = await fetchT(`${url}/rest/v1/entry_purchases?on_conflict=invoice_id`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'resolution=ignore-duplicates,return=minimal' },
+      body: JSON.stringify({ invoice_id: invoiceId, entry_id: entryId, amount, status: 'Paid', paid_at: paidAt }),
+    }, 6000);
+    if (!postRes.ok) {
+      console.error('[payments] markEntryPurchasePaid post failed:', postRes.status);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('[payments] markEntryPurchasePaid error:', e);
+    return false;
+  }
+}
+
+/**
  * Save a confirmed tip exactly once. Returns { ok: true, duplicate?: true } or { ok: false }.
  * Uses tips.invoice_id (unique) when the column exists; otherwise falls back to
  * de-duplicating on phone + amount within 15 minutes.

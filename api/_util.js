@@ -33,6 +33,44 @@ export function normalisePhone(raw) {
   return null;
 }
 
+/**
+ * True if `url` points inside our public entry-media storage bucket and holds no
+ * characters that could break an HTML attribute or a link-preview scrape.
+ * Used to validate entries.image_url / audio_url (2026-09-28 media feature).
+ */
+export function isEntryMediaUrl(url, supabaseUrl) {
+  if (typeof url !== 'string' || !url || !supabaseUrl) return false;
+  if (/[\s'"<>]/.test(url)) return false;
+  const prefix = `${supabaseUrl}/storage/v1/object/public/entry-media/`;
+  return url.startsWith(prefix) && url.length > prefix.length;
+}
+
+const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+/**
+ * Accepts a YouTube watch/short/embed/youtu.be URL and returns the canonical
+ * `https://www.youtube.com/watch?v=<id>` form, or null if it isn't one.
+ */
+export function normaliseYouTubeUrl(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  let id = null;
+  try {
+    const u = new URL(s);
+    const host = u.hostname.replace(/^www\.|^m\./, '');
+    if (host === 'youtu.be') {
+      id = u.pathname.slice(1).split('/')[0];
+    } else if (host === 'youtube.com') {
+      if (u.pathname === '/watch') id = u.searchParams.get('v');
+      else if (u.pathname.startsWith('/shorts/')) id = u.pathname.split('/')[2];
+      else if (u.pathname.startsWith('/embed/')) id = u.pathname.split('/')[2];
+    }
+  } catch {
+    return null;
+  }
+  if (!id || !YOUTUBE_ID_RE.test(id)) return null;
+  return `https://www.youtube.com/watch?v=${id}`;
+}
+
 /** Look up an IntaSend invoice server-side. Returns { invoice } or { error, status }. */
 export async function fetchInvoice(publicKey, secretKey, invoiceId) {
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };

@@ -55,12 +55,34 @@ export default async function handler(req, res) {
       console.error('[stk-push] entry price lookup failed:', err);
       return res.status(502).json({ error: 'Could not verify article price. Please try again.' });
     }
-  } else if (purpose === 'book') {
-    apiRef = `book:${Date.now()}`;
+  } else if (purpose === 'book' || purpose === 'play') {
+    apiRef = `${purpose}:${Date.now()}`;
     maxAmount = BOOK_MAX;
-  } else if (purpose === 'play') {
-    apiRef = `play:${Date.now()}`;
-    maxAmount = BOOK_MAX;
+    // The price is admin-set in `site_settings` (see admin-entries.js `set_prices`). The
+    // browser's amount is ignored entirely — money facts come only from the server/DB.
+    const priceKey = purpose === 'play' ? 'play_price' : 'book_price';
+    const fallbackPrice = purpose === 'play' ? 1000 : 1500;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceKey) {
+      return res.status(503).json({ error: 'Payments are being set up. Please try again in a moment.' });
+    }
+    try {
+      const priceRes = await fetchT(
+        `${supabaseUrl}/rest/v1/site_settings?key=eq.${priceKey}&select=value`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: 'application/json' } },
+        7000
+      );
+      if (!priceRes.ok) {
+        console.error('[stk-push] price lookup failed:', priceRes.status);
+        return res.status(503).json({ error: 'Could not verify the price right now. Please try again.' });
+      }
+      const priceRows = await safeJson(priceRes);
+      const n = Array.isArray(priceRows) && priceRows[0] ? Math.round(Number(priceRows[0].value)) : NaN;
+      chargeAmount = Number.isFinite(n) && n >= 50 ? n : fallbackPrice;
+    } catch (err) {
+      console.error('[stk-push] price lookup error:', err);
+      return res.status(503).json({ error: 'Could not verify the price right now. Please try again.' });
+    }
   } else if (purpose === 'tip') {
     apiRef = `tip:${Date.now()}`;
     maxAmount = TIP_MAX;
@@ -135,6 +157,29 @@ export default async function handler(req, res) {
         if (!r.ok) console.error('[stk-push] order insert failed:', await r.text());
       } catch (e) {
         console.error('[stk-push] order insert error:', e);
+      }
+    }
+
+    // Paid-entry purchases are recorded the moment the prompt is sent (status "Awaiting
+    // payment") so the admin-only access system (Part 5) has a row to attach device keys
+    // and grant links to. A failure here is logged but never blocks the payment itself.
+    if (purpose === 'entry' && invoiceId && supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const r = await fetchT(`${supabaseUrl}/rest/v1/entry_purchases?on_conflict=invoice_id`, {
+          method: 'POST',
+          headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' },
+          body: JSON.stringify({
+            invoice_id: invoiceId,
+            entry_id,
+            phone: formattedPhone,
+            amount: numAmount,
+            status: 'Awaiting payment',
+          }),
+        }, 6000);
+        if (!r.ok) console.error('[stk-push] entry_purchases insert failed:', await r.text());
+      } catch (e) {
+        console.error('[stk-push] entry_purchases insert error:', e);
       }
     }
 

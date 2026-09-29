@@ -34,6 +34,7 @@
 | 2026-09-23 | Admin edit form now loads an entry's true full text from the server (`get_full_body` action) instead of a per-device localStorage cache | The old approach let an entry's real full text get silently overwritten by its ~100-word preview when edited from a different browser — found already live on one published entry |
 | 2026-09-23 | Router sends its own `page_view` to GA4 on every hash-route change | The hash-routed SPA meant the automatic `gtag('config', ...)` page_view could only ever fire once per visit |
 | 2026-09-24 | Inverted prev/next entry pointers; fixed soda amount buttons & contact mailto UX | Aligned entry navigation with chronological order (array is newest-first), fixed missing class on soda preset buttons, and isolated contact mailto from SPA navigation |
+| 2026-09-28 | Posts back to pre-audit typography; entry image/audio/YouTube; Vic sets play and book prices and the private play link in admin; reader unlock code replaced by admin-only single-use links | Ian/Vic requests (DECISIONS_LOG 2026-09-28/29, rules 1.1, 1.6) |
 
 ---
 
@@ -95,7 +96,12 @@
 - [ ] Confirm the reflected-XSS fix on the deployed site with a harmless slug such as `/entries/'-console.log(1)-'` (should redirect to /entries).
 - [x] (Checked 2026-09-27: all listed claims are gone; fee section finalised.) Fix the handover document's inaccurate claims before sending it to Vic (see the review given to Ian on 2026-09-25): no per-story artwork in previews, "cryptographic release", ISBN/production history in the JSON-LD, "zero ongoing dependencies / no platform percentages" (IntaSend charges a fee; domain renewal; free-tier limits), Instrument Serif (dropped), taxonomy filtering, `/#/admin` link, stale action item 03, and whether the studio link should be `kasuku-studios.web.app` (as in the site footer) or `kasukustudio.com`.
 - [ ] Send Vic the handover (Save as PDF from the browser) (password already sent on Signal; the balance now credits Vic's August domain payment). Once the IntaSend webhook is live, restore the "works even if the buyer closes the page" line in the handover.
-- [ ] Tell Vic the admin Book and Settings tabs were removed (they never changed anything for readers) and that Comments is new.
+- [ ] Tell Vic the admin Book and Settings tabs were removed (they never changed anything for readers) and that Comments is new. (Superseded 2026-09-28: a new Settings tab now exists, for prices and the play link.)
+
+### Media / prices / access (branch `feat/media-prices-access`, 2026-09-28)
+- [ ] **Ian: run `supabase/migrations/20260928_media_prices_access.sql`** in the Supabase SQL editor BEFORE deploying (reader pages select the new columns). Then the lead verifies with the security advisor and anon checks.
+- [ ] Deploy the branch (PR), then live checks: entry typography, image/audio upload and share preview, YouTube embed, prices on /projects + amount charged, Settings tab, paid unlock on one device, Give access link works once, Revoke.
+- [ ] Tell Vic: new Settings and Paid readers tabs; unlock code gone; readers who change phones contact him on WhatsApp.
 
 ---
 
@@ -124,3 +130,5 @@
 | 2026-09-27 (later) | Handover PDF: fixed smudged text (variable Google Fonts → static font files; no Type3 fonts left), full-page cover, fee section on its own page. Lesson added to studio KNOWLEDGE.md. Final file: `Handover-Villagers-Notes-Kasuku-Studio.pdf` (gitignored). |
 | 2026-09-27 | Security sweep: wrote migration revoking public writes on `entries_public` (commit 9add595, branch security/sweep-2026-09-26); not yet applied to the DB. |
 | 2026-09-27 (later) | Security sweep follow-up: Security fix applied live: entries_public locked to read-only and switched to invoker rights (advisor ERROR cleared); PR #1 opened. |
+| 2026-09-27 (deploy) | Security sweep deploy: PR #1 merged and deployed; live check passed. |
+| 2026-09-28/29 | Planned and built (3 Sonnet agents + lead review) typography revert, entry media, admin prices/play link, admin-only paid access. Commits `4e91fb0`, `c9bc76a` on `feat/media-prices-access`; 99 offline tests, ship-check pass. Not deployed; migration pending. |

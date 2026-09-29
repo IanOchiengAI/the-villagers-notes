@@ -1,4 +1,4 @@
-const WHATSAPP_NUMBER = '254710276333';
+export const WHATSAPP_NUMBER = '254710276333';
 const MESSAGE = encodeURIComponent("Hi Vic! I'd like to get in touch.");
 
 export function initWhatsAppFab() {
