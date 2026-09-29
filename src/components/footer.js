@@ -24,8 +24,12 @@ export function footerHTML() {
                 <path d="M11.5 17V4l8 3.5"></path>
               </svg>
             </a>
-            <!-- Twitter/X icon removed 2026-09-29: it pointed at the x.com homepage, not a profile.
-                 Add it back here with Vic's real handle (classic bird icon, DECISIONS_LOG 1.4). -->
+            <a href="https://x.com/Ofuyo_" target="_blank" rel="noopener noreferrer" aria-label="Twitter" class="footer__social-icon hv-accent" style="display:inline-flex;align-items:center;color:var(--muted-foreground);transition:color 0.15s ease;">
+              <!-- Twitter (Classic Bird) -->
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
+              </svg>
+            </a>
             <a href="/privacy" class="footer__email-link label hv-accent" style="text-decoration:none;">PRIVACY</a>
             <a href="mailto:vikmunala@gmail.com?subject=${encodeURIComponent("Hello from The Villager's Notes")}" class="footer__email-link label hv-accent" style="text-decoration:none;transition:color 0.15s ease;">EMAIL</a>
           </div>
