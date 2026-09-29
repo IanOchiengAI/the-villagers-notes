@@ -20,6 +20,7 @@
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     { "source": "/entries/:slug", "destination": "/api/entry-meta?slug=:slug" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/entry/:slug", "destination": "/index.html" },
+    { "source": "/(entries|projects|works|book|privacy|admin)/?", "destination": "/index.html" }
   ]
 }
