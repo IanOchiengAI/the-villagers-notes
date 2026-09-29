@@ -99,8 +99,8 @@
 - [ ] Tell Vic the admin Book and Settings tabs were removed (they never changed anything for readers) and that Comments is new. (Superseded 2026-09-28: a new Settings tab now exists, for prices and the play link.)
 
 ### Media / prices / access (branch `feat/media-prices-access`, 2026-09-28)
-- [ ] **Ian: run `supabase/migrations/20260928_media_prices_access.sql`** in the Supabase SQL editor BEFORE deploying (reader pages select the new columns). Then the lead verifies with the security advisor and anon checks.
-- [ ] Deploy the branch (PR), then live checks: entry typography, image/audio upload and share preview, YouTube embed, prices on /projects + amount charged, Settings tab, paid unlock on one device, Give access link works once, Revoke.
+- [x] (done 2026-09-29, plus follow-up `20260929_entries_media_column_grants.sql`; verified) **Ian: run `supabase/migrations/20260928_media_prices_access.sql`** in the Supabase SQL editor BEFORE deploying (reader pages select the new columns). Then the lead verifies with the security advisor and anon checks.
+- [x] Deployed (PR #2, 2026-09-29); automated live checks passed. - [ ] Ian still to check (admin password / phone): entry typography, image/audio upload and share preview, YouTube embed, prices on /projects + amount charged, Settings tab, paid unlock on one device, Give access link works once, Revoke.
 - [ ] Tell Vic: new Settings and Paid readers tabs; unlock code gone; readers who change phones contact him on WhatsApp.
 
 ---
@@ -132,3 +132,4 @@
 | 2026-09-27 (later) | Security sweep follow-up: Security fix applied live: entries_public locked to read-only and switched to invoker rights (advisor ERROR cleared); PR #1 opened. |
 | 2026-09-27 (deploy) | Security sweep deploy: PR #1 merged and deployed; live check passed. |
 | 2026-09-28/29 | Planned and built (3 Sonnet agents + lead review) typography revert, entry media, admin prices/play link, admin-only paid access. Commits `4e91fb0`, `c9bc76a` on `feat/media-prices-access`; 99 offline tests, ship-check pass. Not deployed; migration pending. |
+| 2026-09-29 (deploy) | Migrations applied (plus column-grant fix found in verification), PR #2 merged and live; live checks passed. Remaining checks need admin password / phone. |
