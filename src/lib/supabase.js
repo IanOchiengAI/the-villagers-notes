@@ -348,6 +348,8 @@ export const createMediaUploadAdmin = (kind, filename, contentType, size) =>
 export const getSettingsAdmin = () => callAdminEntries({ action: 'get_settings' });
 /** prices: { play_price?, book_price? } integers 50..50000 */
 export const setPricesAdmin = (prices) => callAdminEntries({ action: 'set_prices', prices });
+/** Public play trailer: a YouTube link, or '' to remove. data = { trailerUrl } */
+export const setTrailerAdmin = (link) => callAdminEntries({ action: 'set_trailer', link });
 /** link: https URL, or '' to clear (falls back to the PLAY_PRIVATE_LINK env var) */
 export const setPlayLinkAdmin = (link) => callAdminEntries({ action: 'set_play_link', link });
 /** data = { purchases: [{ invoice_id, entry_id, phone, amount, status, created_at, paid_at, devices, open_grants }] } */
@@ -370,6 +372,14 @@ export async function uploadEntryMedia(path, token, file) {
 
 // ── Public: prices for the Projects page ─────────────────────────────────────
 export const DEFAULT_PRICES = { play_price: 1000, book_price: 1500 };
+/** The public play trailer (normalised YouTube watch URL) or '' when none is set. */
+export async function getPlayTrailerUrl() {
+  if (!supabase) return '';
+  try {
+    const { data, error } = await supabase.from('site_settings').select('value').eq('key', 'play_trailer_url').maybeSingle();
+    return !error && data && typeof data.value === 'string' ? data.value : '';
+  } catch { return ''; }
+}
 /** { play_price, book_price } as integers; falls back to DEFAULT_PRICES per key on any failure. */
 export async function getPublicPrices() {
   const out = { ...DEFAULT_PRICES };

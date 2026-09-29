@@ -1,0 +1,60 @@
+/* Admin entry form: media cards (cover image, audio, YouTube). Imported by src/pages/admin.js,
+   so it only loads with the admin. */
+
+.media-section { border: 1px solid var(--border); border-radius: 14px; padding: 20px; background: var(--bg-subtle); }
+.media-section__head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.media-section__title { font-family: var(--font-hand); font-size: 1.6rem; font-weight: 600; line-height: 1.1; margin: 0; }
+.media-section__pill {
+  font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px; background: var(--white); border: 1px solid var(--border); color: var(--text-muted);
+}
+.media-section__sub { font-size: 0.8rem; color: var(--text-muted); margin: 0 0 16px; line-height: 1.5; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+
+.media-tile {
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.media-tile:focus-within { border-color: var(--text); }
+.media-tile__head { display: flex; align-items: center; gap: 8px; }
+.media-tile__icon {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: grid; place-items: center; background: var(--bg-subtle); color: var(--text);
+}
+.media-tile__title { font-weight: 700; font-size: 0.9rem; line-height: 1.2; }
+.media-tile__hint { font-size: 0.72rem; color: var(--text-muted); line-height: 1.3; }
+
+/* The real <input type=file> stays in the page (so its <label>s work) but is visually hidden. */
+.media-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); }
+.media-file:focus-visible + .media-drop { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.media-drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 118px; padding: 14px; text-align: center; cursor: pointer;
+  border: 1.5px dashed var(--border); border-radius: 10px; background: var(--bg-subtle);
+  color: var(--text-muted); font-size: 0.8rem; line-height: 1.4;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.media-drop:hover, .media-drop.is-over { border-color: var(--text); color: var(--text); background: var(--white); }
+.media-drop strong { color: var(--text); text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
+.media-tile.is-busy .media-drop { cursor: progress; opacity: 0.7; pointer-events: none; }
+
+.media-filled { display: flex; flex-direction: column; gap: 8px; }
+.media-thumb { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; background: var(--bg-subtle); }
+.media-filled audio { width: 100%; }
+.media-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.media-btn {
+  padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--white);
+  font-size: 0.75rem; font-weight: 600; cursor: pointer; color: var(--text);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.media-btn:hover { border-color: var(--text); }
+.media-btn--danger { color: hsl(0 60% 45%); }
+.media-btn--danger:hover { border-color: hsl(0 60% 45%); }
+
+.media-status { font-size: 0.76rem; min-height: 1em; color: var(--text-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .media-tile, .media-drop, .media-btn { transition: none; }
+}
