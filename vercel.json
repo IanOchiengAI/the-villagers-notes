@@ -1,4 +1,5 @@
 {
+  "trailingSlash": false,
   "headers": [
     {
       "source": "/(.*)",
@@ -21,6 +22,6 @@
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     { "source": "/entries/:slug", "destination": "/api/entry-meta?slug=:slug" },
     { "source": "/entry/:slug", "destination": "/index.html" },
-    { "source": "/(entries|projects|works|book|privacy|admin)/?", "destination": "/index.html" }
+    { "source": "/:page(entries|projects|works|book|privacy|admin)", "destination": "/index.html" }
   ]
 }
