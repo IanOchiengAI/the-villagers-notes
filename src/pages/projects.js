@@ -125,10 +125,9 @@ export async function renderProjects(app) {
               </div>
 
             ` : `
+              <!-- No trailer exists yet, so no trailer button (it only opened a placeholder).
+                   To bring it back: a short public clip, never the paid recording (DECISIONS_LOG 1.6). -->
               <div class="project-cta-row">
-                <button class="btn--sharp" id="toggle-trailer-btn" aria-expanded="false">
-                  WATCH THE TRAILER →
-                </button>
                 <button class="btn--sharp" id="toggle-play-pay-btn" aria-expanded="false">
                   WATCH THE PLAY — KES ${playPrice.toLocaleString()} →
                 </button>
@@ -151,11 +150,6 @@ export async function renderProjects(app) {
                   PAY KES ${playPrice.toLocaleString()}
                 </button>
                 <div class="stk-status" id="play-stk-status"></div>
-              </div>
-
-              <!-- Trailer Placeholder Box -->
-              <div class="trailer-placeholder-box" id="trailer-box" style="display:none;">
-                <p>The trailer isn't up yet. Send me the YouTube or Vimeo link and it plays right here.</p>
               </div>
             `}
           </div>

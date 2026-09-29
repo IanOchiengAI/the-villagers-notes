@@ -93,6 +93,9 @@
 
 ## 2. Chronological Decision & Feedback History
 
+### 2026-09-29 (no dead links)
+- **Ian, 2026-09-29:** "the important thing is that we don't have any buttons or links that don't go anywhere from Vic's website… even if it's an email button… the email is already filled in… For now, we'll work with what we have currently." → Audited every link and button on every public page. Fixed: footer X/Twitter icon removed (it pointed at the x.com homepage; re-add with Vic's real handle); "Watch the trailer" button and its developer-facing placeholder removed from /projects (no trailer exists; a trailer must be a short public clip, never the paid recording, rule 1.6); footer EMAIL now opens with subject "Hello from The Villager's Notes" and the privacy-page email with "Privacy request"; entry share links are real from page load instead of `#` until clicked; privacy page no longer calls Vic "she". Verified working: contact form opens a filled-in email to Vic, nav + phone menu, all 9 entry URLs 200, Instagram/TikTok/kasukustudio.com 200, share links, payment/soda buttons present. **Rule:** no link or button on the public site may lead nowhere or to a placeholder; hide a feature until its content exists.
+
 ### 2026-09-29 (studio link)
 - **Ian, 2026-09-29:** "the kasuku websites shown is this https://kasuku-studios.web.app/ can we please change it kasukustudio.com" → footer credit now links to `https://kasukustudio.com` (`src/components/footer.js`). Confirmed the domain answers 200 (www redirects to it).
 
