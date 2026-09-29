@@ -4,7 +4,7 @@
 
 import { intasendKeys, keysMissingResponse } from './_intasend.js';
 import { fetchInvoice } from './_util.js';
-import { markOrderPaid } from './_payments.js';
+import { markOrderPaid, markEntryPurchasePaid } from './_payments.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -29,9 +29,14 @@ export default async function handler(req, res) {
   if (state === 'COMPLETE' || state === 'SUCCESSFUL') ResultCode = '0';
   else if (state === 'FAILED' || state === 'CANCELLED') ResultCode = '1';
 
-  // A confirmed book payment flips the order saved by /api/stk-push to "Paid".
-  if (ResultCode === '0' && /^(book|play):/.test(String(invoice.api_ref || ''))) {
+  // A confirmed book/play payment flips the order saved by /api/stk-push to "Paid".
+  const ref = String(invoice.api_ref || '');
+  if (ResultCode === '0' && /^(book|play):/.test(ref)) {
     await markOrderPaid(id);
+  } else if (ResultCode === '0' && ref.startsWith('entry:')) {
+    const entryId = ref.slice('entry:'.length);
+    const amount = Number(invoice.value ?? invoice.amount ?? 0);
+    await markEntryPurchasePaid(id, entryId, amount);
   }
 
   return res.status(200).json({

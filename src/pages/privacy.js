@@ -2,7 +2,7 @@ import { footerHTML } from '../components/footer.js';
 
 // Plain-language privacy notice. Keep it true to what the code actually does:
 // if you add a new service or start collecting something new, update this page and DECISIONS_LOG.
-const UPDATED = '25 September 2026';
+const UPDATED = '28 September 2026';
 const CONTACT = 'vikmunala@gmail.com';
 
 export function renderPrivacy(app) {
@@ -28,20 +28,22 @@ export function renderPrivacy(app) {
             <li><strong>Newsletter:</strong> your email address, to send you updates. You can ask to be removed at any time.</li>
             <li><strong>Comments:</strong> the name you type (it doesn't have to be your real one) and your comment. Comments are shown publicly under the story.</li>
             <li><strong>Likes:</strong> only a count. Your own device remembers that you liked a story.</li>
+            <li><strong>Unlocking a paid entry on a new phone or browser:</strong> we keep the phone number used to pay for a paid entry, so if you change devices you can message Vic on WhatsApp and she can restore your access without you paying again.</li>
             <li><strong>Visits:</strong> Google Analytics counts visits (pages viewed, type of device, and roughly where in the world). Vic sees totals, not names.</li>
           </ul>
 
           <h2>What stays on your own device</h2>
-          <p>Your browser keeps a few small notes so the site works properly: the receipt of a paid story you unlocked (so it stays open), the name you last used to comment, and which stories you liked. These are stored in your browser, not sent to us, and you can clear them any time in your browser settings. Clearing them means a paid story will ask you to unlock it again.</p>
+          <p>Your browser keeps a few small notes so the site works properly: a key that keeps a paid story unlocked on this device, the name you last used to comment, and which stories you liked. These are stored in your browser, not sent to us, and you can clear them any time in your browser settings. Clearing them means a paid story will ask you to unlock it again — if that happens, message Vic on WhatsApp with the number you paid from and she can restore it.</p>
 
           <h2>Who else handles your information</h2>
           <p>We use these services to run the site. Each of them only receives what it needs for its job.</p>
           <ul>
             <li><strong>IntaSend</strong>: processes M-Pesa payments.</li>
-            <li><strong>Supabase</strong>: the database where orders, tips, comments and subscribers are stored.</li>
+            <li><strong>Supabase</strong>: the database where orders, tips, comments and subscribers are stored, and the storage that hosts entry cover images and audio.</li>
             <li><strong>Vercel</strong>: hosts the website.</li>
             <li><strong>Formspree</strong>: emails Vic when someone joins the newsletter.</li>
             <li><strong>Google Analytics</strong>: visit statistics. It uses cookies. You can block them in your browser settings and the site will still work.</li>
+            <li><strong>YouTube</strong>: some entries include an embedded video, played from YouTube's privacy-enhanced (<code>youtube-nocookie.com</code>) domain. YouTube may still set cookies once you press play.</li>
           </ul>
           <p>Several of these companies store data outside Kenya.</p>
 

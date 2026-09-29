@@ -1,13 +1,19 @@
 import {
   getEntriesFromDB, upsertEntryToDB, deleteEntryFromDB, getEntryFullBodyFromDB,
   listCommentsAdmin, deleteCommentAdmin, setOrderStatusAdmin, getStatsAdmin, getCounters,
+  createMediaUploadAdmin, uploadEntryMedia, getSettingsAdmin, setPricesAdmin, setPlayLinkAdmin,
+  listPurchasesAdmin, grantAccessAdmin, revokeAccessAdmin,
 } from '../lib/supabase.js';
 import { invalidateEntryList } from '../lib/store.js';
 import { esc } from '../lib/html.js';
 
 const CATEGORIES = ['Fiction', 'Random Thoughts', 'Shorts', 'Essay', 'Article', 'Reflections'];
 const MIN_PRICE = 50; // IntaSend STK floor — a lower price could never be paid
+const MIN_SETTINGS_PRICE = 50;
+const MAX_SETTINGS_PRICE = 50000;
 const ORDER_STATUSES = ['Awaiting payment', 'Paid', 'Dispatched', 'Delivered'];
+// Client-side hint only — the server is the real authority on what counts as a YouTube link.
+const YT_RE = /^https?:\/\/(www\.)?(youtube\.com\/(watch\?v=|shorts\/|embed\/)|youtu\.be\/)[A-Za-z0-9_-]{11}(&\S*)?$/;
 
 const LABEL_CSS = 'font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;';
 const FIELD_CSS = 'width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;box-sizing:border-box;background:var(--white);color:var(--text);';
@@ -123,6 +129,8 @@ function renderDashboard(app) {
     entries: null, entriesErr: null,
     stats: null, statsErr: null,
     comments: null, commentsErr: null,
+    purchases: null, purchasesErr: null,
+    settings: null, settingsErr: null,
   };
   let section = anyDraft() ? 'entries' : 'people';
   const openForms = new Set(); // 'new' | entry ids — forms the user has open, kept across tab switches
@@ -130,7 +138,9 @@ function renderDashboard(app) {
   const TABS = [
     { id: 'people', label: 'People' },
     { id: 'entries', label: 'Entries' },
+    { id: 'paid', label: 'Paid readers' },
     { id: 'comments', label: 'Comments' },
+    { id: 'settings', label: 'Settings' },
     { id: 'analytics', label: 'Stats' },
     { id: 'logout', label: 'Log out' },
   ];
@@ -181,17 +191,36 @@ function renderDashboard(app) {
     if (!r.ok) { store.commentsErr = r.error || "Couldn't load comments."; return; }
     store.comments = r.data.comments || [];
   }
+  async function loadPurchases(force) {
+    if (store.purchases && !force) return;
+    store.purchasesErr = null;
+    const r = await listPurchasesAdmin();
+    if (r.status === 401) { handleSessionExpired(app); return 'expired'; }
+    if (!r.ok) { store.purchasesErr = r.error || "Couldn't load purchases."; return; }
+    store.purchases = r.data.purchases || [];
+  }
+  async function loadSettings(force) {
+    if (store.settings && !force) return;
+    store.settingsErr = null;
+    const r = await getSettingsAdmin();
+    if (r.status === 401) { handleSessionExpired(app); return 'expired'; }
+    if (!r.ok) { store.settingsErr = r.error || "Couldn't load settings."; return; }
+    store.settings = r.data;
+  }
 
   async function show(nextSection, { force = false } = {}) {
     section = nextSection;
     // Paint the shell immediately with a loading line; never leave a blank screen.
-    app.innerHTML = shell(loadingBlock(section === 'people' ? 'the numbers' : section));
+    const loadingLabel = { people: 'the numbers', paid: 'purchases' }[section] || section;
+    app.innerHTML = shell(loadingBlock(loadingLabel));
     wireShell();
 
     let expired;
     if (section === 'people') expired = await loadStats(force);
     else if (section === 'entries') await loadEntries(force);
     else if (section === 'comments') expired = await loadComments(force);
+    else if (section === 'paid') expired = await loadPurchases(force);
+    else if (section === 'settings') expired = await loadSettings(force);
     if (expired === 'expired') return;
     if (section !== nextSection) return; // user clicked another tab meanwhile
 
@@ -199,6 +228,8 @@ function renderDashboard(app) {
     if (section === 'people') body = store.statsErr ? errorBlock(store.statsErr, 'retry-btn') : renderPeople(store.stats);
     else if (section === 'entries') body = store.entriesErr ? errorBlock(store.entriesErr, 'retry-btn') : renderEntriesSection(store.entries);
     else if (section === 'comments') body = store.commentsErr ? errorBlock(store.commentsErr, 'retry-btn') : renderCommentsSection(store.comments);
+    else if (section === 'paid') body = store.purchasesErr ? errorBlock(store.purchasesErr, 'retry-btn') : renderPaidReadersSection(store.purchases);
+    else if (section === 'settings') body = store.settingsErr ? errorBlock(store.settingsErr, 'retry-btn') : renderSettingsSection(store.settings);
     else if (section === 'analytics') body = renderAnalyticsSection();
     app.innerHTML = shell(body);
     wireShell();
@@ -207,6 +238,8 @@ function renderDashboard(app) {
     if (section === 'people' && !store.statsErr) wirePeople();
     if (section === 'entries' && !store.entriesErr) wireEntries();
     if (section === 'comments' && !store.commentsErr) wireComments();
+    if (section === 'paid' && !store.purchasesErr) wirePaidReaders();
+    if (section === 'settings' && !store.settingsErr) wireSettings();
     if (section === 'analytics') wireAnalytics();
   }
 
@@ -418,6 +451,306 @@ function renderDashboard(app) {
     });
   }
 
+  // ── Settings: prices + private play link ──────────────────────────────────
+  function renderSettingsSection(data) {
+    const playPrice = data?.settings?.play_price ?? 1000;
+    const bookPrice = data?.settings?.book_price ?? 1500;
+    const playLink = data?.playLink || '';
+    return `
+      <div>
+        <div style="margin-bottom:28px;">
+          <p style="${EYEBROW_CSS}">Site Configuration</p>
+          <h2 style="${H2_CSS}">Settings</h2>
+        </div>
+        <div style="${CARD_CSS}">
+          <h3 style="${H3_CSS}margin-bottom:18px;">Prices</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:18px;">
+            <div>
+              <label for="settings-play-price" style="${LABEL_CSS}">Play price (KES)</label>
+              <input id="settings-play-price" type="number" min="${MIN_SETTINGS_PRICE}" max="${MAX_SETTINGS_PRICE}" step="1" value="${esc(playPrice)}" style="${FIELD_CSS}" />
+            </div>
+            <div>
+              <label for="settings-book-price" style="${LABEL_CSS}">Book price (KES)</label>
+              <input id="settings-book-price" type="number" min="${MIN_SETTINGS_PRICE}" max="${MAX_SETTINGS_PRICE}" step="1" value="${esc(bookPrice)}" style="${FIELD_CSS}" />
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <button type="button" id="save-prices-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Save prices</button>
+            <span id="prices-status" role="status" style="font-size:0.85rem;"></span>
+          </div>
+        </div>
+        <div style="${CARD_CSS.replace('margin-bottom:32px;', '')}">
+          <h3 style="${H3_CSS}margin-bottom:8px;">Private play link</h3>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;line-height:1.5;">This is what buyers pay for. Only paste the full-recording link here.</p>
+          <label for="settings-play-link" style="${LABEL_CSS}">Current link</label>
+          <input id="settings-play-link" type="text" value="${esc(playLink)}" placeholder="https://…" style="${FIELD_CSS}margin-bottom:14px;" />
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <button type="button" id="save-playlink-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Save link</button>
+            <button type="button" id="clear-playlink-btn" style="padding:10px 18px;border:1.5px solid var(--border);background:none;border-radius:999px;font-size:0.85rem;color:var(--text-muted);cursor:pointer;">Clear (use the Vercel setting)</button>
+            <span id="playlink-status" role="status" style="font-size:0.85rem;"></span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function wireSettings() {
+    const priceStatus = app.querySelector('#prices-status');
+    const sayPrices = (m, ok) => { if (priceStatus) { priceStatus.style.color = ok === undefined ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'); priceStatus.textContent = m; } };
+    app.querySelector('#save-prices-btn')?.addEventListener('click', async () => {
+      const btn = app.querySelector('#save-prices-btn');
+      const playVal = Math.round(Number(app.querySelector('#settings-play-price')?.value));
+      const bookVal = Math.round(Number(app.querySelector('#settings-book-price')?.value));
+      const inRange = (n) => Number.isFinite(n) && n >= MIN_SETTINGS_PRICE && n <= MAX_SETTINGS_PRICE;
+      if (!inRange(playVal) || !inRange(bookVal)) {
+        sayPrices(`Prices must be whole numbers between ${MIN_SETTINGS_PRICE} and ${MAX_SETTINGS_PRICE.toLocaleString()}.`, false);
+        return;
+      }
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Saving…';
+      sayPrices('Saving…');
+      const r = await setPricesAdmin({ play_price: playVal, book_price: bookVal });
+      if (r.status === 401) { handleSessionExpired(app); return; }
+      btn.disabled = false;
+      btn.textContent = label;
+      if (r.ok) {
+        if (store.settings) store.settings.settings = { play_price: playVal, book_price: bookVal };
+        sayPrices('Saved ✓', true);
+      } else {
+        sayPrices(r.error || "Couldn't save.", false);
+      }
+    });
+
+    const linkStatus = app.querySelector('#playlink-status');
+    const sayLink = (m, ok) => { if (linkStatus) { linkStatus.style.color = ok === undefined ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'); linkStatus.textContent = m; } };
+    app.querySelector('#save-playlink-btn')?.addEventListener('click', async () => {
+      const btn = app.querySelector('#save-playlink-btn');
+      const val = app.querySelector('#settings-play-link')?.value.trim() || '';
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Saving…';
+      sayLink('Saving…');
+      const r = await setPlayLinkAdmin(val);
+      if (r.status === 401) { handleSessionExpired(app); return; }
+      btn.disabled = false;
+      btn.textContent = label;
+      if (r.ok) {
+        if (store.settings) store.settings.playLink = val || null;
+        sayLink('Saved ✓', true);
+      } else {
+        sayLink(r.error || "Couldn't save.", false);
+      }
+    });
+
+    app.querySelector('#clear-playlink-btn')?.addEventListener('click', async () => {
+      if (!confirm('Clear the saved private play link? The site will fall back to the Vercel PLAY_PRIVATE_LINK setting.')) return;
+      const btn = app.querySelector('#clear-playlink-btn');
+      btn.disabled = true;
+      sayLink('Clearing…');
+      const r = await setPlayLinkAdmin('');
+      if (r.status === 401) { handleSessionExpired(app); return; }
+      btn.disabled = false;
+      if (r.ok) {
+        if (store.settings) store.settings.playLink = null;
+        const input = app.querySelector('#settings-play-link');
+        if (input) input.value = '';
+        sayLink('Cleared ✓', true);
+      } else {
+        sayLink(r.error || "Couldn't clear.", false);
+      }
+    });
+  }
+
+  // ── Paid readers: device-based access, admin grants/revokes ──────────────────
+  async function copyToClipboard(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+  }
+
+  function purchaseRowHTML(p, titleOf) {
+    const statusColors = { Paid: ['hsl(143 60% 92%)', 'hsl(143 80% 25%)'], 'Awaiting payment': ['hsl(0 0% 92%)', 'hsl(0 0% 30%)'] };
+    const [bg, fg] = statusColors[p.status] || ['hsl(44 95% 92%)', 'hsl(44 95% 25%)'];
+    const when = p.paid_at || p.created_at;
+    const dateStr = when ? new Date(when).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const phoneDigits = String(p.phone || '').replace(/\D/g, '');
+    const canGrant = p.status === 'Paid';
+    return `
+      <div data-purchase-row="${esc(p.invoice_id)}" data-phone="${esc(phoneDigits)}" style="border:1px solid var(--border);border-radius:10px;padding:16px 20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;background:var(--bg-subtle);">
+        <div style="flex:1;min-width:220px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <strong style="font-size:1rem;">${esc(titleOf(p.entry_id))}</strong>
+            <span style="font-size:0.7rem;background:${bg};color:${fg};padding:2px 8px;border-radius:4px;font-weight:600;">${esc(p.status)}</span>
+          </div>
+          <div style="font-size:0.85rem;color:var(--text-muted);line-height:1.6;overflow-wrap:anywhere;">
+            ${esc(p.phone)} &middot; KES ${Number(p.amount || 0).toLocaleString()} &middot; ${esc(dateStr)}<br/>
+            Devices: ${Number(p.devices || 0)} &middot; Open links: ${Number(p.open_grants || 0)}
+          </div>
+          <div data-purchase-result="${esc(p.invoice_id)}" style="margin-top:10px;"></div>
+          <div data-purchase-msg="${esc(p.invoice_id)}" role="status" style="font-size:0.78rem;margin-top:4px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;">
+          <button type="button" data-grant="${esc(p.invoice_id)}" ${canGrant ? '' : 'disabled'} style="padding:6px 16px;border:1.5px solid var(--border);border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:var(--bg-subtle);color:var(--text);${canGrant ? '' : 'opacity:0.5;cursor:not-allowed;'}">Give access</button>
+          <button type="button" data-revoke="${esc(p.invoice_id)}" style="padding:6px 14px;border:1.5px solid hsl(0 60% 88%);border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:none;color:hsl(0 60% 45%);">Revoke</button>
+        </div>
+      </div>`;
+  }
+
+  function grantResultHTML(url, waHref, expiresAt) {
+    return `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px;background:var(--white);border:1px solid var(--border);border-radius:8px;">
+        <input type="text" readonly value="${esc(url)}" data-select-on-click style="flex:1;min-width:200px;font-size:0.8rem;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);" />
+        <button type="button" data-copy-link style="padding:6px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;font-weight:600;cursor:pointer;">Copy</button>
+        ${waHref ? `<a href="${esc(waHref)}" target="_blank" rel="noopener noreferrer" style="padding:6px 12px;border-radius:999px;background:var(--text);color:var(--white);font-size:0.75rem;font-weight:600;text-decoration:none;">Send on WhatsApp</a>` : ''}
+      </div>
+      <p style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">${expiresAt ? `Expires ${esc(new Date(expiresAt).toLocaleString('en-GB'))}. ` : ''}Works once.</p>`;
+  }
+
+  function renderPaidReadersSection(purchases) {
+    const titleOf = (id) => (store.entries || []).find((e) => e.id === id)?.title || id;
+    const paidEntries = (store.entries || []).filter((e) => Number(e.price) > 0);
+    return `
+      <div>
+        <div style="margin-bottom:28px;">
+          <p style="${EYEBROW_CSS}">Access Control</p>
+          <h2 style="${H2_CSS}">Paid readers (${purchases.length})</h2>
+        </div>
+        <div style="${CARD_CSS}">
+          <div style="margin-bottom:16px;">
+            <label for="paid-search" style="${LABEL_CSS}">Search by phone</label>
+            <input id="paid-search" type="text" inputmode="numeric" placeholder="e.g. 0710…" style="${FIELD_CSS}max-width:320px;" />
+          </div>
+          <div id="purchases-list" style="display:flex;flex-direction:column;gap:14px;">
+            ${purchases.length === 0 ? `<p style="color:var(--text-muted);font-size:0.9rem;">No purchases yet.</p>` : purchases.map((p) => purchaseRowHTML(p, titleOf)).join('')}
+          </div>
+        </div>
+        <div style="${CARD_CSS.replace('margin-bottom:32px;', '')}">
+          <h3 style="${H3_CSS}margin-bottom:6px;">Buyer not listed?</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;line-height:1.5;">If a buyer paid but their purchase isn't in the list above (for example, from before this page existed), give them access with their entry and IntaSend invoice id.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:16px;">
+            <div>
+              <label for="manual-entry-select" style="${LABEL_CSS}">Entry</label>
+              <select id="manual-entry-select" style="${FIELD_CSS}cursor:pointer;">
+                ${paidEntries.length === 0 ? `<option value="">No paid entries</option>` : paidEntries.map((e) => `<option value="${esc(e.id)}">${esc(e.title)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label for="manual-invoice-id" style="${LABEL_CSS}">IntaSend invoice id</label>
+              <input id="manual-invoice-id" type="text" placeholder="e.g. ABCD1234" style="${FIELD_CSS}" />
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <button type="button" id="manual-grant-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Give access</button>
+            <span id="manual-grant-status" role="status" style="font-size:0.85rem;"></span>
+          </div>
+          <div id="manual-grant-result" style="margin-top:12px;"></div>
+        </div>
+      </div>`;
+  }
+
+  function waLink(phoneDigits, url) {
+    const msg = `Hi! You now have access to your purchase on The Villagers' Notes. Here is your private link (it works once, on your new device):\n\n${url}\n\nMessage me back here if it doesn't work.`;
+    return `https://wa.me/${phoneDigits}?text=${encodeURIComponent(msg)}`;
+  }
+
+  function wireGrantResultCopy(container, url) {
+    container.querySelector('[data-copy-link]')?.addEventListener('click', async (ev) => {
+      const ok = await copyToClipboard(url);
+      const b = ev.currentTarget;
+      const original = b.textContent;
+      b.textContent = ok ? 'Copied ✓' : 'Copy failed';
+      setTimeout(() => { b.textContent = original; }, 1500);
+    });
+    container.querySelector('[data-select-on-click]')?.addEventListener('click', (ev) => ev.currentTarget.select());
+  }
+
+  async function wirePaidReaders() {
+    if (!store.entries) {
+      await loadEntries();
+      if (section === 'paid') { app.innerHTML = shell(renderPaidReadersSection(store.purchases)); wireShell(); }
+    }
+
+    const search = app.querySelector('#paid-search');
+    search?.addEventListener('input', () => {
+      const digits = search.value.replace(/\D/g, '');
+      app.querySelectorAll('[data-purchase-row]').forEach((row) => {
+        const phone = row.dataset.phone || '';
+        row.style.display = !digits || phone.includes(digits) ? '' : 'none';
+      });
+    });
+
+    app.querySelectorAll('[data-grant]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        const invoiceId = btn.dataset.grant;
+        const purchase = (store.purchases || []).find((x) => x.invoice_id === invoiceId);
+        const msg = app.querySelector(`[data-purchase-msg="${CSS.escape(invoiceId)}"]`);
+        const resultEl = app.querySelector(`[data-purchase-result="${CSS.escape(invoiceId)}"]`);
+        btn.disabled = true;
+        const label = btn.textContent;
+        btn.textContent = 'Granting…';
+        if (msg) msg.textContent = '';
+        const r = await grantAccessAdmin(invoiceId, purchase?.entry_id);
+        if (r.status === 401) { handleSessionExpired(app); return; }
+        btn.disabled = false;
+        btn.textContent = label;
+        if (!r.ok) {
+          if (msg) { msg.style.color = 'hsl(0 60% 42%)'; msg.textContent = r.error || "Couldn't create the link."; }
+          return;
+        }
+        const url = r.data.url;
+        const phoneDigits = String(purchase?.phone || '').replace(/\D/g, '');
+        if (resultEl) {
+          resultEl.innerHTML = grantResultHTML(url, phoneDigits ? waLink(phoneDigits, url) : '', r.data.expiresAt);
+          wireGrantResultCopy(resultEl, url);
+        }
+      });
+    });
+
+    app.querySelectorAll('[data-revoke]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Revoke all device access and unused links for this purchase? The buyer will need a new link to get back in.')) return;
+        const invoiceId = btn.dataset.revoke;
+        const msg = app.querySelector(`[data-purchase-msg="${CSS.escape(invoiceId)}"]`);
+        btn.disabled = true;
+        const label = btn.textContent;
+        btn.textContent = 'Revoking…';
+        const r = await revokeAccessAdmin(invoiceId);
+        if (r.status === 401) { handleSessionExpired(app); return; }
+        btn.disabled = false;
+        btn.textContent = label;
+        if (!r.ok) {
+          if (msg) { msg.style.color = 'hsl(0 60% 42%)'; msg.textContent = r.error || "Couldn't revoke."; }
+          return;
+        }
+        if (msg) { msg.style.color = 'hsl(143 55% 28%)'; msg.textContent = `Revoked (${r.data.revoked || 0}).`; }
+      });
+    });
+
+    app.querySelector('#manual-grant-btn')?.addEventListener('click', async () => {
+      const btn = app.querySelector('#manual-grant-btn');
+      const entryId = app.querySelector('#manual-entry-select')?.value;
+      const invoiceId = app.querySelector('#manual-invoice-id')?.value.trim();
+      const status = app.querySelector('#manual-grant-status');
+      const sayManual = (m, ok) => { if (status) { status.style.color = ok === undefined ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'); status.textContent = m; } };
+      if (!entryId || !invoiceId) { sayManual('Pick an entry and enter an invoice id.', false); return; }
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Checking…';
+      sayManual('Verifying with IntaSend…');
+      const r = await grantAccessAdmin(invoiceId, entryId);
+      if (r.status === 401) { handleSessionExpired(app); return; }
+      btn.disabled = false;
+      btn.textContent = label;
+      if (!r.ok) { sayManual(r.error || "Couldn't create the link.", false); return; }
+      sayManual('Link created ✓', true);
+      const resultEl = app.querySelector('#manual-grant-result');
+      if (resultEl) {
+        resultEl.innerHTML = grantResultHTML(r.data.url, '', r.data.expiresAt);
+        wireGrantResultCopy(resultEl, r.data.url);
+      }
+      store.purchases = null; // this invoice now exists server-side; refresh next visit to the tab
+    });
+  }
+
   // ── Stats ──────────────────────────────────────────────────────────────────
   function renderAnalyticsSection() {
     const box = (label, id, color, sub) => `
@@ -540,6 +873,37 @@ function renderDashboard(app) {
           <label for="${p}-excerpt" style="${LABEL_CSS}">Excerpt (teaser sentence)</label>
           <input id="${p}-excerpt" value="${esc(e.excerpt || '')}" placeholder="Short teaser sentence" style="${FIELD_CSS}" />
         </div>
+        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;background:var(--bg-subtle);">
+          <p style="${LABEL_CSS}margin-bottom:14px;">Media (optional)</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:20px;">
+            <div>
+              <span style="${LABEL_CSS}">Cover image (JPEG/PNG/WebP, up to 5 MB)</span>
+              <input type="hidden" id="${p}-imageUrl" value="${esc(e.imageUrl || '')}" />
+              <div data-media-preview="${p}-image" style="margin-bottom:8px;${e.imageUrl ? '' : 'display:none;'}">
+                <img ${e.imageUrl ? `src="${esc(e.imageUrl)}"` : ''} alt="" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);display:block;margin-bottom:6px;" />
+                <button type="button" data-media-remove="${p}-image" style="padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;cursor:pointer;color:hsl(0 60% 45%);">Remove</button>
+              </div>
+              <input type="file" id="${p}-image-file" accept="image/jpeg,image/png,image/webp" style="${e.imageUrl ? 'display:none;' : ''}font-size:0.82rem;max-width:100%;" />
+              <div data-media-status="${p}-image" role="status" style="font-size:0.78rem;margin-top:6px;color:var(--text-muted);"></div>
+            </div>
+            <div>
+              <span style="${LABEL_CSS}">Audio (MP3/M4A/AAC/WAV/OGG, up to 25 MB)</span>
+              <input type="hidden" id="${p}-audioUrl" value="${esc(e.audioUrl || '')}" />
+              <div data-media-preview="${p}-audio" style="margin-bottom:8px;${e.audioUrl ? '' : 'display:none;'}">
+                <audio ${e.audioUrl ? `src="${esc(e.audioUrl)}"` : ''} controls style="width:100%;margin-bottom:6px;"></audio>
+                <button type="button" data-media-remove="${p}-audio" style="padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;cursor:pointer;color:hsl(0 60% 45%);">Remove</button>
+              </div>
+              <input type="file" id="${p}-audio-file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/ogg" style="${e.audioUrl ? 'display:none;' : ''}font-size:0.82rem;max-width:100%;" />
+              <div data-media-status="${p}-audio" role="status" style="font-size:0.78rem;margin-top:6px;color:var(--text-muted);"></div>
+            </div>
+            <div>
+              <label for="${p}-videoUrl" style="${LABEL_CSS}">YouTube link</label>
+              <input id="${p}-videoUrl" value="${esc(e.videoUrl || '')}" placeholder="https://www.youtube.com/watch?v=…" style="${FIELD_CSS}" />
+              <div data-media-status="${p}-video" role="status" style="font-size:0.78rem;margin-top:6px;"></div>
+              <button type="button" data-media-remove-video="${p}" style="margin-top:8px;padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:none;font-size:0.75rem;cursor:pointer;color:hsl(0 60% 45%);${e.videoUrl ? '' : 'display:none;'}">Remove</button>
+            </div>
+          </div>
+        </div>
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
             <label for="${p}-body" style="${LABEL_CSS}margin:0;">Body (separate paragraphs with a blank line)</label>
@@ -575,6 +939,9 @@ function renderDashboard(app) {
       excerpt: g('excerpt')?.value?.trim() ?? '',
       body: bodyRaw.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean),
       bodyRaw: g('body')?.value ?? '',
+      imageUrl: g('imageUrl')?.value ?? '',
+      audioUrl: g('audioUrl')?.value ?? '',
+      videoUrl: g('videoUrl')?.value?.trim() ?? '',
     };
   }
 
@@ -614,7 +981,97 @@ function renderDashboard(app) {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  /** Wire formatting buttons, price warning and autosave for the form with this key. */
+  /** Reflect an uploaded/removed media URL into its hidden field + preview for form `p` ('f-<key>'). */
+  function setMediaValue(p, kind, url) {
+    const hidden = app.querySelector(`#${p}-${kind}Url`);
+    if (hidden) hidden.value = url || '';
+    const preview = app.querySelector(`[data-media-preview="${p}-${kind}"]`);
+    const fileInput = app.querySelector(`#${p}-${kind}-file`);
+    if (preview) {
+      if (url) {
+        preview.style.display = '';
+        const mediaEl = preview.querySelector('img, audio');
+        if (mediaEl) mediaEl.src = url;
+      } else {
+        preview.style.display = 'none';
+      }
+    }
+    if (fileInput) fileInput.style.display = url ? 'none' : '';
+  }
+
+  /** Wire the cover-image / audio uploads and the YouTube link field for form `key`. */
+  function wireMedia(key) {
+    const p = `f-${key}`;
+    const getSaveBtn = () => app.querySelector(`[data-save="${key}"]`);
+    let activeUploads = 0;
+    function updateSaveDisabled() {
+      const btn = getSaveBtn();
+      const bodyEl = app.querySelector(`#${p}-body`);
+      if (btn) btn.disabled = activeUploads > 0 || (bodyEl ? bodyEl.disabled : false);
+    }
+    function setMediaStatus(kind, message, isError) {
+      const statusEl = app.querySelector(`[data-media-status="${p}-${kind}"]`);
+      if (statusEl) {
+        statusEl.style.color = isError ? 'hsl(0 60% 42%)' : (message ? 'hsl(143 55% 28%)' : 'var(--text-muted)');
+        statusEl.textContent = message || '';
+      }
+    }
+    function touchDraft() {
+      app.querySelector(`[data-form="${key}"]`)?.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function wireUpload(kind, opts) {
+      const fileInput = app.querySelector(`#${p}-${kind}-file`);
+      fileInput?.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        if (!opts.mimes.includes(file.type)) { setMediaStatus(kind, `Must be ${opts.mimeLabel}.`, true); fileInput.value = ''; return; }
+        if (file.size > opts.maxBytes) { setMediaStatus(kind, `Too large — max ${opts.maxLabel}.`, true); fileInput.value = ''; return; }
+        activeUploads++; updateSaveDisabled();
+        setMediaStatus(kind, 'Uploading…', false);
+        const up = await createMediaUploadAdmin(kind, file.name, file.type, file.size);
+        if (up.status === 401) { handleSessionExpired(app); return; }
+        if (!up.ok) { setMediaStatus(kind, up.error || 'Could not start the upload.', true); fileInput.value = ''; activeUploads--; updateSaveDisabled(); return; }
+        const { path, token, publicUrl } = up.data;
+        const putRes = await uploadEntryMedia(path, token, file);
+        if (!putRes.ok) { setMediaStatus(kind, putRes.error || 'Upload failed.', true); fileInput.value = ''; activeUploads--; updateSaveDisabled(); return; }
+        setMediaValue(p, kind, publicUrl);
+        setMediaStatus(kind, 'Uploaded ✓', false);
+        activeUploads--; updateSaveDisabled();
+        touchDraft();
+      });
+
+      app.querySelector(`[data-media-remove="${p}-${kind}"]`)?.addEventListener('click', () => {
+        setMediaValue(p, kind, '');
+        if (fileInput) fileInput.value = '';
+        setMediaStatus(kind, '', false);
+        touchDraft();
+      });
+    }
+
+    wireUpload('image', { mimes: ['image/jpeg', 'image/png', 'image/webp'], mimeLabel: 'JPEG, PNG or WebP', maxBytes: 5 * 1024 * 1024, maxLabel: '5 MB' });
+    wireUpload('audio', { mimes: ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/wav', 'audio/ogg'], mimeLabel: 'MP3, M4A, AAC, WAV or OGG', maxBytes: 25 * 1024 * 1024, maxLabel: '25 MB' });
+
+    const videoInput = app.querySelector(`#${p}-videoUrl`);
+    const videoStatus = app.querySelector(`[data-media-status="${p}-video"]`);
+    const videoRemoveBtn = app.querySelector(`[data-media-remove-video="${p}"]`);
+    function refreshVideoHint() {
+      const val = videoInput?.value.trim() || '';
+      if (!val) { if (videoStatus) videoStatus.textContent = ''; if (videoRemoveBtn) videoRemoveBtn.style.display = 'none'; return; }
+      const ok = YT_RE.test(val);
+      if (videoStatus) { videoStatus.style.color = ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'; videoStatus.textContent = ok ? 'Looks good' : 'Not a YouTube link'; }
+      if (videoRemoveBtn) videoRemoveBtn.style.display = '';
+    }
+    videoInput?.addEventListener('input', refreshVideoHint);
+    refreshVideoHint();
+    videoRemoveBtn?.addEventListener('click', () => {
+      if (videoInput) videoInput.value = '';
+      refreshVideoHint();
+      videoInput?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  /** Wire formatting buttons, price warning, media uploads and autosave for the form with this key. */
   function wireFormCommon(key, draftId) {
     const p = `f-${key}`;
     const ta = app.querySelector(`#${p}-body`);
@@ -639,6 +1096,8 @@ function renderDashboard(app) {
       if (warn) warn.style.display = Number(priceEl.value) > 0 ? 'block' : 'none';
     });
 
+    wireMedia(key);
+
     // Autosave: 600ms after the last keystroke, kept until the entry is actually saved.
     let t = null;
     const note = app.querySelector(`[data-draft-note="${key}"]`);
@@ -658,6 +1117,10 @@ function renderDashboard(app) {
     set('preview', draft.previewWords); set('title', draft.title); set('excerpt', draft.excerpt);
     set('body', draft.bodyRaw ?? (draft.body || []).join('\n\n'));
     app.querySelector(`#f-${key}-price`)?.dispatchEvent(new Event('input'));
+    setMediaValue(`f-${key}`, 'image', draft.imageUrl || '');
+    setMediaValue(`f-${key}`, 'audio', draft.audioUrl || '');
+    set('videoUrl', draft.videoUrl);
+    app.querySelector(`#f-${key}-videoUrl`)?.dispatchEvent(new Event('input'));
     const note = app.querySelector(`[data-draft-note="${key}"]`);
     if (note) note.textContent = 'Restored your unsaved draft';
   }
@@ -669,6 +1132,7 @@ function renderDashboard(app) {
     if (!f.title) { setStatus(key, 'error', 'Give the entry a title first.'); return; }
     if (f.body.length === 0) { setStatus(key, 'error', 'The body is empty.'); return; }
     if (f.price > 0 && f.price < MIN_PRICE) { setStatus(key, 'error', `The lowest price M-Pesa can charge is KES ${MIN_PRICE}. Use 0 for free.`); return; }
+    if (f.videoUrl && !YT_RE.test(f.videoUrl)) { setStatus(key, 'error', "That doesn't look like a YouTube link. Fix it or clear it before saving."); return; }
 
     const isPaid = f.price > 0;
     const id = entryOrNull ? entryOrNull.id : String(Date.now());
@@ -679,6 +1143,9 @@ function renderDashboard(app) {
       author: f.author, price: f.price, previewWords: f.previewWords, title: f.title, excerpt: f.excerpt,
       // Paid entries publish only the preview; the full text goes to full_body IN THE SAME REQUEST.
       body: isPaid ? previewByWords(f.body, f.previewWords) : f.body,
+      imageUrl: f.imageUrl || '',
+      audioUrl: f.audioUrl || '',
+      videoUrl: f.videoUrl || '',
     };
 
     btn.disabled = true;

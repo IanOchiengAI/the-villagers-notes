@@ -4,16 +4,41 @@ import { esc, loadErrorHTML, wireRetry } from '../lib/html.js';
 import { postJson } from '../lib/net.js';
 import { cleanPhone, pollInvoice } from '../lib/pay.js';
 import { footerHTML } from '../components/footer.js';
+import { WHATSAPP_NUMBER } from '../components/whatsapp-fab.js';
 
 // ── Module state: one entry page is live at a time ───────────────────────────
 let disposeCurrent = null; // removes document-level listeners + stops polling from the previous render
 
 const invoiceKey = (id) => `tvn_invoice_${id}`;
 const contentKey = (id) => `tvn_content_${id}`;
+const deviceKeyKey = (id) => `tvn_device_${id}`;
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (_) {} }
+
+/** Extract an 11-char YouTube video id from any common YouTube URL form. */
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const m = String(url).match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+/** Cover image / audio player / YouTube embed — shown to everyone as a teaser, even on paid entries. */
+function renderEntryMediaHTML(entry) {
+  const parts = [];
+  if (entry.imageUrl) {
+    parts.push(`<img class="entry-cover" src="${esc(entry.imageUrl)}" loading="eager" alt="" />`);
+  }
+  if (entry.audioUrl) {
+    parts.push(`<audio controls preload="none" class="entry-audio" src="${esc(entry.audioUrl)}">Your browser doesn't support audio playback.</audio>`);
+  }
+  const ytId = extractYouTubeId(entry.videoUrl);
+  if (ytId) {
+    parts.push(`<div class="entry-video"><iframe src="https://www.youtube-nocookie.com/embed/${ytId}" title="${esc(entry.title)} video" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`);
+  }
+  return parts.length > 0 ? `<div class="entry-media">${parts.join('')}</div>` : '';
+}
 
 // Inline formatting with XSS protection: escape first, then re-introduce a tiny safe subset.
 function formatInline(text) {
@@ -31,7 +56,7 @@ function formatParagraph(p) {
   if (!p) return '';
   const trimmed = p.trim();
   if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
-    return `<div class="scene-break" role="separator" aria-label="Scene break">⁂</div>`;
+    return `<hr class="divider" />`;
   }
   if (trimmed.startsWith('>')) {
     return `<blockquote>${formatInline(trimmed.replace(/^>\s*/, ''))}</blockquote>`;
@@ -61,19 +86,43 @@ function getPreviewContent(paragraphs, entryObj) {
   return result.length > 0 ? result : [paragraphs[0]];
 }
 
+async function requestContent(entryId, payload) {
+  const { ok, status, data, network } = await postJson('/api/get-content', { entry_id: entryId, ...payload }, 20000);
+  return { ok, status, data: data || {}, network };
+}
+
 /**
  * Ask the server to verify an invoice and return the full text.
  * `definitive` is true only when the server gave a real verdict against the invoice
  * (so it is safe to forget it). Outages, timeouts and "still pending" are NOT verdicts:
  * the reader keeps their proof of payment and can simply try again.
+ * `alreadyClaimed` means this invoice already minted a device on another device/browser —
+ * message the buyer to WhatsApp Vic instead of retrying.
  */
 async function unlockWithInvoice(entryId, invoiceId) {
-  const { ok, status, data, network } = await postJson('/api/get-content', { entry_id: entryId, invoice_id: invoiceId }, 20000);
-  if (ok && data.ok && Array.isArray(data.body)) return { unlocked: true, body: data.body };
+  const { ok, status, data, network } = await requestContent(entryId, { invoice_id: invoiceId });
+  if (ok && data.ok && Array.isArray(data.body)) return { unlocked: true, body: data.body, deviceKey: data.device_key || null };
   if (network) return { unlocked: false, definitive: false, message: 'No connection. Check your network and try again.' };
   const badState = ['FAILED', 'CANCELLED', 'MISMATCH', 'AMOUNT_MISMATCH'].includes(data.state);
   const definitive = status === 402 && badState;
-  return { unlocked: false, definitive, state: data.state, message: data.error || 'Could not fetch article content.' };
+  const alreadyClaimed = status === 409 && data.state === 'ALREADY_CLAIMED';
+  return { unlocked: false, definitive, alreadyClaimed, state: data.state, message: data.error || 'Could not fetch article content.' };
+}
+
+/** A device key that already unlocked this entry before. Revoked/unknown → NO_ACCESS. */
+async function unlockWithDeviceKey(entryId, deviceKey) {
+  const { data, network } = await requestContent(entryId, { device_key: deviceKey });
+  if (data.ok && Array.isArray(data.body)) return { unlocked: true, body: data.body };
+  if (network) return { unlocked: false, revoke: false, message: 'No connection. Check your network and try again.' };
+  return { unlocked: false, revoke: data.state === 'NO_ACCESS', state: data.state, message: data.error || 'Could not fetch article content.' };
+}
+
+/** A one-time grant link (`?access=`), given out by Vic from the admin. Single-use. */
+async function unlockWithAccessToken(entryId, accessToken) {
+  const { data, network } = await requestContent(entryId, { access_token: accessToken });
+  if (data.ok && Array.isArray(data.body)) return { unlocked: true, body: data.body, deviceKey: data.device_key || null };
+  if (network) return { unlocked: false, message: 'No connection. Check your network and try again.' };
+  return { unlocked: false, state: data.state, message: data.error || 'Could not fetch article content.' };
 }
 
 export async function renderEntry(app, id) {
@@ -120,6 +169,8 @@ export async function renderEntry(app, id) {
   }
   const isUnlocked = !isPaid || !!unlockedBody;
   const storedInvoice = isPaid && !isUnlocked ? lsGet(invoiceKey(entryId)) : null;
+  const storedDeviceKey = isPaid && !isUnlocked ? lsGet(deviceKeyKey(entryId)) : null;
+  const urlAccessToken = isPaid && !isUnlocked ? new URLSearchParams(window.location.search).get('access') : null;
 
   const bodyParagraphs = isUnlocked && unlockedBody ? unlockedBody : (Array.isArray(entry.body) ? entry.body : []);
   const previewParagraphs = getPreviewContent(bodyParagraphs, entry);
@@ -163,6 +214,8 @@ export async function renderEntry(app, id) {
 
         <p class="entry-standfirst">${esc(entry.excerpt || '')}</p>
 
+        ${renderEntryMediaHTML(entry)}
+
         <div class="prose-note entry-body" id="entry-body">
           ${isPaid && !isUnlocked ? `
             <div style="position:relative;">
@@ -182,20 +235,10 @@ export async function renderEntry(app, id) {
                   <button class="label paywall-btn paywall-btn--quiet" id="paywall-check-btn" type="button" style="${storedInvoice ? '' : 'display:none;'}">I've already paid — check</button>
                 </div>
                 <div id="paywall-status" role="status" aria-live="polite" style="font-size:0.9rem;line-height:1.5;"></div>
-                <details class="paywall-code">
-                  <summary class="label">Paid on another phone or browser? Use your unlock code</summary>
-                  <div class="paywall-code__row">
-                    <input type="text" id="paywall-code" class="paywall-input" placeholder="Your unlock code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="100" aria-label="Unlock code" />
-                    <button class="label paywall-btn paywall-btn--quiet" id="paywall-code-btn" type="button">Unlock</button>
-                  </div>
-                </details>
+                <p class="paywall-whatsapp-note">Changed phones? <a href="https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hi Vic! I paid for "${entry.title}" but changed phones/browsers and lost access. My M-Pesa number is: `)}" target="_blank" rel="noopener">Message Vic on WhatsApp</a> with the number you paid from.</p>
               </div>
             </div>
-          ` : `${bodyParagraphs.map(formatParagraph).join('')}${isPaid && lsGet(invoiceKey(entryId)) ? `
-            <p class="unlock-code-note">
-              <button type="button" id="show-code-btn" class="label hv-accent">Read this on another device? Show my unlock code</button>
-              <span id="unlock-code" class="unlock-code" hidden>${esc(lsGet(invoiceKey(entryId)))}</span>
-            </p>` : ''}`}
+          ` : bodyParagraphs.map(formatParagraph).join('')}
         </div>
 
         <!-- Likes & Share -->
@@ -429,13 +472,6 @@ export async function renderEntry(app, id) {
     if (activePoll) activePoll.cancel();
   };
 
-  document.getElementById('show-code-btn')?.addEventListener('click', (e) => {
-    const codeEl = document.getElementById('unlock-code');
-    if (!codeEl) return;
-    codeEl.hidden = !codeEl.hidden;
-    e.currentTarget.textContent = codeEl.hidden ? 'Read this on another device? Show my unlock code' : 'Hide unlock code';
-  });
-
   const unlockBtn = document.getElementById('paywall-unlock-btn');
   const checkBtn = document.getElementById('paywall-check-btn');
   const phoneInput = document.getElementById('paywall-phone');
@@ -454,16 +490,26 @@ export async function renderEntry(app, id) {
     const showCheck = () => { if (checkBtn) checkBtn.style.display = ''; };
 
     // Verify an invoice, retrying quickly on transient failures, then unlock the page.
+    // On success the server also mints a device key (once per invoice) — store it so this
+    // device stays unlocked without needing the invoice again.
     async function verifyAndUnlock(invoiceId, { retries = 2 } = {}) {
       for (let attempt = 0; attempt <= retries; attempt++) {
         if (!stillHere()) return false;
         const r = await unlockWithInvoice(entryId, invoiceId);
         if (r.unlocked) {
           try { sessionStorage.setItem(contentKey(entryId), JSON.stringify(r.body)); } catch (_) {}
-          lsSet(invoiceKey(entryId), invoiceId);
+          if (r.deviceKey) lsSet(deviceKeyKey(entryId), r.deviceKey);
+          lsDel(invoiceKey(entryId));
           say('ok', '✅ Unlocked! Loading the story…');
           setTimeout(() => { if (stillHere()) renderEntry(app, id); }, 500);
           return true;
+        }
+        if (r.alreadyClaimed) {
+          // This invoice already minted a device elsewhere — Vic has to help from here on.
+          lsDel(invoiceKey(entryId));
+          if (checkBtn) checkBtn.style.display = 'none';
+          say('error', `❌ ${r.message}`);
+          return false;
         }
         if (r.definitive) {
           lsDel(invoiceKey(entryId)); // a real "no" — safe to forget
@@ -479,8 +525,56 @@ export async function renderEntry(app, id) {
       return false;
     }
 
-    // A previously-started payment (same browser): verify quietly on load, never destroy the invoice.
-    if (storedInvoice) {
+    // A device key that already unlocked this entry before (mint-once, admin-revocable).
+    async function tryDeviceKeyUnlock() {
+      say('info', 'Checking your access…');
+      const r = await unlockWithDeviceKey(entryId, storedDeviceKey);
+      if (!stillHere()) return;
+      if (r.unlocked) {
+        try { sessionStorage.setItem(contentKey(entryId), JSON.stringify(r.body)); } catch (_) {}
+        say('ok', '✅ Unlocked! Loading the story…');
+        setTimeout(() => { if (stillHere()) renderEntry(app, id); }, 400);
+        return;
+      }
+      if (r.revoke) {
+        lsDel(deviceKeyKey(entryId));
+        // Vic may have revoked the old key and sent a fresh link: try it before giving up.
+        if (urlAccessToken) { tryAccessTokenUnlock(); return; }
+      }
+      say(r.revoke ? 'error' : 'info', r.revoke ? `❌ ${r.message}` : r.message);
+    }
+
+    // A one-time grant link (`?access=…`) Vic sent from the admin. Stripped from the URL once
+    // the server gives a real answer; kept on a network/server hiccup so a refresh can retry.
+    async function tryAccessTokenUnlock() {
+      say('info', 'Checking your link…');
+      const r = await unlockWithAccessToken(entryId, urlAccessToken);
+      const retryable = !r.unlocked && (!r.state || r.state === 'TRANSIENT');
+      if (!retryable) {
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.delete('access');
+          history.replaceState(null, '', u.pathname + u.search + u.hash);
+        } catch (_) {}
+      }
+      if (!stillHere()) return;
+      if (r.unlocked) {
+        try { sessionStorage.setItem(contentKey(entryId), JSON.stringify(r.body)); } catch (_) {}
+        if (r.deviceKey) lsSet(deviceKeyKey(entryId), r.deviceKey);
+        say('ok', '✅ Unlocked! Loading the story…');
+        setTimeout(() => { if (stillHere()) renderEntry(app, id); }, 400);
+        return;
+      }
+      say('error', `❌ ${r.message}`);
+    }
+
+    // Priority: an existing device key, then a fresh grant link, then the usual invoice flow.
+    if (storedDeviceKey) {
+      tryDeviceKeyUnlock();
+    } else if (urlAccessToken) {
+      tryAccessTokenUnlock();
+    } else if (storedInvoice) {
+      // A previously-started payment (same browser): verify quietly on load, never destroy the invoice.
       say('info', 'Checking your earlier payment…');
       verifyAndUnlock(storedInvoice, { retries: 0 }).then((done) => {
         if (!done && statusEl && !statusEl.textContent) say('info', '');
@@ -494,28 +588,6 @@ export async function renderEntry(app, id) {
       say('info', 'Checking your payment…');
       await verifyAndUnlock(inv);
       checkBtn.disabled = false;
-    });
-
-    // "Unlock code": the receipt of an earlier payment for THIS entry, typed in on a new device.
-    // The server still checks it is a completed payment for this exact entry and amount.
-    const codeInput = document.getElementById('paywall-code');
-    const codeBtn = document.getElementById('paywall-code-btn');
-    codeBtn?.addEventListener('click', async () => {
-      const code = codeInput.value.trim();
-      if (!code) { say('error', 'Type the unlock code you were given.'); codeInput.focus(); return; }
-      codeBtn.disabled = true;
-      say('info', 'Checking your code…');
-      const r = await unlockWithInvoice(entryId, code);
-      codeBtn.disabled = false;
-      if (r.unlocked) {
-        try { sessionStorage.setItem(contentKey(entryId), JSON.stringify(r.body)); } catch (_) {}
-        lsSet(invoiceKey(entryId), code);
-        say('ok', '✅ Unlocked! Loading the story…');
-        setTimeout(() => { if (stillHere()) renderEntry(app, id); }, 500);
-      } else {
-        const notValid = r.definitive || !r.state || r.state === 'UNKNOWN';
-        say('error', notValid ? "That code isn't valid for this entry." : `${r.message} Try again in a moment.`);
-      }
     });
 
     unlockBtn.addEventListener('click', async () => {

@@ -12,7 +12,7 @@
 import crypto from 'crypto';
 import { intasendKeys } from './_intasend.js';
 import { fetchInvoice, normalisePhone } from './_util.js';
-import { markOrderPaid, recordTipOnce } from './_payments.js';
+import { markOrderPaid, markEntryPurchasePaid, recordTipOnce } from './_payments.js';
 
 function sameSecret(a, b) {
   const ha = crypto.createHash('sha256').update(String(a)).digest();
@@ -62,6 +62,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, tip: true });
   }
 
-  // Paid-entry payments need no bookkeeping: /api/get-content verifies on demand.
+  if (ref.startsWith('entry:')) {
+    const entryId = ref.slice('entry:'.length);
+    const amount = Number(invoice.value ?? invoice.amount ?? 0);
+    await markEntryPurchasePaid(invoiceId, entryId, amount);
+    return res.status(200).json({ ok: true, entry: true });
+  }
+
   return res.status(200).json({ ok: true });
 }
