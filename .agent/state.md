@@ -80,7 +80,7 @@
 
 ### Audit follow-ups (2026-09-25)
 - [x] Privacy page + IntaSend callback + shared payment helpers merged to `main` (`145a666`) and live.
-- [ ] **Switch the IntaSend callback on:** in the **IntaSend dashboard → Settings → Webhooks** add `https://thevillagersnotes.com/api/intasend-webhook` with a challenge string, and set the same string in Vercel as `INTASEND_WEBHOOK_CHALLENGE` (Production + Preview) and redeploy. Test with a KES 50 tip: it should appear in People → Soda Tips even if you close the page right after paying.
+- [x] **Switch the IntaSend callback on:** in the **IntaSend dashboard → Settings → Webhooks** add `https://thevillagersnotes.com/api/intasend-webhook` with a challenge string, and set the same string in Vercel as `INTASEND_WEBHOOK_CHALLENGE` (Production + Preview) and redeploy. Test with a KES 50 tip: it should appear in People → Soda Tips even if you close the page right after paying.
 - [ ] Have a lawyer read `/privacy`; decide about a cookie/consent notice for GA4; confirm whether Vic must register with the ODPC.
 - [x] Handover redesigned 2026-09-25 (untracked, gitignored): domain filled in from Ian's Namecheap screenshot (registered to 27 Aug 2027, auto-renew and domain privacy on); fee card reworded with included / not-included lists (fee figure unchanged; "changes quoted separately" is a term Ian should confirm he is happy with).
 - [ ] Confirm the Formspree plan (handover no longer claims "free"); confirm the Namecheap account belongs to Kasuku Studio (the handover says so).
@@ -95,14 +95,14 @@
 - [ ] After merging: confirm on the live site that `/entries/<slug>` shows the story text with JS disabled (`curl`), that a shared link previews the right story, and that GA4 Realtime still shows page views (CSP changed). Then re-submit `https://thevillagersnotes.com/sitemap.xml` in Google Search Console.
 - [ ] Confirm the reflected-XSS fix on the deployed site with a harmless slug such as `/entries/'-console.log(1)-'` (should redirect to /entries).
 - [x] (Checked 2026-09-27: all listed claims are gone; fee section finalised.) Fix the handover document's inaccurate claims before sending it to Vic (see the review given to Ian on 2026-09-25): no per-story artwork in previews, "cryptographic release", ISBN/production history in the JSON-LD, "zero ongoing dependencies / no platform percentages" (IntaSend charges a fee; domain renewal; free-tier limits), Instrument Serif (dropped), taxonomy filtering, `/#/admin` link, stale action item 03, and whether the studio link should be `kasuku-studios.web.app` (as in the site footer) or `kasukustudio.com`.
-- [ ] Send Vic the handover (Save as PDF from the browser) (password already sent on Signal; the balance now credits Vic's August domain payment). Once the IntaSend webhook is live, restore the "works even if the buyer closes the page" line in the handover.
+- [x] Send Vic the handover (Save as PDF from the browser) (password already sent on Signal; the balance now credits Vic's August domain payment). Once the IntaSend webhook is live, restore the "works even if the buyer closes the page" line in the handover.
 - [ ] Tell Vic the admin Book and Settings tabs were removed (they never changed anything for readers) and that Comments is new. (Superseded 2026-09-28: a new Settings tab now exists, for prices and the play link.)
 
 ### Share images & Play unlock (branch `feat/share-images-play-unlock`, 2026-09-30)
-- [ ] **Ian: run `supabase/migrations/20260930_entries_share_image.sql`** in Supabase SQL editor (column `og_image_url` + select grant). Verified pending.
-- [ ] Merge PR and deploy `feat/share-images-play-unlock`.
-- [ ] Admin: run one-time "Create share images" batch on Entries tab to backfill the 9 entries.
-- [ ] Confirm WhatsApp preview with `curl -A WhatsApp https://thevillagersnotes.com/entries/<slug>` after backfill.
+- [x] **Ian: run `supabase/migrations/20260930_entries_share_image.sql`** — done and verified live.
+- [x] Merge PR and deploy `feat/share-images-play-unlock`. PR #9 merged, live.
+- [x] Admin: "Create share images" batch run — all 9 entries have og_image_url.
+- [x] WhatsApp og:image confirmed live — entry-media images, type + 1200w tags present.
 - [ ] Later: Bunny Stream for the play (needs Vic's original file + account).
 
 ### Media / prices / access (branch `feat/media-prices-access`, 2026-09-28)
@@ -144,5 +144,6 @@
 | 2026-09-29 (studio link) | Footer credit now links to kasukustudio.com. |
 | 2026-09-29 (links) | Dead-link audit: removed X icon and trailer placeholder, filled email subjects, share links real on load, privacy pronoun. |
 | 2026-09-29 (trailer + media UI) | Trailer kept and made admin-editable; admin media section redesigned. |
+| 2026-09-30 (2) | Webhook activated & tested; handover finalised; admin UI jargon cleaned up |
 | 2026-09-30 | Planned + wrote share images, on-site play unlock, paywall line removal on `feat/share-images-play-unlock`; handoff plan `.agent/plans/2026-09-30-share-images-play-unlock.md`. |
 | 2026-09-30 (testing & board) | Reviewed branch diff (CSP & escaping verified, 12 API files kept); expanded server test suite to 132 tests (100% pass); tested live Supabase status; updated DECISIONS_LOG (1.1, 1.6, 1.7, Sec 2); ship-check passed. |
