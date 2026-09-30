@@ -502,7 +502,7 @@ function renderDashboard(app) {
           <input id="settings-play-link" type="text" value="${esc(playLink)}" placeholder="https://…" style="${FIELD_CSS}margin-bottom:14px;" />
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <button type="button" id="save-playlink-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Save link</button>
-            <button type="button" id="clear-playlink-btn" style="padding:10px 18px;border:1.5px solid var(--border);background:none;border-radius:999px;font-size:0.85rem;color:var(--text-muted);cursor:pointer;">Clear (use the Vercel setting)</button>
+            <button type="button" id="clear-playlink-btn" style="padding:10px 18px;border:1.5px solid var(--border);background:none;border-radius:999px;font-size:0.85rem;color:var(--text-muted);cursor:pointer;">Clear link</button>
             <span id="playlink-status" role="status" style="font-size:0.85rem;"></span>
           </div>
         </div>
@@ -587,7 +587,7 @@ function renderDashboard(app) {
     });
 
     app.querySelector('#clear-playlink-btn')?.addEventListener('click', async () => {
-      if (!confirm('Clear the saved private play link? The site will fall back to the Vercel PLAY_PRIVATE_LINK setting.')) return;
+      if (!confirm('Remove the saved play link? The site will use the backup link instead.')) return;
       const btn = app.querySelector('#clear-playlink-btn');
       btn.disabled = true;
       sayLink('Clearing…');
