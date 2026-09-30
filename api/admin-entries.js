@@ -55,7 +55,7 @@ export default async function handler(req, res) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({ error: 'Server not configured: SUPABASE_SERVICE_ROLE_KEY is missing in Vercel env vars' });
+    return res.status(500).json({ error: 'The admin panel is not configured. Contact your developer.' });
   }
 
   const headers = {
