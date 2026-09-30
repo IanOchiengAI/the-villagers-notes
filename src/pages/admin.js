@@ -668,7 +668,7 @@ function renderDashboard(app) {
         </div>
         <div style="${CARD_CSS.replace('margin-bottom:32px;', '')}">
           <h3 style="${H3_CSS}margin-bottom:6px;">Buyer not listed?</h3>
-          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;line-height:1.5;">If a buyer paid but their purchase isn't in the list above (for example, from before this page existed), give them access with their entry and IntaSend invoice id.</p>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;line-height:1.5;">If a buyer paid but their purchase isn't in the list above (for example, from before this page existed), give them access with their entry and payment reference.</p>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:16px;">
             <div>
               <label for="manual-entry-select" style="${LABEL_CSS}">Entry</label>
@@ -677,7 +677,7 @@ function renderDashboard(app) {
               </select>
             </div>
             <div>
-              <label for="manual-invoice-id" style="${LABEL_CSS}">IntaSend invoice id</label>
+              <label for="manual-invoice-id" style="${LABEL_CSS}">Payment reference</label>
               <input id="manual-invoice-id" type="text" placeholder="e.g. ABCD1234" style="${FIELD_CSS}" />
             </div>
           </div>
@@ -775,11 +775,11 @@ function renderDashboard(app) {
       const invoiceId = app.querySelector('#manual-invoice-id')?.value.trim();
       const status = app.querySelector('#manual-grant-status');
       const sayManual = (m, ok) => { if (status) { status.style.color = ok === undefined ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'); status.textContent = m; } };
-      if (!entryId || !invoiceId) { sayManual('Pick an entry and enter an invoice id.', false); return; }
+      if (!entryId || !invoiceId) { sayManual('Pick an entry and enter a payment reference.', false); return; }
       btn.disabled = true;
       const label = btn.textContent;
       btn.textContent = 'Checking…';
-      sayManual('Verifying with IntaSend…');
+      sayManual('Checking payment…');
       const r = await grantAccessAdmin(invoiceId, entryId);
       if (r.status === 401) { handleSessionExpired(app); return; }
       btn.disabled = false;
