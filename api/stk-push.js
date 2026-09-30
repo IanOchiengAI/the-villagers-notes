@@ -163,7 +163,9 @@ export default async function handler(req, res) {
     // Paid-entry purchases are recorded the moment the prompt is sent (status "Awaiting
     // payment") so the admin-only access system (Part 5) has a row to attach device keys
     // and grant links to. A failure here is logged but never blocks the payment itself.
-    if (purpose === 'entry' && invoiceId && supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    // The play is recorded the same way (product id `play`), so it unlocks on the site and
+    // shows in the admin "Paid readers" tab. Its order row above stays for Vic's records.
+    if ((purpose === 'entry' || purpose === 'play') && invoiceId && supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY) {
       try {
         const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
         const r = await fetchT(`${supabaseUrl}/rest/v1/entry_purchases?on_conflict=invoice_id`, {
@@ -171,7 +173,7 @@ export default async function handler(req, res) {
           headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' },
           body: JSON.stringify({
             invoice_id: invoiceId,
-            entry_id,
+            entry_id: purpose === 'play' ? 'play' : entry_id,
             phone: formattedPhone,
             amount: numAmount,
             status: 'Awaiting payment',

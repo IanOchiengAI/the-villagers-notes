@@ -49,6 +49,7 @@ export default async function handler(req, res) {
   const ref = String(invoice.api_ref || '');
   if (/^(book|play):/.test(ref)) {
     await markOrderPaid(invoiceId);
+    if (ref.startsWith('play:')) await markEntryPurchasePaid(invoiceId, 'play', Number(invoice.value ?? invoice.amount ?? 0));
     return res.status(200).json({ ok: true, order: true });
   }
 

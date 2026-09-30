@@ -84,6 +84,7 @@ function rowToEntry(row) {
     imageUrl: row.image_url || '',
     audioUrl: row.audio_url || '',
     videoUrl: row.video_url || '',
+    ogImageUrl: row.og_image_url || '',
   };
 }
 
@@ -111,10 +112,11 @@ function entryToRow(entry, sortOrder) {
     image_url: entry.imageUrl || null,
     audio_url: entry.audioUrl || null,
     video_url: entry.videoUrl || null,
+    og_image_url: entry.ogImageUrl || null,
   };
 }
 
-const LIST_COLS = 'id,slug,title,excerpt,category,entry_date,author,price,preview_words,likes,sort_order,created_at,image_url,audio_url,video_url';
+const LIST_COLS = 'id,slug,title,excerpt,category,entry_date,author,price,preview_words,likes,sort_order,created_at,image_url,audio_url,video_url,og_image_url';
 const FULL_COLS = LIST_COLS + ',body';
 
 /**
@@ -357,6 +359,8 @@ export const listPurchasesAdmin = () => callAdminEntries({ action: 'list_purchas
 /** data = { url, expiresAt }. entryId is only needed for an invoice not yet in entry_purchases. */
 export const grantAccessAdmin = (invoiceId, entryId) => callAdminEntries({ action: 'grant_access', invoiceId, ...(entryId ? { entryId } : {}) });
 /** Revokes every device key and unused link for this purchase. data = { revoked } */
+/** Save just an entry's share image (backfill). */
+export const setOgImageAdmin = (entryId, ogImageUrl) => callAdminEntries({ action: 'set_og_image', entryId, ogImageUrl });
 export const revokeAccessAdmin = (invoiceId) => callAdminEntries({ action: 'revoke_access', invoiceId });
 
 /** PUT a file to a signed upload URL from createMediaUploadAdmin(). Returns { ok, error? }. */

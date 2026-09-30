@@ -33,6 +33,8 @@ export default async function handler(req, res) {
   const ref = String(invoice.api_ref || '');
   if (ResultCode === '0' && /^(book|play):/.test(ref)) {
     await markOrderPaid(id);
+    // The play also has a purchase row (it unlocks on the site).
+    if (ref.startsWith('play:')) await markEntryPurchasePaid(id, 'play', Number(invoice.value ?? invoice.amount ?? 0));
   } else if (ResultCode === '0' && ref.startsWith('entry:')) {
     const entryId = ref.slice('entry:'.length);
     const amount = Number(invoice.value ?? invoice.amount ?? 0);

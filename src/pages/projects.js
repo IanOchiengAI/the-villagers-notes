@@ -3,6 +3,7 @@ import { renderContact } from '../components/contact.js';
 import { footerHTML } from '../components/footer.js';
 import { cleanPhone, pollInvoice } from '../lib/pay.js';
 import { postJson } from '../lib/net.js';
+import { esc } from '../lib/html.js';
 import { incrementCounter, getPublicPrices, getPlayTrailerUrl } from '../lib/supabase.js';
 
 // Prices come from the admin (site_settings via getPublicPrices()) so metaDetails
@@ -138,14 +139,14 @@ export async function renderProjects(app) {
               <!-- Play Payment Box -->
               <div class="play-pay-box" id="play-pay-box" style="display:none;">
                 <p class="play-pay-desc">
-                  A recording of the full 77 minutes. KES ${playPrice.toLocaleString()} gets you a private link, sent once, to your email.
+                  A recording of the full 77 minutes. Pay KES ${playPrice.toLocaleString()} and it plays right here, as soon as M-Pesa confirms.
                 </p>
                 <div class="form-group">
                   <label class="form-label-underlined" for="play-mpesa-phone">M-Pesa Number</label>
                   <input type="tel" id="play-mpesa-phone" class="form-input-underlined" placeholder="07XX XXX XXX" maxlength="12" />
                 </div>
                 <div class="form-group">
-                  <label class="form-label-underlined" for="play-email">Email For The Link</label>
+                  <label class="form-label-underlined" for="play-email">Email (optional, so Vic can reach you)</label>
                   <input type="email" id="play-email" class="form-input-underlined" placeholder="you@somewhere" />
                 </div>
                 <button class="btn--sharp" id="pay-play-btn" style="margin-top:var(--space-2);">
@@ -244,7 +245,7 @@ export async function renderProjects(app) {
         playPayBtn.textContent = 'CLOSE ↑';
         playPayBtn.className = 'btn--sharp-close';
       } else {
-        playPayBtn.textContent = `WATCH THE PLAY — KES ${playPrice.toLocaleString()} →`;
+        playPayBtn.textContent = playPayBox.dataset.unlocked ? 'WATCH THE PLAY →' : `WATCH THE PLAY — KES ${playPrice.toLocaleString()} →`;
         playPayBtn.className = 'btn--sharp';
       }
     });
@@ -255,6 +256,8 @@ export async function renderProjects(app) {
   if (payBtn) {
     payBtn.addEventListener('click', () => handlePlayStkPush(playPrice));
   }
+  // Already paid on this device, or opening a one-time link from Vic? Unlock the play.
+  restorePlayAccess();
 
   // Render Soda tip
   const sodaEl = app.querySelector('#soda-container');
@@ -328,6 +331,98 @@ async function handleBookInlineStkPush(price) {
   }
 }
 
+// ── The paid play: unlocks on this device right after payment (same device-key system as
+// paid entries; the server hands out the video only after checking the payment). ─────────
+const PLAY_ID = 'play';
+const PLAY_DEVICE_KEY = 'tvn_device_play';
+const PLAY_INVOICE_KEY = 'tvn_invoice_play';
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
+const lsDel = (k) => { try { localStorage.removeItem(k); } catch (_) {} };
+
+async function requestPlay(payload) {
+  const { ok, status, data, network } = await postJson('/api/get-content', { entry_id: PLAY_ID, ...payload }, 20000);
+  const d = data || {};
+  if (ok && d.ok && d.video_url) return { unlocked: true, video: d, deviceKey: d.device_key || null };
+  return { unlocked: false, network, status, state: d.state, message: network ? 'No connection. Check your network and try again.' : (d.error || 'Could not open the play right now.') };
+}
+
+function playerHTML(video) {
+  const id = /^[A-Za-z0-9_-]{11}$/.test(video.youtube_id || '') ? video.youtube_id : '';
+  return `
+    ${id ? `<div class="entry-video"><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0" title="Beneath the Surface, the full play" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''}
+    <p class="play-pay-desc play-unlocked-note">
+      ${id ? 'Enjoy the play. It stays unlocked on this phone or browser.' : 'Your play is ready. It stays unlocked on this phone or browser.'}
+      <a href="${esc(video.video_url)}" target="_blank" rel="noopener noreferrer" class="play-open-link">${id ? 'Trouble playing? Open it on YouTube →' : 'Watch the play →'}</a>
+    </p>`;
+}
+
+/** Turn the payment box into the player. */
+function showPlayer(video, { open = false } = {}) {
+  const box = document.getElementById('play-pay-box');
+  const toggle = document.getElementById('toggle-play-pay-btn');
+  if (!box) return;
+  box.innerHTML = playerHTML(video);
+  box.dataset.unlocked = '1';
+  if (toggle && box.style.display === 'none') toggle.textContent = 'WATCH THE PLAY →';
+  if (open && box.style.display === 'none') toggle?.click();
+  if (open) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/** On page load: a device that already unlocked the play, or a one-time link from Vic. */
+async function restorePlayAccess() {
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get('access');
+  const status = () => document.getElementById('play-stk-status');
+  const stripToken = () => { url.searchParams.delete('access'); history.replaceState(null, '', url.pathname + url.search + url.hash); };
+
+  const deviceKey = lsGet(PLAY_DEVICE_KEY);
+  if (deviceKey) {
+    const r = await requestPlay({ device_key: deviceKey });
+    if (r.unlocked) { if (token) stripToken(); showPlayer(r.video, { open: !!token }); return; }
+    if (r.state === 'NO_ACCESS') lsDel(PLAY_DEVICE_KEY);
+    else return; // outage: keep the key, try again next visit
+  }
+  if (token) {
+    const r = await requestPlay({ access_token: token });
+    if (r.unlocked || (r.state && r.state !== 'TRANSIENT')) stripToken();
+    if (r.unlocked) {
+      if (r.deviceKey) lsSet(PLAY_DEVICE_KEY, r.deviceKey);
+      showPlayer(r.video, { open: true });
+    } else {
+      const box = document.getElementById('play-pay-box');
+      if (box && box.style.display === 'none') document.getElementById('toggle-play-pay-btn')?.click();
+      setProjectStatus(status(), 'error', r.message);
+    }
+    return;
+  }
+  const invoice = lsGet(PLAY_INVOICE_KEY);
+  if (invoice) unlockPlayWithInvoice(invoice, { quiet: true });
+}
+
+/** After M-Pesa confirms: exchange the invoice for this device's key (once per payment). */
+async function unlockPlayWithInvoice(invoiceId, { quiet = false, retries = 2 } = {}) {
+  const status = document.getElementById('play-stk-status');
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const r = await requestPlay({ invoice_id: invoiceId });
+    if (r.unlocked) {
+      if (r.deviceKey) lsSet(PLAY_DEVICE_KEY, r.deviceKey);
+      lsDel(PLAY_INVOICE_KEY);
+      showPlayer(r.video, { open: !quiet });
+      return true;
+    }
+    const definitive = r.state === 'ALREADY_CLAIMED' || (r.status === 402 && ['FAILED', 'CANCELLED', 'MISMATCH', 'AMOUNT_MISMATCH'].includes(r.state));
+    if (definitive) {
+      lsDel(PLAY_INVOICE_KEY);
+      if (!quiet) setProjectStatus(status, 'error', r.message);
+      return false;
+    }
+    if (attempt < retries) await new Promise((res) => setTimeout(res, 2500));
+    else if (!quiet) setProjectStatus(status, 'error', `Your payment went through, but the play didn't open yet (${r.message}). Refresh this page in a moment and it will open on this device.`);
+  }
+  return false;
+}
+
 async function handlePlayStkPush(price) {
   const phoneInput = document.getElementById('play-mpesa-phone');
   const emailInput = document.getElementById('play-email');
@@ -340,12 +435,12 @@ async function handlePlayStkPush(price) {
   const email = emailInput.value.trim();
   const label = `PAY KES ${price.toLocaleString()}`;
 
-  if (!phone || !email) {
-    setProjectStatus(status, 'error', 'Please fill in both your phone number and email.');
+  if (!phone) {
+    setProjectStatus(status, 'error', 'Please enter the M-Pesa number to pay from.');
     return;
   }
-  if (!email.includes('@') || !email.includes('.')) {
-    setProjectStatus(status, 'error', 'Please enter a valid email address.');
+  if (email && (!email.includes('@') || !email.includes('.'))) {
+    setProjectStatus(status, 'error', "That email address doesn't look right. Fix it or leave it empty.");
     return;
   }
   const cleaned = cleanPhone(phone);
@@ -361,7 +456,7 @@ async function handlePlayStkPush(price) {
   // The server ignores this amount for purpose 'play' and charges its own stored price —
   // sent anyway so a stale price never looks silently accepted.
   const push = await postJson('/api/stk-push', {
-    phone: cleaned, name: `Play - ${email}`, address: email, amount: price, purpose: 'play',
+    phone: cleaned, name: `Play - ${email || cleaned}`, address: email, amount: price, purpose: 'play',
   }, 20000);
   if (!push.ok || push.data.error) {
     setProjectStatus(status, 'error', `${push.network ? 'No connection. Check your network' : (push.data.error || 'Could not initiate payment')}. Please try again.`);
@@ -370,18 +465,22 @@ async function handlePlayStkPush(price) {
     return;
   }
 
+  const invoiceId = push.data.invoice_id || push.data.CheckoutRequestID;
+  lsSet(PLAY_INVOICE_KEY, invoiceId); // kept until the play opens, so a refresh can finish the job
   setProjectStatus(status, 'pending', '📲 Check your phone — an M-Pesa prompt has been sent. Enter your PIN to complete.');
-  const { promise } = pollInvoice(push.data.invoice_id || push.data.CheckoutRequestID, { maxMs: 150000 });
+  const { promise } = pollInvoice(invoiceId, { maxMs: 150000 });
   const result = await promise;
   if (result.state === 'COMPLETE') {
-    setProjectStatus(status, 'success', '✅ Payment received! Vic will send the private viewing link to your email shortly. Thank you!');
-    btn.textContent = 'Payment Received ✓';
+    setProjectStatus(status, 'success', '✅ Payment received! Opening the play…');
+    const opened = await unlockPlayWithInvoice(invoiceId);
+    if (!opened) btn.textContent = 'Payment Received ✓';
   } else if (result.state === 'FAILED') {
+    lsDel(PLAY_INVOICE_KEY);
     setProjectStatus(status, 'error', `Payment declined${result.desc ? `: ${result.desc}` : ''}. You haven't been charged. Please try again.`);
     btn.disabled = false;
     btn.textContent = label;
   } else {
-    setProjectStatus(status, 'error', 'Payment not confirmed yet. If you entered your PIN, check your M-Pesa messages or contact Vic directly.');
+    setProjectStatus(status, 'error', "We haven't heard back from M-Pesa yet. If you entered your PIN, refresh this page in a minute and the play will open on this device.");
     btn.disabled = false;
     btn.textContent = label;
   }
