@@ -22,9 +22,13 @@
 //     (DECISIONS_LOG 1.9) — the reader's saved credential is not discarded on the client.
 
 import { intasendKeys, keysMissingResponse } from './_intasend.js';
-import { fetchT, fetchInvoice, safeJson, clientIp, allow, tooMany } from './_util.js';
+import { fetchT, fetchInvoice, safeJson, clientIp, allow, tooMany, normaliseYouTubeUrl } from './_util.js';
 import { hashKey, randomKey } from './_access.js';
 import { markEntryPurchasePaid } from './_payments.js';
+
+// The paid recording of the play, sold on /projects. Its purchases live alongside paid entries.
+export const PLAY_ID = 'play';
+const PLAY_DEFAULT_PRICE = 1000;
 
 const TRANSIENT = { error: 'The article could not be loaded right now. Please try again in a moment.', state: 'TRANSIENT' };
 const NO_ACCESS = { state: 'NO_ACCESS', error: 'This device no longer has access. Message Vic on WhatsApp with the number you paid from.' };
@@ -55,7 +59,23 @@ export default async function handler(req, res) {
 
   // Every path ends the same way: load the entry's full_body and return it. Loaded once,
   // used by whichever branch proves access.
+  // The paid play is the product id `play`: its price is the admin-set play price and its
+  // "content" is the video (private_settings.play_private_link, else PLAY_PRIVATE_LINK),
+  // handed out only here, after the same checks as a paid entry (DECISIONS_LOG 1.6).
   async function loadEntry() {
+    if (entry_id === PLAY_ID) {
+      const [priceRes, linkRes] = await Promise.all([
+        fetchT(`${supabaseUrl}/rest/v1/site_settings?key=eq.play_price&select=value`, { headers }, 7000),
+        fetchT(`${supabaseUrl}/rest/v1/private_settings?key=eq.play_private_link&select=value`, { headers }, 7000),
+      ]);
+      if (!priceRes.ok || !linkRes.ok) return { error: true };
+      const priceRows = (await safeJson(priceRes)) || [];
+      const linkRows = (await safeJson(linkRes)) || [];
+      const price = Math.round(Number(priceRows[0]?.value)) || PLAY_DEFAULT_PRICE;
+      const raw = String(linkRows[0]?.value || process.env.PLAY_PRIVATE_LINK || '');
+      const link = /^https:\/\/[^\s"'<>]+$/.test(raw) ? raw : '';
+      return { entry: { id: PLAY_ID, price, full_body: null, video_url: link, youtube: link ? normaliseYouTubeUrl(link) : null } };
+    }
     const r = await fetchT(
       `${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=id,price,full_body`,
       { headers },
@@ -69,10 +89,22 @@ export default async function handler(req, res) {
 
   /** Returns a { status, json } to send if full_body isn't ready, else null. */
   function missingBody(entry) {
+    if (entry.id === PLAY_ID) {
+      return entry.video_url ? null : { status: 503, json: { error: "The play isn't available right now. Please try again later.", state: 'TRANSIENT' } };
+    }
     if (!Array.isArray(entry.full_body) || entry.full_body.length === 0) {
       return { status: 500, json: { error: 'Full article content not yet available. Contact the author.' } };
     }
     return null;
+  }
+
+  /** What the browser receives once access is proven: an entry's full text, or the play's video. */
+  function content(entry) {
+    if (entry.id === PLAY_ID) {
+      const id = entry.youtube ? (entry.youtube.match(/[?&]v=([A-Za-z0-9_-]{11})/) || [])[1] : null;
+      return { video_url: entry.video_url, youtube_id: id || null };
+    }
+    return { body: entry.full_body };
   }
 
   /** Mint a new device key tied to `invoiceId`, insert it, and return the raw key. */
@@ -122,7 +154,7 @@ export default async function handler(req, res) {
       if (notFound) return res.status(404).json({ error: 'Entry not found' });
       const miss = missingBody(entry);
       if (miss) return res.status(miss.status).json(miss.json);
-      return res.status(200).json({ ok: true, entry_id: entry.id, body: entry.full_body });
+      return res.status(200).json({ ok: true, entry_id: entry.id, ...content(entry) });
     }
 
     // ── 2. One-time access token — a link the admin generated for this reader ───────
@@ -168,7 +200,7 @@ export default async function handler(req, res) {
         await release(`entry_access?id=eq.${encodeURIComponent(grant.id)}`, { used_at: null });
         return res.status(503).json(TRANSIENT);
       }
-      return res.status(200).json({ ok: true, entry_id: entry.id, body: entry.full_body, device_key: rawDeviceKey });
+      return res.status(200).json({ ok: true, entry_id: entry.id, ...content(entry), device_key: rawDeviceKey });
     }
 
     // ── 3. Original purchase invoice — the buying device, first visit ───────────────
@@ -195,8 +227,10 @@ export default async function handler(req, res) {
       if (state !== 'COMPLETE' && state !== 'SUCCESSFUL') {
         return res.status(402).json({ error: invoice.failed_reason || `Payment state is ${state}`, state: state || 'UNKNOWN' });
       }
-      const expectedRef = `entry:${entry_id}`;
-      if (invoice.api_ref !== expectedRef) {
+      // Paid entries are bound to `entry:<id>`; the play's invoices are `play:<timestamp>`.
+      const expectedRef = entry_id === PLAY_ID ? 'play:' : `entry:${entry_id}`;
+      const refOk = entry_id === PLAY_ID ? String(invoice.api_ref || '').startsWith('play:') : invoice.api_ref === expectedRef;
+      if (!refOk) {
         console.warn('[get-content] api_ref mismatch for entry', entry_id, '- got:', invoice.api_ref);
         return res.status(402).json({ error: `Payment mismatch (Expected ${expectedRef}, got ${invoice.api_ref}). Contact author.`, state: 'MISMATCH' });
       }
@@ -233,7 +267,7 @@ export default async function handler(req, res) {
         await release(`entry_purchases?invoice_id=eq.${encodeURIComponent(invoice_id)}`, { device_minted_at: null });
         return res.status(503).json(TRANSIENT);
       }
-      return res.status(200).json({ ok: true, entry_id: entry.id, body: entry.full_body, device_key: rawDeviceKey });
+      return res.status(200).json({ ok: true, entry_id: entry.id, ...content(entry), device_key: rawDeviceKey });
     }
 
     // Unreachable: the `provided.length !== 1` check above guarantees one of the three ifs ran.

@@ -4,7 +4,6 @@ import { esc, loadErrorHTML, wireRetry } from '../lib/html.js';
 import { postJson } from '../lib/net.js';
 import { cleanPhone, pollInvoice } from '../lib/pay.js';
 import { footerHTML } from '../components/footer.js';
-import { WHATSAPP_NUMBER } from '../components/whatsapp-fab.js';
 
 // ── Module state: one entry page is live at a time ───────────────────────────
 let disposeCurrent = null; // removes document-level listeners + stops polling from the previous render
@@ -232,7 +231,6 @@ export async function renderEntry(app, id) {
                   <button class="label paywall-btn paywall-btn--quiet" id="paywall-check-btn" type="button" style="${storedInvoice ? '' : 'display:none;'}">I've already paid — check</button>
                 </div>
                 <div id="paywall-status" role="status" aria-live="polite" style="font-size:0.9rem;line-height:1.5;"></div>
-                <p class="paywall-whatsapp-note">Changed phones? <a href="https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hi Vic! I paid for "${entry.title}" but changed phones/browsers and lost access. My M-Pesa number is: `)}" target="_blank" rel="noopener">Message Vic on WhatsApp</a> with the number you paid from.</p>
               </div>
             </div>
           ` : bodyParagraphs.map(formatParagraph).join('')}
@@ -429,6 +427,10 @@ export async function renderEntry(app, id) {
   const shareBtn = document.getElementById('share-btn');
   const shareDropdown = document.getElementById('share-dropdown');
   const canonicalUrl = `${window.location.origin}/entries/${encodeURIComponent(slug)}`;
+  // WhatsApp remembers a link's preview. A short tag from the share image's file name makes
+  // it fetch the current picture; the page ignores it and its canonical URL stays clean.
+  const shareVer = (String(entry.ogImageUrl || entry.imageUrl || '').match(/\/(\d{6,})-/) || [])[1];
+  const shareUrl = shareVer ? `${canonicalUrl}?s=${shareVer.slice(-6)}` : canonicalUrl;
   const outsideClick = (e) => {
     if (shareDropdown && !shareDropdown.contains(e.target) && e.target !== shareBtn && !shareBtn.contains(e.target)) {
       shareDropdown.style.display = 'none';
@@ -437,7 +439,7 @@ export async function renderEntry(app, id) {
   };
   if (shareBtn && shareDropdown) {
     // Real share links from the start, so no link ever points at "#".
-    const url = encodeURIComponent(canonicalUrl);
+    const url = encodeURIComponent(shareUrl);
     const title = encodeURIComponent(entry.title);
     document.getElementById('share-twitter').href = `https://twitter.com/intent/tweet?text=${title}&url=${url}`;
     document.getElementById('share-facebook').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
@@ -452,10 +454,10 @@ export async function renderEntry(app, id) {
       e.stopPropagation();
       const fb = document.getElementById('share-feedback');
       try {
-        await navigator.clipboard.writeText(canonicalUrl);
+        await navigator.clipboard.writeText(shareUrl);
         if (fb) fb.textContent = 'Link copied ✓';
       } catch (_) {
-        if (fb) fb.textContent = canonicalUrl; // clipboard blocked: show the link so it can be copied by hand
+        if (fb) fb.textContent = shareUrl; // clipboard blocked: show the link so it can be copied by hand
       }
       shareDropdown.style.display = 'none';
       if (fb) { fb.style.display = 'inline'; setTimeout(() => { fb.style.display = 'none'; }, 3500); }

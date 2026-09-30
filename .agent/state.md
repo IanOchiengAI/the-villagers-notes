@@ -138,3 +138,4 @@
 | 2026-09-29 (links) | Dead-link audit: removed X icon and trailer placeholder, filled email subjects, share links real on load, privacy pronoun. |
 - [x] Footer X icon → x.com/Ofuyo_ (2026-09-29). - [ ] Vic to add the play trailer (admin Settings → Play trailer).
 | 2026-09-29 (trailer + media UI) | Trailer kept and made admin-editable; admin media section redesigned. |
+| 2026-09-30 | Planned + wrote (untested) share images, on-site play unlock, paywall line removal on `feat/share-images-play-unlock`; handoff plan `.agent/plans/2026-09-30-share-images-play-unlock.md`. Migration `20260930_entries_share_image.sql` pending. |

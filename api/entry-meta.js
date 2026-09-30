@@ -85,17 +85,20 @@ ${cover}
 }
 
 /** Put this entry's tags and content into the built shell. */
-function render(shell, { title, description, canonicalUrl, image, imageIsDefault, article, ld }) {
+function render(shell, { title, description, canonicalUrl, image, imageIsDefault, imageIsShare, article, ld }) {
   let html = shell
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escHtml(title)}</title>`)
     .replace(/<meta\s+name="description"[^>]*>\s*/gi, '')
     .replace(/<meta\s+property="og:[^"]*"[^>]*>\s*/gi, '')
     .replace(/<meta\s+name="twitter:[^"]*"[^>]*>\s*/gi, '')
     .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, '');
-  // The default VN logo is a known 1200x630 asset; a per-entry cover image's real
-  // dimensions aren't known here, so the fixed width/height tags are dropped for it.
-  const dims = imageIsDefault
-    ? '\n  <meta property="og:image:width" content="1200" />\n  <meta property="og:image:height" content="630" />'
+  // The VN logo and the admin-made share image are both 1200x630, so WhatsApp gets their
+  // size and type up front (it shows the large preview sooner). A raw cover's size isn't known.
+  const sized = imageIsDefault || imageIsShare;
+  const dims = sized
+    ? `\n  <meta property="og:image:secure_url" content="${escHtml(image)}" />` +
+      `\n  <meta property="og:image:type" content="${imageIsDefault ? 'image/png' : 'image/jpeg'}" />` +
+      '\n  <meta property="og:image:width" content="1200" />\n  <meta property="og:image:height" content="630" />'
     : '';
   const head = `
   <meta name="description" content="${escHtml(description)}" />
@@ -138,7 +141,7 @@ export default async function handler(req, res) {
       // slug is [A-Za-z0-9_-] only, so it cannot inject filter syntax. Two plain eq lookups.
       const q = async (col) => {
         const r = await fetchT(
-          `${supabaseUrl}/rest/v1/entries?${col}=eq.${slug}&select=id,slug,title,excerpt,category,entry_date,author,price,preview_words,body,image_url,audio_url,video_url&limit=1`,
+          `${supabaseUrl}/rest/v1/entries?${col}=eq.${slug}&select=id,slug,title,excerpt,category,entry_date,author,price,preview_words,body,image_url,audio_url,video_url,og_image_url&limit=1`,
           { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, Accept: 'application/json' } },
           6000
         );
@@ -195,7 +198,9 @@ export default async function handler(req, res) {
   // A per-entry cover image is used for the link preview and JSON-LD only when it passes
   // the same bucket-prefix check as the admin's own upload validation; otherwise the VN logo.
   const validImage = typeof row.image_url === 'string' && isEntryMediaUrl(row.image_url, supabaseUrl) ? row.image_url : null;
-  const image = validImage || DEFAULT_IMAGE;
+  // Link previews prefer the small share copy (WhatsApp skips images much above ~300 KB).
+  const shareImage = typeof row.og_image_url === 'string' && isEntryMediaUrl(row.og_image_url, supabaseUrl) ? row.og_image_url : null;
+  const image = shareImage || validImage || DEFAULT_IMAGE;
   const ld = JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -210,7 +215,7 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
   return res.status(200).send(render(shell, {
-    title, description, canonicalUrl, image, imageIsDefault: !validImage,
+    title, description, canonicalUrl, image, imageIsDefault: !shareImage && !validImage, imageIsShare: !!shareImage,
     article: articleHtml(row, isPaid, paragraphs, validImage), ld,
   }));
 }

@@ -337,8 +337,6 @@ html.is-loading::before {
 
 /* Paywall: admin-only access on a new device (2026-09-28, replaces the old
    reader-facing unlock-code UI — a buyer's code could be shared with anyone). */
-.paywall-whatsapp-note { margin-top: 1rem; font-size: 0.85rem; color: var(--muted-foreground); }
-.paywall-whatsapp-note a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 
 /* Privacy page */
 .privacy-body { font-size: 1.1rem; }
@@ -404,3 +402,7 @@ html.is-loading::before {
 .nf-list { list-style: none; padding: 0; margin: 0; }
 .nf-list li { border-top: 1px solid var(--rule); padding: 1.1rem 0; }
 .nf-list li:first-child { border-top: none; }
+
+/* Paid play, once unlocked on /projects */
+.play-unlocked-note { margin-top: 1rem; }
+.play-open-link { display: inline-block; margin-top: 0.5rem; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }

@@ -23,7 +23,7 @@ import { markEntryPurchasePaid } from './_payments.js';
 const ENTRY_COLUMNS = [
   'id', 'slug', 'title', 'excerpt', 'category', 'entry_date', 'author',
   'price', 'preview_words', 'body', 'sort_order',
-  'image_url', 'audio_url', 'video_url',
+  'image_url', 'audio_url', 'video_url', 'og_image_url',
 ];
 const ORDER_STATUSES = ['Awaiting payment', 'Paid', 'Dispatched', 'Delivered'];
 
@@ -76,12 +76,12 @@ export default async function handler(req, res) {
 
       // Media URL validation (2026-09-28): empty clears the field; anything else must be
       // a real file in our own storage bucket (image/audio) or a real YouTube link (video).
-      for (const col of ['image_url', 'audio_url']) {
+      for (const col of ['image_url', 'audio_url', 'og_image_url']) {
         if (row[col] === undefined) continue;
         const v = row[col];
         if (v === null || v === '') { row[col] = null; continue; }
         if (typeof v !== 'string' || !isEntryMediaUrl(v, supabaseUrl)) {
-          return res.status(400).json({ error: col === 'image_url' ? 'That cover image link is not valid. Upload it through the form instead of pasting a URL.' : 'That audio link is not valid. Upload it through the form instead of pasting a URL.' });
+          return res.status(400).json({ error: col === 'audio_url' ? 'That audio link is not valid. Upload it through the form instead of pasting a URL.' : 'That cover image link is not valid. Upload it through the form instead of pasting a URL.' });
         }
       }
       if (row.video_url !== undefined) {
@@ -124,6 +124,24 @@ export default async function handler(req, res) {
       if (!r.ok) {
         console.error('[admin-entries] upsert_full_body error:', await r.text());
         return res.status(502).json({ error: 'Failed to save full article body' });
+      }
+      return res.status(200).json({ ok: true });
+    }
+
+    // Share image only (the admin's one-time "Create share images" backfill). Touches no
+    // other column, so it can't disturb an entry's text, price or likes.
+    if (action === 'set_og_image') {
+      const ogImageUrl = req.body?.ogImageUrl;
+      if (!entryId || typeof entryId !== 'string' || entryId.length > 200) return res.status(400).json({ error: 'Missing entryId' });
+      if (typeof ogImageUrl !== 'string' || !isEntryMediaUrl(ogImageUrl, supabaseUrl)) return res.status(400).json({ error: 'Invalid share image' });
+      const r = await fetchT(`${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}`, {
+        method: 'PATCH',
+        headers: { ...headers, Prefer: 'return=minimal' },
+        body: JSON.stringify({ og_image_url: ogImageUrl }),
+      }, T);
+      if (!r.ok) {
+        console.error('[admin-entries] set_og_image error:', await r.text());
+        return res.status(502).json({ error: 'Failed to save the share image' });
       }
       return res.status(200).json({ ok: true });
     }
@@ -398,18 +416,25 @@ export default async function handler(req, res) {
         const { publicKey, secretKey } = intasendKeys();
         if (!publicKey) return res.status(503).json({ error: 'Payments are not configured right now.' });
 
-        const entryRes = await fetchT(`${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}&select=id,price`, { headers }, T);
-        if (!entryRes.ok) return res.status(502).json({ error: 'Could not look up the entry' });
-        const entryRows = await safeJson(entryRes);
-        if (!Array.isArray(entryRows) || !entryRows[0]) return res.status(404).json({ error: 'Entry not found' });
-        const price = Number(entryRows[0].price) || 0;
+        // The play: its invoices are `play:<time>` and its price may have changed since the buyer
+        // paid, so any completed play payment counts (the admin is choosing to help this buyer).
+        const isPlay = entryId === 'play';
+        let price = 50;
+        if (!isPlay) {
+          const entryRes = await fetchT(`${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}&select=id,price`, { headers }, T);
+          if (!entryRes.ok) return res.status(502).json({ error: 'Could not look up the entry' });
+          const entryRows = await safeJson(entryRes);
+          if (!Array.isArray(entryRows) || !entryRows[0]) return res.status(404).json({ error: 'Entry not found' });
+          price = Number(entryRows[0].price) || 0;
+        }
 
         const { invoice, error: invErr } = await fetchInvoice(publicKey, secretKey, invoiceId);
         if (invErr) return res.status(503).json({ error: 'Could not reach the payment provider. Please try again.' });
         if (invoice.state !== 'COMPLETE' && invoice.state !== 'SUCCESSFUL') {
           return res.status(400).json({ error: 'This invoice has not been paid.' });
         }
-        if (invoice.api_ref !== `entry:${entryId}`) {
+        const refOk = isPlay ? String(invoice.api_ref || '').startsWith('play:') : invoice.api_ref === `entry:${entryId}`;
+        if (!refOk) {
           return res.status(400).json({ error: 'This invoice does not match that entry.' });
         }
         const paidValue = Number(invoice.value ?? invoice.amount ?? 0);
@@ -436,11 +461,13 @@ export default async function handler(req, res) {
         return res.status(502).json({ error: 'Could not create the access link' });
       }
 
+      // The raw token is returned once, here, and never stored or logged again.
+      if (purchase.entry_id === 'play') {
+        return res.status(200).json({ ok: true, url: `https://thevillagersnotes.com/projects?access=${encodeURIComponent(rawToken)}`, expiresAt });
+      }
       const slugRes = await fetchT(`${supabaseUrl}/rest/v1/entries?id=eq.${encodeURIComponent(purchase.entry_id)}&select=slug`, { headers }, T);
       const slugRows = slugRes.ok ? await safeJson(slugRes) : null;
       const slug = Array.isArray(slugRows) && slugRows[0] && slugRows[0].slug ? slugRows[0].slug : purchase.entry_id;
-
-      // The raw token is returned once, here, and never stored or logged again.
       return res.status(200).json({
         ok: true,
         url: `https://thevillagersnotes.com/entries/${encodeURIComponent(slug)}?access=${encodeURIComponent(rawToken)}`,

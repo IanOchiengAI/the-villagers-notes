@@ -1,8 +1,9 @@
 import '../components/admin-media.css';
+import { makeShareImage, shrinkCover } from '../lib/image-resize.js';
 import {
   getEntriesFromDB, upsertEntryToDB, deleteEntryFromDB, getEntryFullBodyFromDB,
   listCommentsAdmin, deleteCommentAdmin, setOrderStatusAdmin, getStatsAdmin, getCounters,
-  createMediaUploadAdmin, uploadEntryMedia, getSettingsAdmin, setPricesAdmin, setPlayLinkAdmin, setTrailerAdmin,
+  createMediaUploadAdmin, uploadEntryMedia, getSettingsAdmin, setPricesAdmin, setPlayLinkAdmin, setTrailerAdmin, setOgImageAdmin,
   listPurchasesAdmin, grantAccessAdmin, revokeAccessAdmin,
 } from '../lib/supabase.js';
 import { invalidateEntryList } from '../lib/store.js';
@@ -14,6 +15,8 @@ const MIN_SETTINGS_PRICE = 50;
 const MAX_SETTINGS_PRICE = 50000;
 const ORDER_STATUSES = ['Awaiting payment', 'Paid', 'Dispatched', 'Delivered'];
 // Client-side hint only — the server is the real authority on what counts as a YouTube link.
+// Storage limit for one image file (bucket + create_media_upload); covers are resized to fit.
+const IMAGE_STORE_MAX = 5 * 1024 * 1024;
 const YT_RE = /^https?:\/\/(www\.)?(youtube\.com\/(watch\?v=|shorts\/|embed\/)|youtu\.be\/)[A-Za-z0-9_-]{11}(&\S*)?$/;
 
 const LABEL_CSS = 'font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;margin-bottom:6px;';
@@ -646,7 +649,7 @@ function renderDashboard(app) {
   }
 
   function renderPaidReadersSection(purchases) {
-    const titleOf = (id) => (store.entries || []).find((e) => e.id === id)?.title || id;
+    const titleOf = (id) => (id === 'play' ? 'Beneath the Surface (the play)' : (store.entries || []).find((e) => e.id === id)?.title || id);
     const paidEntries = (store.entries || []).filter((e) => Number(e.price) > 0);
     return `
       <div>
@@ -670,7 +673,7 @@ function renderDashboard(app) {
             <div>
               <label for="manual-entry-select" style="${LABEL_CSS}">Entry</label>
               <select id="manual-entry-select" style="${FIELD_CSS}cursor:pointer;">
-                ${paidEntries.length === 0 ? `<option value="">No paid entries</option>` : paidEntries.map((e) => `<option value="${esc(e.id)}">${esc(e.title)}</option>`).join('')}
+                <option value="play">Beneath the Surface (the play)</option>${paidEntries.map((e) => `<option value="${esc(e.id)}">${esc(e.title)}</option>`).join('')}
               </select>
             </div>
             <div>
@@ -845,6 +848,19 @@ function renderDashboard(app) {
           </div>
           <button type="button" id="new-entry-btn" style="padding:10px 22px;background:var(--accent);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:700;cursor:pointer;">+ New Entry</button>
         </div>
+        ${(() => {
+          // One-time helper for covers uploaded before share images existed.
+          const missing = entries.filter((e) => e.imageUrl && !e.ogImageUrl).length;
+          return missing ? `
+            <div style="${CARD_CSS}display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;">
+              <div style="flex:1 1 260px;">
+                <p style="font-weight:700;margin:0 0 4px;">${missing} ${missing === 1 ? 'entry needs' : 'entries need'} a share image</p>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin:0;line-height:1.5;">So the cover shows when a link is shared on WhatsApp. Takes a few seconds; nothing else changes.</p>
+              </div>
+              <button type="button" id="make-share-images-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Create share images</button>
+              <span id="share-images-status" role="status" style="font-size:0.85rem;flex-basis:100%;"></span>
+            </div>` : '';
+        })()}
 
         <div id="new-entry-form" style="display:none;background:var(--white);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:28px;box-sizing:border-box;">
           ${entryFormHTML({ id: '', category: 'Essay', date: '', title: '', excerpt: '', body: [] }, 'new')}
@@ -924,9 +940,10 @@ function renderDashboard(app) {
             <div class="media-tile" data-media-tile="${p}-image">
               <div class="media-tile__head">
                 <span class="media-tile__icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span>
-                <div><div class="media-tile__title">Cover image</div><div class="media-tile__hint">JPG, PNG or WebP · up to 5 MB</div></div>
+                <div><div class="media-tile__title">Cover image</div><div class="media-tile__hint">JPG, PNG or WebP · resized for you</div></div>
               </div>
               <input type="hidden" id="${p}-imageUrl" value="${esc(e.imageUrl || '')}" />
+              <input type="hidden" id="${p}-ogImageUrl" value="${esc(e.ogImageUrl || '')}" />
               <input type="file" id="${p}-image-file" class="media-file" accept="image/jpeg,image/png,image/webp" />
               <label for="${p}-image-file" class="media-drop" data-media-drop="${p}-image" style="${e.imageUrl ? 'display:none;' : ''}">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
@@ -1015,6 +1032,7 @@ function renderDashboard(app) {
       body: bodyRaw.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean),
       bodyRaw: g('body')?.value ?? '',
       imageUrl: g('imageUrl')?.value ?? '',
+      ogImageUrl: g('ogImageUrl')?.value ?? '',
       audioUrl: g('audioUrl')?.value ?? '',
       videoUrl: g('videoUrl')?.value?.trim() ?? '',
     };
@@ -1076,6 +1094,18 @@ function renderDashboard(app) {
     if (fileInput) fileInput.value = '';
   }
 
+  /** Upload one file/blob to entry-media; returns its public URL, null if the session expired. Throws on failure. */
+  async function uploadBlob(kind, blob, name) {
+    const type = blob.type || 'image/jpeg';
+    const up = await createMediaUploadAdmin(kind, name, type, blob.size);
+    if (up.status === 401) { handleSessionExpired(app); return null; }
+    if (!up.ok) throw new Error(up.error || 'Could not start the upload.');
+    const { path, token, publicUrl } = up.data;
+    const putRes = await uploadEntryMedia(path, token, blob.type ? blob : new File([blob], name, { type }));
+    if (!putRes.ok) throw new Error(putRes.error || 'Upload failed.');
+    return publicUrl;
+  }
+
   /** Wire the cover-image / audio uploads and the YouTube link field for form `key`. */
   function wireMedia(key) {
     const p = `f-${key}`;
@@ -1118,28 +1148,52 @@ function renderDashboard(app) {
         if (file.size > opts.maxBytes) { setMediaStatus(kind, `Too large — max ${opts.maxLabel}.`, true); fileInput.value = ''; return; }
         activeUploads++; updateSaveDisabled();
         tile?.classList.add('is-busy');
-        setMediaStatus(kind, `Uploading ${file.name}…`, false);
-        const up = await createMediaUploadAdmin(kind, file.name, file.type, file.size);
-        if (up.status === 401) { handleSessionExpired(app); return; }
-        if (!up.ok) { setMediaStatus(kind, up.error || 'Could not start the upload.', true); fileInput.value = ''; activeUploads--; updateSaveDisabled(); tile?.classList.remove('is-busy'); return; }
-        const { path, token, publicUrl } = up.data;
-        const putRes = await uploadEntryMedia(path, token, file);
-        if (!putRes.ok) { setMediaStatus(kind, putRes.error || 'Upload failed.', true); fileInput.value = ''; activeUploads--; updateSaveDisabled(); tile?.classList.remove('is-busy'); return; }
-        setMediaValue(p, kind, publicUrl);
-        setMediaStatus(kind, 'Uploaded ✓', false);
-        activeUploads--; updateSaveDisabled(); tile?.classList.remove('is-busy');
-        touchDraft();
+        const done = () => { activeUploads--; updateSaveDisabled(); tile?.classList.remove('is-busy'); };
+        const fail = (msg) => { setMediaStatus(kind, msg, true); fileInput.value = ''; done(); };
+        try {
+          // Covers: big phone photos are scaled down first, so pages stay quick.
+          let toSend = file;
+          if (kind === 'image') {
+            setMediaStatus(kind, 'Preparing image…', false);
+            toSend = await shrinkCover(file);
+            if (toSend.size > IMAGE_STORE_MAX) return fail('That image is still too large after resizing. Try a smaller photo.');
+          }
+          setMediaStatus(kind, `Uploading ${file.name}…`, false);
+          const coverUrl = await uploadBlob(kind, toSend, toSend === file ? file.name : 'cover.jpg');
+          if (coverUrl === null) return; // session expired, already handled
+          setMediaValue(p, kind, coverUrl);
+
+          // Link-preview copy: small 1200x630 JPEG that WhatsApp will actually show.
+          if (kind === 'image') {
+            setMediaStatus(kind, 'Making the share image…', false);
+            const og = app.querySelector(`#${p}-ogImageUrl`);
+            if (og) og.value = '';
+            try {
+              const shareUrl = await uploadBlob('image', await makeShareImage(toSend), 'share.jpg');
+              if (shareUrl === null) return;
+              if (og) og.value = shareUrl;
+            } catch (_) {
+              // Not fatal: the preview falls back to the cover itself.
+            }
+          }
+          setMediaStatus(kind, 'Uploaded ✓', false);
+          done();
+          touchDraft();
+        } catch (err) {
+          fail(err?.message || 'Upload failed.');
+        }
       });
 
       app.querySelector(`[data-media-remove="${p}-${kind}"]`)?.addEventListener('click', () => {
         setMediaValue(p, kind, '');
+        if (kind === 'image') { const og = app.querySelector(`#${p}-ogImageUrl`); if (og) og.value = ''; }
         if (fileInput) fileInput.value = '';
         setMediaStatus(kind, '', false);
         touchDraft();
       });
     }
 
-    wireUpload('image', { mimes: ['image/jpeg', 'image/png', 'image/webp'], mimeLabel: 'JPEG, PNG or WebP', maxBytes: 5 * 1024 * 1024, maxLabel: '5 MB' });
+    wireUpload('image', { mimes: ['image/jpeg', 'image/png', 'image/webp'], mimeLabel: 'JPEG, PNG or WebP', maxBytes: 20 * 1024 * 1024, maxLabel: '20 MB' });
     wireUpload('audio', { mimes: ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/wav', 'audio/ogg'], mimeLabel: 'MP3, M4A, AAC, WAV or OGG', maxBytes: 25 * 1024 * 1024, maxLabel: '25 MB' });
 
     const videoInput = app.querySelector(`#${p}-videoUrl`);
@@ -1216,6 +1270,7 @@ function renderDashboard(app) {
     set('body', draft.bodyRaw ?? (draft.body || []).join('\n\n'));
     app.querySelector(`#f-${key}-price`)?.dispatchEvent(new Event('input'));
     setMediaValue(`f-${key}`, 'image', draft.imageUrl || '');
+    set('ogImageUrl', draft.ogImageUrl);
     setMediaValue(`f-${key}`, 'audio', draft.audioUrl || '');
     set('videoUrl', draft.videoUrl);
     app.querySelector(`#f-${key}-videoUrl`)?.dispatchEvent(new Event('input'));
@@ -1242,6 +1297,8 @@ function renderDashboard(app) {
       // Paid entries publish only the preview; the full text goes to full_body IN THE SAME REQUEST.
       body: isPaid ? previewByWords(f.body, f.previewWords) : f.body,
       imageUrl: f.imageUrl || '',
+      // No cover means no share image either.
+      ogImageUrl: f.imageUrl ? (f.ogImageUrl || '') : '',
       audioUrl: f.audioUrl || '',
       videoUrl: f.videoUrl || '',
     };
@@ -1270,6 +1327,33 @@ function renderDashboard(app) {
   function wireEntries() {
     const entries = store.entries;
     const newForm = app.querySelector('#new-entry-form');
+
+    app.querySelector('#make-share-images-btn')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      const status = app.querySelector('#share-images-status');
+      const say = (m, ok) => { if (status) { status.style.color = ok === undefined ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'); status.textContent = m; } };
+      const todo = (store.entries || []).filter((e) => e.imageUrl && !e.ogImageUrl);
+      btn.disabled = true;
+      let done = 0;
+      const failed = [];
+      for (const e of todo) {
+        say(`Working on "${e.title}" (${done + 1} of ${todo.length})…`);
+        try {
+          const url = await uploadBlob('image', await makeShareImage(e.imageUrl), 'share.jpg');
+          if (url === null) return; // session expired, already handled
+          const r = await setOgImageAdmin(e.id, url);
+          if (r.status === 401) { handleSessionExpired(app); return; }
+          if (!r.ok) throw new Error(r.error);
+          e.ogImageUrl = url;
+          done++;
+        } catch (_) {
+          failed.push(e.title);
+        }
+      }
+      btn.disabled = false;
+      if (failed.length) say(`Done ${done} of ${todo.length}. Couldn't do: ${failed.join(', ')}. Try again, or re-upload that cover.`, false);
+      else { say(`All ${done} done ✓`, true); btn.style.display = 'none'; }
+    });
 
     function openNew() {
       newForm.style.display = 'block';
