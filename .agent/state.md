@@ -98,6 +98,13 @@
 - [ ] Send Vic the handover (Save as PDF from the browser) (password already sent on Signal; the balance now credits Vic's August domain payment). Once the IntaSend webhook is live, restore the "works even if the buyer closes the page" line in the handover.
 - [ ] Tell Vic the admin Book and Settings tabs were removed (they never changed anything for readers) and that Comments is new. (Superseded 2026-09-28: a new Settings tab now exists, for prices and the play link.)
 
+### Share images & Play unlock (branch `feat/share-images-play-unlock`, 2026-09-30)
+- [ ] **Ian: run `supabase/migrations/20260930_entries_share_image.sql`** in Supabase SQL editor (column `og_image_url` + select grant). Verified pending.
+- [ ] Merge PR and deploy `feat/share-images-play-unlock`.
+- [ ] Admin: run one-time "Create share images" batch on Entries tab to backfill the 9 entries.
+- [ ] Confirm WhatsApp preview with `curl -A WhatsApp https://thevillagersnotes.com/entries/<slug>` after backfill.
+- [ ] Later: Bunny Stream for the play (needs Vic's original file + account).
+
 ### Media / prices / access (branch `feat/media-prices-access`, 2026-09-28)
 - [x] (done 2026-09-29, plus follow-up `20260929_entries_media_column_grants.sql`; verified) **Ian: run `supabase/migrations/20260928_media_prices_access.sql`** in the Supabase SQL editor BEFORE deploying (reader pages select the new columns). Then the lead verifies with the security advisor and anon checks.
 - [x] Deployed (PR #2, 2026-09-29); automated live checks passed. - [ ] Ian still to check (admin password / phone): entry typography, image/audio upload and share preview, YouTube embed, prices on /projects + amount charged, Settings tab, paid unlock on one device, Give access link works once, Revoke.
@@ -136,6 +143,6 @@
 | 2026-09-29 (404) | Themed 404 page with a real 404 status (PR #4); its deploy failed on an invalid Vercel route pattern (production unaffected), fixed in PR #5; restored the 404 log entry lost in the PR #3 merge. |
 | 2026-09-29 (studio link) | Footer credit now links to kasukustudio.com. |
 | 2026-09-29 (links) | Dead-link audit: removed X icon and trailer placeholder, filled email subjects, share links real on load, privacy pronoun. |
-- [x] Footer X icon → x.com/Ofuyo_ (2026-09-29). - [ ] Vic to add the play trailer (admin Settings → Play trailer).
 | 2026-09-29 (trailer + media UI) | Trailer kept and made admin-editable; admin media section redesigned. |
-| 2026-09-30 | Planned + wrote (untested) share images, on-site play unlock, paywall line removal on `feat/share-images-play-unlock`; handoff plan `.agent/plans/2026-09-30-share-images-play-unlock.md`. Migration `20260930_entries_share_image.sql` pending. |
+| 2026-09-30 | Planned + wrote share images, on-site play unlock, paywall line removal on `feat/share-images-play-unlock`; handoff plan `.agent/plans/2026-09-30-share-images-play-unlock.md`. |
+| 2026-09-30 (testing & board) | Reviewed branch diff (CSP & escaping verified, 12 API files kept); expanded server test suite to 132 tests (100% pass); tested live Supabase status; updated DECISIONS_LOG (1.1, 1.6, 1.7, Sec 2); ship-check passed. |
