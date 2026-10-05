@@ -44,7 +44,7 @@ export default async function handler(req, res) {
 
   const {
     token, action, entry, entryId, fullBody, commentId, orderId, status,
-    kind, contentType, size, prices, link, invoiceId,
+    kind, contentType, size, prices, link, invoiceId, ideaId, ideaText,
   } = req.body || {};
 
   if (!verifyToken(token)) {
@@ -492,6 +492,57 @@ export default async function handler(req, res) {
       }
       const rows = await safeJson(r);
       return res.status(200).json({ ok: true, revoked: Array.isArray(rows) ? rows.length : 0 });
+    }
+
+    // ── Ideas (2026-10-05): Vic's list of changes for the next phase ─────────
+    // Vic adds and lists; he may delete only his own ideas still marked New. Status and
+    // note are set by Ian outside the dashboard (shared admin login), never here.
+    if (action === 'list_ideas') {
+      const r = await fetchT(
+        `${supabaseUrl}/rest/v1/ideas?select=id,created_at,body,entry_id,source,status,note&order=created_at.desc&limit=200`,
+        { headers },
+        T
+      );
+      if (!r.ok) return res.status(502).json({ error: 'Failed to load ideas' });
+      return res.status(200).json({ ok: true, ideas: (await safeJson(r)) || [] });
+    }
+
+    if (action === 'add_idea') {
+      const text = typeof ideaText === 'string' ? ideaText.trim() : '';
+      if (!text || text.length > 2000) {
+        return res.status(400).json({ error: 'Write your idea (up to 2,000 characters).' });
+      }
+      if (entryId != null && entryId !== '' && !isSafeSlug(entryId)) {
+        return res.status(400).json({ error: 'Invalid entry' });
+      }
+      const r = await fetchT(`${supabaseUrl}/rest/v1/ideas`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({ body: text, entry_id: entryId || null, source: 'Vic', status: 'New' }),
+      }, T);
+      if (!r.ok) {
+        console.error('[admin-entries] add_idea error:', await r.text());
+        return res.status(502).json({ error: 'Failed to save your idea' });
+      }
+      const rows = await safeJson(r);
+      return res.status(200).json({ ok: true, idea: Array.isArray(rows) ? rows[0] : null });
+    }
+
+    if (action === 'delete_idea') {
+      if (!ideaId || typeof ideaId !== 'string' || !/^[0-9a-f-]{36}$/i.test(ideaId)) {
+        return res.status(400).json({ error: 'Missing idea' });
+      }
+      const r = await fetchT(
+        `${supabaseUrl}/rest/v1/ideas?id=eq.${ideaId}&source=eq.Vic&status=eq.New`,
+        { method: 'DELETE', headers: { ...headers, Prefer: 'return=representation' } },
+        T
+      );
+      if (!r.ok) return res.status(502).json({ error: 'Failed to delete idea' });
+      const rows = await safeJson(r);
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(409).json({ error: 'This idea is already being worked on, so it can no longer be deleted.' });
+      }
+      return res.status(200).json({ ok: true });
     }
 
     return res.status(400).json({ error: 'Unknown action' });

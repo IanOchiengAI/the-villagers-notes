@@ -94,6 +94,17 @@
 
 ## 2. Chronological Decision & Feedback History
 
+### 2026-10-05 (Ideas tab in the admin; branch `feat/ideas-tab`)
+- **What:** new admin tab "Ideas" where Vic writes changes he'd like; Kasuku Studio groups them into the next phase. Private table `public.ideas` (RLS on, no policies, no anon/authenticated grants; migration `supabase/migrations/20261005_ideas.sql`, applied to production 2026-10-05; anon read and insert verified refused with 42501). Seeded once with Vic's three Signal requests, newsletter sending and the studio's suggestions (`20261005_ideas_seed.sql`).
+- **Rules:** Vic can add ideas and delete only his own ideas still marked New (`api/admin-entries.js` `list_ideas` / `add_idea` / `delete_idea`; the server forces `source='Vic'`, `status='New'` on add). Status (`New`, `Discussed`, `In Phase 2`, `Built`, `Not now`) and the one-line `note` are set by Ian outside the dashboard (SQL / Supabase), because Vic and Ian share one admin login. No prices ever appear on this list: prices go only in the phase quote. No new serverless function (Hobby limit of 12).
+- **Scope decision (Ian, 2026-10-05):** M-Pesa into Vic's own IntaSend account, planned for Phase 2 in the August brief, was delivered early and is covered by the Phase 1 fee; newsletter *sending* (promised for Phase 2 in August, not built) stays in Phase 2. Vic's text tweaks (share prompt, "Read previous/next entry") stay on the Ideas list: no further site changes until a Phase 2 deposit.
+- **Files:** `api/admin-entries.js`, `src/lib/supabase.js`, `src/pages/admin.js`, the two migrations.
+
+### 2026-10-05 (client feedback, parked for Phase 2; no code changed)
+- **Vic (Signal, shared by Ian 2026-10-05), verbatim:** "we keep learning here - can we do a feature to react and reply to comments" / "Kwa share button can we us this? -> Know someone who would enjoy this story? Send it to them." / "kwa previous entry na next entry, we can change to 'read previous entry' na 'read next entry'"
+- **Ian's reply:** "Let me put all of these into a second phase Vik... Keep collecting them"
+- **Status:** Phase 2 backlog, not built. Current state: comments are flat (no reply/parent link, no reactions); entry nav labels are "← Previous entry" / "Next entry →" in `src/pages/entry.js`; share is a "Share" button with a dropdown.
+
 ### 2026-09-30 (share images, on-site play unlock, paywall line removed; branch `feat/share-images-play-unlock`)
 - **Ian, 2026-09-30:** "We can do away with this instruction" → Removed the paywall reader note "Changed phones? Message Vic on WhatsApp with the number you paid from." (`src/pages/entry.js`). Server refusal errors (NO_ACCESS / ALREADY_CLAIMED) still direct paying readers to Vic.
 - **Ian, 2026-09-30:** "Sharing a link doesn't come with the image of that specific post, it's still the VN logo." → WhatsApp ignores `og:image` previews larger than ~300 KB, and several covers are multi-MB phone photos. Added automated client-side resizing (`src/lib/image-resize.js`): covers shrink to ≤1600 px JPEG, and a 1200×630 center-cropped share image (≤250 KB) is automatically created and uploaded to `entries.og_image_url`. Added "Create share images" batch tool in Admin to backfill existing entries. `api/entry-meta.js` selects `og_image_url` with secure_url, type, width, and height tags.

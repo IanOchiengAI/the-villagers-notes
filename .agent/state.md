@@ -93,7 +93,7 @@
 - [x] `PLAY_PRIVATE_LINK` set in Vercel by Ian (do NOT commit the value anywhere). **Not yet verified** end to end: needs a redeploy after the variable was added, and a first paid play order to see the "Email the private link" button. Consider moving the video to Vic's own YouTube channel (it is currently unlisted on a third party's).
 - [x] Shared-likes migration `supabase/migrations/20260925_shared_likes.sql` run by Ian; verified 2026-09-25: `adjust_likes` exists, security definer, executable only by `service_role` (anon and authenticated refused, HTTP 401 on a direct call); live `/api/like` +1 then -1 round trip returned 1 then 0 (test like undone).
 - [ ] After merging: confirm on the live site that `/entries/<slug>` shows the story text with JS disabled (`curl`), that a shared link previews the right story, and that GA4 Realtime still shows page views (CSP changed). Then re-submit `https://thevillagersnotes.com/sitemap.xml` in Google Search Console.
-- [ ] Confirm the reflected-XSS fix on the deployed site with a harmless slug such as `/entries/'-console.log(1)-'` (should redirect to /entries).
+- [x] (Verified live 2026-10-05: 302 to /entries.) Confirm the reflected-XSS fix on the deployed site with a harmless slug such as `/entries/'-console.log(1)-'` (should redirect to /entries).
 - [x] (Checked 2026-09-27: all listed claims are gone; fee section finalised.) Fix the handover document's inaccurate claims before sending it to Vic (see the review given to Ian on 2026-09-25): no per-story artwork in previews, "cryptographic release", ISBN/production history in the JSON-LD, "zero ongoing dependencies / no platform percentages" (IntaSend charges a fee; domain renewal; free-tier limits), Instrument Serif (dropped), taxonomy filtering, `/#/admin` link, stale action item 03, and whether the studio link should be `kasuku-studios.web.app` (as in the site footer) or `kasukustudio.com`.
 - [x] Send Vic the handover (Save as PDF from the browser) (password already sent on Signal; the balance now credits Vic's August domain payment). Once the IntaSend webhook is live, restore the "works even if the buyer closes the page" line in the handover.
 - [ ] Tell Vic the admin Book and Settings tabs were removed (they never changed anything for readers) and that Comments is new. (Superseded 2026-09-28: a new Settings tab now exists, for prices and the play link.)
@@ -109,6 +109,11 @@
 - [x] (done 2026-09-29, plus follow-up `20260929_entries_media_column_grants.sql`; verified) **Ian: run `supabase/migrations/20260928_media_prices_access.sql`** in the Supabase SQL editor BEFORE deploying (reader pages select the new columns). Then the lead verifies with the security advisor and anon checks.
 - [x] Deployed (PR #2, 2026-09-29); automated live checks passed. - [ ] Ian still to check (admin password / phone): entry typography, image/audio upload and share preview, YouTube embed, prices on /projects + amount charged, Settings tab, paid unlock on one device, Give access link works once, Revoke.
 - [ ] Tell Vic: new Settings and Paid readers tabs; unlock code gone; readers who change phones contact him on WhatsApp.
+
+### Phase 2 backlog — lives in the Supabase `ideas` table (admin Ideas tab) since 2026-10-05
+- The list is the source of truth; do not duplicate it here. Ask the agent to read it (`select * from ideas order by created_at`) and to set `status` / `note` when Ian decides.
+- [ ] No site changes until Vic pays a Phase 2 deposit (Ian, 2026-10-05).
+- [ ] Handover: remove the reader "unlock code" wording (2 places), add Ideas / Settings / Paid readers tabs and entry media, note newsletter sending moves to Phase 2; regenerate the PDF.
 
 ---
 
@@ -147,3 +152,5 @@
 | 2026-09-30 (2) | Webhook activated & tested; handover finalised; admin UI jargon cleaned up |
 | 2026-09-30 | Planned + wrote share images, on-site play unlock, paywall line removal on `feat/share-images-play-unlock`; handoff plan `.agent/plans/2026-09-30-share-images-play-unlock.md`. |
 | 2026-09-30 (testing & board) | Reviewed branch diff (CSP & escaping verified, 12 API files kept); expanded server test suite to 132 tests (100% pass); tested live Supabase status; updated DECISIONS_LOG (1.1, 1.6, 1.7, Sec 2); ship-check passed. |
+| 2026-10-05 (ideas) | Built the admin Ideas tab (branch `feat/ideas-tab`), applied the `ideas` table migration + seed to production, 10 offline API tests pass, ship-check pass. |
+| 2026-10-05 | Pre-invoice review (research only): live checks pass (XSS slug redirects, entry SSR + own og:image, real 404). Found handover HTML still describes the removed reader unlock code (2 places) and omits Settings / Paid readers tabs and entry media; handover PDF (27 Sep) is older than the HTML (30 Sep). Phase 2 scope drafted for Ian. |
