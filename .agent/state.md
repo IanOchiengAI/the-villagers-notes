@@ -113,7 +113,7 @@
 ### Phase 2 backlog — lives in the Supabase `ideas` table (admin Ideas tab) since 2026-10-05
 - The list is the source of truth; do not duplicate it here. Ask the agent to read it (`select * from ideas order by created_at`) and to set `status` / `note` when Ian decides.
 - [ ] No site changes until Vic pays a Phase 2 deposit (Ian, 2026-10-05).
-- [ ] Handover: remove the reader "unlock code" wording (2 places), add Ideas / Settings / Paid readers tabs and entry media, note newsletter sending moves to Phase 2; regenerate the PDF.
+- [x] Handover updated 2026-10-05 (unlock-code wording removed, Settings / Paid readers / Ideas tabs and entry media added, M-Pesa-early + newsletter-to-Phase-2 swap in the fee lists, date 5 Oct); PDF regenerated, no Type3 fonts. Send only AFTER PR #10 is merged and live (the handover tells Vic his requests are already on the Ideas tab).
 
 ---
 
