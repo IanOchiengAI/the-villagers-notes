@@ -339,6 +339,10 @@ export async function addCommentToDB(entryId, author, commentText) {
 // ── Admin: comment moderation, order status, stats ────────────────────────────
 export const listCommentsAdmin = () => callAdminEntries({ action: 'list_comments' });
 export const deleteCommentAdmin = (commentId) => callAdminEntries({ action: 'delete_comment', commentId });
+// Ideas (2026-10-05): data = { ideas } / { idea }
+export const listIdeasAdmin = () => callAdminEntries({ action: 'list_ideas' });
+export const addIdeaAdmin = (ideaText, entryId) => callAdminEntries({ action: 'add_idea', ideaText, entryId: entryId || null });
+export const deleteIdeaAdmin = (ideaId) => callAdminEntries({ action: 'delete_idea', ideaId });
 export const setOrderStatusAdmin = (orderId, status) => callAdminEntries({ action: 'set_order_status', orderId, status });
 
 // ── Admin: media, prices, private play link, paid-entry access (2026-09-28) ────

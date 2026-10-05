@@ -2,7 +2,7 @@ import '../components/admin-media.css';
 import { makeShareImage, shrinkCover } from '../lib/image-resize.js';
 import {
   getEntriesFromDB, upsertEntryToDB, deleteEntryFromDB, getEntryFullBodyFromDB,
-  listCommentsAdmin, deleteCommentAdmin, setOrderStatusAdmin, getStatsAdmin, getCounters,
+  listCommentsAdmin, deleteCommentAdmin, listIdeasAdmin, addIdeaAdmin, deleteIdeaAdmin, setOrderStatusAdmin, getStatsAdmin, getCounters,
   createMediaUploadAdmin, uploadEntryMedia, getSettingsAdmin, setPricesAdmin, setPlayLinkAdmin, setTrailerAdmin, setOgImageAdmin,
   listPurchasesAdmin, grantAccessAdmin, revokeAccessAdmin,
 } from '../lib/supabase.js';
@@ -133,6 +133,7 @@ function renderDashboard(app) {
     entries: null, entriesErr: null,
     stats: null, statsErr: null,
     comments: null, commentsErr: null,
+    ideas: null, ideasErr: null,
     purchases: null, purchasesErr: null,
     settings: null, settingsErr: null,
   };
@@ -144,6 +145,7 @@ function renderDashboard(app) {
     { id: 'entries', label: 'Entries' },
     { id: 'paid', label: 'Paid readers' },
     { id: 'comments', label: 'Comments' },
+    { id: 'ideas', label: 'Ideas' },
     { id: 'settings', label: 'Settings' },
     { id: 'analytics', label: 'Stats' },
     { id: 'logout', label: 'Log out' },
@@ -195,6 +197,14 @@ function renderDashboard(app) {
     if (!r.ok) { store.commentsErr = r.error || "Couldn't load comments."; return; }
     store.comments = r.data.comments || [];
   }
+  async function loadIdeas(force) {
+    if (store.ideas && !force) return;
+    store.ideasErr = null;
+    const r = await listIdeasAdmin();
+    if (r.status === 401) { handleSessionExpired(app); return 'expired'; }
+    if (!r.ok) { store.ideasErr = r.error || "Couldn't load your ideas."; return; }
+    store.ideas = r.data.ideas || [];
+  }
   async function loadPurchases(force) {
     if (store.purchases && !force) return;
     store.purchasesErr = null;
@@ -223,6 +233,7 @@ function renderDashboard(app) {
     if (section === 'people') expired = await loadStats(force);
     else if (section === 'entries') await loadEntries(force);
     else if (section === 'comments') expired = await loadComments(force);
+    else if (section === 'ideas') { expired = await loadIdeas(force); if (expired !== 'expired' && !store.entries) await loadEntries(); }
     else if (section === 'paid') expired = await loadPurchases(force);
     else if (section === 'settings') expired = await loadSettings(force);
     if (expired === 'expired') return;
@@ -232,6 +243,7 @@ function renderDashboard(app) {
     if (section === 'people') body = store.statsErr ? errorBlock(store.statsErr, 'retry-btn') : renderPeople(store.stats);
     else if (section === 'entries') body = store.entriesErr ? errorBlock(store.entriesErr, 'retry-btn') : renderEntriesSection(store.entries);
     else if (section === 'comments') body = store.commentsErr ? errorBlock(store.commentsErr, 'retry-btn') : renderCommentsSection(store.comments);
+    else if (section === 'ideas') body = store.ideasErr ? errorBlock(store.ideasErr, 'retry-btn') : renderIdeasSection(store.ideas);
     else if (section === 'paid') body = store.purchasesErr ? errorBlock(store.purchasesErr, 'retry-btn') : renderPaidReadersSection(store.purchases);
     else if (section === 'settings') body = store.settingsErr ? errorBlock(store.settingsErr, 'retry-btn') : renderSettingsSection(store.settings);
     else if (section === 'analytics') body = renderAnalyticsSection();
@@ -242,6 +254,7 @@ function renderDashboard(app) {
     if (section === 'people' && !store.statsErr) wirePeople();
     if (section === 'entries' && !store.entriesErr) wireEntries();
     if (section === 'comments' && !store.commentsErr) wireComments();
+    if (section === 'ideas' && !store.ideasErr) wireIdeas();
     if (section === 'paid' && !store.purchasesErr) wirePaidReaders();
     if (section === 'settings' && !store.settingsErr) wireSettings();
     if (section === 'analytics') wireAnalytics();
@@ -451,6 +464,121 @@ function renderDashboard(app) {
         }
         store.comments = store.comments.filter((c) => c.id !== id);
         show('comments');
+      });
+    });
+  }
+
+  // ── Ideas: Vic's list of changes for the next phase (2026-10-05) ───────────
+  // Status and Ian's note are set outside the dashboard; here Vic only adds, reads,
+  // and deletes his own ideas that are still New (the server enforces both).
+  const IDEA_STATUS_STYLE = {
+    'New': 'background:var(--bg-subtle);color:var(--text-muted);',
+    'Discussed': 'background:hsl(210 60% 94%);color:hsl(210 50% 32%);',
+    'In Phase 2': 'background:hsl(40 85% 90%);color:hsl(32 70% 28%);',
+    'Built': 'background:hsl(140 45% 90%);color:hsl(140 45% 26%);',
+    'Not now': 'background:var(--bg-subtle);color:var(--text-muted);text-decoration:line-through;',
+  };
+  const IDEA_MAX = 2000;
+  // Own key, not tvn_draft_*: an unsent idea must not trigger the unsaved-entry warnings.
+  const loadIdeaDraft = () => { try { return localStorage.getItem('tvn_idea_draft') || ''; } catch { return ''; } };
+  const saveIdeaDraft = (v) => { try { if (v) localStorage.setItem('tvn_idea_draft', v); else localStorage.removeItem('tvn_idea_draft'); } catch (_) {} };
+
+  function renderIdeasSection(list) {
+    const entries = store.entries || [];
+    const titleOf = (id) => entries.find((e) => e.id === id)?.title;
+    const pill = (st) => `<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:0.68rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap;${IDEA_STATUS_STYLE[st] || IDEA_STATUS_STYLE.New}">${esc(st)}</span>`;
+    const draft = loadIdeaDraft();
+    return `
+      <div>
+        <div style="margin-bottom:28px;">
+          <p style="${EYEBROW_CSS}">For the next phase</p>
+          <h2 style="${H2_CSS}">Ideas (${list.length})</h2>
+          <p style="color:var(--text-muted);margin-top:10px;line-height:1.55;max-width:60ch;">Anything you'd like added or changed on the site, write it here. Kasuku Studio reviews the list regularly and groups ideas into the next phase. Each idea shows where it stands.</p>
+        </div>
+        <form id="idea-form" style="${CARD_CSS}">
+          <label for="idea-text" style="${LABEL_CSS}">Your idea</label>
+          <textarea id="idea-text" rows="4" maxlength="${IDEA_MAX}" placeholder="e.g. Let readers reply to each other's comments." style="${FIELD_CSS}resize:vertical;margin-bottom:6px;">${esc(draft)}</textarea>
+          <div id="idea-count" style="font-size:0.72rem;color:var(--text-muted);text-align:right;margin-bottom:14px;">${draft.length} / ${IDEA_MAX}</div>
+          <label for="idea-entry" style="${LABEL_CSS}">About a particular entry? (optional)</label>
+          <select id="idea-entry" style="${FIELD_CSS}margin-bottom:18px;">
+            <option value="">The whole site</option>
+            ${entries.map((e) => `<option value="${esc(e.id)}">${esc(e.title)}</option>`).join('')}
+          </select>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <button type="submit" id="idea-save" style="padding:10px 22px;border:none;border-radius:999px;background:var(--text);color:var(--white);font-weight:600;cursor:pointer;">Add idea</button>
+            <span id="idea-msg" role="status" style="font-size:0.82rem;"></span>
+          </div>
+        </form>
+        <div style="${CARD_CSS.replace('margin-bottom:32px;', '')}">
+          ${list.length === 0 ? `<p style="color:var(--text-muted);">No ideas yet.</p>` : list.map((i) => {
+            const about = i.entry_id ? titleOf(i.entry_id) : null;
+            const canDelete = i.source === 'Vic' && i.status === 'New';
+            return `
+            <div style="padding:16px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:16px;align-items:flex-start;">
+              <div style="min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                  ${pill(i.status)}
+                  <span style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">${i.source === 'Vic' ? 'You' : 'Kasuku Studio'} &middot; ${esc(new Date(i.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }))}${about ? ` &middot; ${esc(about)}` : ''}</span>
+                </div>
+                <div style="font-size:0.95rem;line-height:1.55;overflow-wrap:anywhere;white-space:pre-wrap;">${esc(i.body)}</div>
+                ${i.note ? `<div style="font-size:0.85rem;line-height:1.5;color:var(--text-muted);margin-top:6px;border-left:2px solid var(--border);padding-left:10px;">${esc(i.note)}</div>` : ''}
+                <div data-idea-msg="${esc(i.id)}" role="status" style="font-size:0.78rem;margin-top:4px;color:hsl(0 60% 42%);"></div>
+              </div>
+              ${canDelete ? `<button type="button" data-del-idea="${esc(i.id)}" style="padding:6px 14px;border:1.5px solid hsl(0 60% 88%);border-radius:999px;font-size:0.75rem;font-weight:600;cursor:pointer;background:none;color:hsl(0 60% 45%);flex-shrink:0;">Delete</button>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+
+  function wireIdeas() {
+    const text = app.querySelector('#idea-text');
+    const count = app.querySelector('#idea-count');
+    const msg = app.querySelector('#idea-msg');
+    const save = app.querySelector('#idea-save');
+    text?.addEventListener('input', () => {
+      count.textContent = `${text.value.length} / ${IDEA_MAX}`;
+      saveIdeaDraft(text.value);
+    });
+    app.querySelector('#idea-form')?.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const value = text.value.trim();
+      if (!value) { msg.style.color = 'hsl(0 60% 42%)'; msg.textContent = 'Write your idea first.'; return; }
+      save.disabled = true;
+      save.textContent = 'Adding…';
+      const r = await addIdeaAdmin(value, app.querySelector('#idea-entry').value);
+      if (r.status === 401) { handleSessionExpired(app); return; }
+      if (!r.ok) {
+        save.disabled = false;
+        save.textContent = 'Add idea';
+        msg.style.color = 'hsl(0 60% 42%)';
+        msg.textContent = r.error || "Couldn't save your idea. Nothing was lost; try again.";
+        return;
+      }
+      saveIdeaDraft('');
+      if (r.data.idea) store.ideas = [r.data.idea, ...(store.ideas || [])];
+      else store.ideas = null;
+      await show('ideas');
+      const m = app.querySelector('#idea-msg');
+      if (m) { m.style.color = 'hsl(140 45% 30%)'; m.textContent = 'Added. Thank you!'; }
+    });
+    app.querySelectorAll('[data-del-idea]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this idea?')) return;
+        const id = btn.dataset.delIdea;
+        const m = app.querySelector(`[data-idea-msg="${CSS.escape(id)}"]`);
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+        const r = await deleteIdeaAdmin(id);
+        if (r.status === 401) { handleSessionExpired(app); return; }
+        if (!r.ok) {
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+          if (m) m.textContent = r.error || "Couldn't delete this idea.";
+          return;
+        }
+        store.ideas = store.ideas.filter((i) => i.id !== id);
+        show('ideas');
       });
     });
   }
