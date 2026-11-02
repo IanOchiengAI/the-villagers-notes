@@ -1,0 +1,21 @@
+{
+  "generated": "2026-11-02",
+  "note": "Backup of all og_image_url values before switching to the editorial overlay design (feat/editorial-share-cards). To revert: paste each og_image_url back via the admin set_og_image action, or run the rollback script.",
+  "entries": [
+    { "id": "1793612955063", "title": "The First Time - Adulting", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1793611812927-6582e264.jpg" },
+    { "id": "1792997932988", "title": "They Put a Coffin in Front of Me", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1792997355184-f565ea45.jpg" },
+    { "id": "1792400064063", "title": "How to be Human", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1792399774648-a9023ee9.jpg" },
+    { "id": "1791939326966", "title": "17095", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1791936541247-a81bc109.jpg" },
+    { "id": "1791382709059", "title": "The Pot Breaks at the Door", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1791382554946-93965aec.jpg" },
+    { "id": "1790888836141", "title": "Dream Zero Zero One", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790888467826-91855f61.jpg" },
+    { "id": "1790492586191", "title": "One Woman One Bra: A Review", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747448773-e33525d0.jpg" },
+    { "id": "1790110095559", "title": "Ward Seventeen", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747451207-7d5ad525.jpg" },
+    { "id": "1789596185896", "title": "My Tongue Forgot Its Way Home.", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747453610-4e54e123.jpg" },
+    { "id": "1789164489380", "title": "What it Means When a Man Falls From the Sky", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747455459-b8092e0b.jpg" },
+    { "id": "1788778485958", "title": "The Ten Touches", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747458387-fd8253c8.jpg" },
+    { "id": "1788352166228", "title": "Memory of Princess Mumbi: A Review", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747460538-7b124f0a.jpg" },
+    { "id": "1787834049588", "title": "The Mother of a Martyr", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747463034-811e81c2.jpg" },
+    { "id": "in-the-wake-of-anam-s-wake-a-short-story-about-death", "title": "In the Wake of Anam's Wake, a Short Story About Death", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747465111-1634533e.jpg" },
+    { "id": "musings-from-the-edge-of-a-blank-page", "title": "Musings From the Edge of a Blank Page", "og_image_url": "https://bjbqhvvwrllwscshqyvl.supabase.co/storage/v1/object/public/entry-media/image/1790747467369-08aa666c.jpg" }
+  ]
+}

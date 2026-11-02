@@ -1,4 +1,4 @@
-import '../components/admin-media.css';
+﻿import '../components/admin-media.css';
 import { makeShareImage, shrinkCover } from '../lib/image-resize.js';
 import {
   getEntriesFromDB, upsertEntryToDB, deleteEntryFromDB, getEntryFullBodyFromDB,
@@ -977,17 +977,22 @@ function renderDashboard(app) {
           <button type="button" id="new-entry-btn" style="padding:10px 22px;background:var(--accent);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:700;cursor:pointer;">+ New Entry</button>
         </div>
         ${(() => {
-          // One-time helper for covers uploaded before share images existed.
-          const missing = entries.filter((e) => e.imageUrl && !e.ogImageUrl).length;
-          return missing ? `
+          // Create/Regenerate share image cards.
+          const missing  = entries.filter((e) => e.imageUrl && !e.ogImageUrl).length;
+          const hasCover = entries.filter((e) => e.imageUrl).length;
+          return `
             <div style="${CARD_CSS}display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;">
               <div style="flex:1 1 260px;">
-                <p style="font-weight:700;margin:0 0 4px;">${missing} ${missing === 1 ? 'entry needs' : 'entries need'} a share image</p>
-                <p style="font-size:0.8rem;color:var(--text-muted);margin:0;line-height:1.5;">So the cover shows when a link is shared on WhatsApp. Takes a few seconds; nothing else changes.</p>
-              </div>
-              <button type="button" id="make-share-images-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Create share images</button>
-              <span id="share-images-status" role="status" style="font-size:0.85rem;flex-basis:100%;"></span>
-            </div>` : '';
+                ${missing ? `<p style="font-weight:700;margin:0 0 4px;">${missing} ${missing === 1 ? 'entry needs' : 'entries need'} a share image</p>` : `<p style="font-weight:700;margin:0 0 4px;">Share images (WhatsApp preview cards)</p>`}
+                <p style="font-size:0.8rem;color:var(--text-muted);margin:0;line-height:1.5;">Editorial cards shown when a link is shared. Use <em>Regenerate all</em> to rebuild every card with the new design.</p>
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                ${missing ? `<button type="button" id="make-share-images-btn" style="padding:10px 22px;background:var(--text);color:var(--white);border:none;border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">Create missing (${missing})</button>` : ''}
+                ${hasCover ? `<button type="button" id="regen-share-images-btn" style="padding:10px 22px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:999px;font-size:0.85rem;font-weight:600;cursor:pointer;">&#8635; Regenerate all (${hasCover})</button>` : ''}
+              </div>
+              <span id="share-images-status" role="status" style="font-size:0.85rem;flex-basis:100%;"></span>
+            </div>`;
+        })()}
         })()}
 
         <div id="new-entry-form" style="display:none;background:var(--white);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:28px;box-sizing:border-box;">
@@ -1297,8 +1302,8 @@ function renderDashboard(app) {
             const og = app.querySelector(`#${p}-ogImageUrl`);
             if (og) og.value = '';
             try {
-              const shareUrl = await uploadBlob('image', await makeShareImage(toSend), 'share.jpg');
-              if (shareUrl === null) return;
+              const shareMeta = { title: g('title')?.value || '', excerpt: g('excerpt')?.value || '', category: g('category')?.value || '', price: Number(g('price')?.value) || 0 };
+              const shareUrl = await uploadBlob('image', await makeShareImage(toSend, shareMeta), 'share.jpg');
               if (og) og.value = shareUrl;
             } catch (_) {
               // Not fatal: the preview falls back to the cover itself.
@@ -1456,31 +1461,49 @@ function renderDashboard(app) {
     const entries = store.entries;
     const newForm = app.querySelector('#new-entry-form');
 
+    // Helper: build one share card (with editorial overlay meta) and save it.
+    async function buildShareCard(e, btn, say, done, total) {
+      say(`Working on \"\" ( of )\u2026`);
+      const meta = { title: e.title, excerpt: e.excerpt || '', category: e.category || '', price: Number(e.price) || 0 };
+      const url = await uploadBlob('image', await makeShareImage(e.imageUrl, meta), 'share.jpg');
+      if (url === null) throw new Error('session');
+      const r = await setOgImageAdmin(e.id, url);
+      if (r.status === 401) throw new Error('401');
+      if (!r.ok) throw new Error(r.error);
+      e.ogImageUrl = url;
+    }
+
+    // Create missing share images.
     app.querySelector('#make-share-images-btn')?.addEventListener('click', async (ev) => {
       const btn = ev.currentTarget;
       const status = app.querySelector('#share-images-status');
       const say = (m, ok) => { if (status) { status.style.color = ok === undefined ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'); status.textContent = m; } };
       const todo = (store.entries || []).filter((e) => e.imageUrl && !e.ogImageUrl);
-      btn.disabled = true;
-      let done = 0;
-      const failed = [];
+      btn.disabled = true; let done = 0; const failed = [];
       for (const e of todo) {
-        say(`Working on "${e.title}" (${done + 1} of ${todo.length})…`);
-        try {
-          const url = await uploadBlob('image', await makeShareImage(e.imageUrl), 'share.jpg');
-          if (url === null) return; // session expired, already handled
-          const r = await setOgImageAdmin(e.id, url);
-          if (r.status === 401) { handleSessionExpired(app); return; }
-          if (!r.ok) throw new Error(r.error);
-          e.ogImageUrl = url;
-          done++;
-        } catch (_) {
-          failed.push(e.title);
-        }
+        try { await buildShareCard(e, btn, say, done, todo.length); done++; }
+        catch (err) { if (err.message === '401') { handleSessionExpired(app); return; } failed.push(e.title); }
       }
       btn.disabled = false;
-      if (failed.length) say(`Done ${done} of ${todo.length}. Couldn't do: ${failed.join(', ')}. Try again, or re-upload that cover.`, false);
-      else { say(`All ${done} done ✓`, true); btn.style.display = 'none'; }
+      if (failed.length) say(`Done  of . Couldn't do: . Try again, or re-upload that cover.`, false);
+      else { say(`All  done \u2713`, true); btn.style.display = 'none'; }
+    });
+
+    // Regenerate ALL share images (even existing ones — new editorial design).
+    app.querySelector('#regen-share-images-btn')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      const status = app.querySelector('#share-images-status');
+      const say = (m, ok) => { if (status) { status.style.color = ok === undefined ? 'var(--text-muted)' : (ok ? 'hsl(143 55% 28%)' : 'hsl(0 60% 42%)'); status.textContent = m; } };
+      if (!confirm(`Rebuild share images for all  entries with the new editorial design? This replaces the existing previews.`)) return;
+      const todo = (store.entries || []).filter((e) => e.imageUrl);
+      btn.disabled = true; let done = 0; const failed = [];
+      for (const e of todo) {
+        try { await buildShareCard(e, btn, say, done, todo.length); done++; }
+        catch (err) { if (err.message === '401') { handleSessionExpired(app); return; } failed.push(e.title); }
+      }
+      btn.disabled = false;
+      if (failed.length) say(`Done  of . Couldn't do: .`, false);
+      else say(`All  regenerated \u2713`, true);
     });
 
     function openNew() {
